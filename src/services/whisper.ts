@@ -1,21 +1,24 @@
 import * as FileSystem from 'expo-file-system';
 
-const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
+const GROQ_TRANSCRIPTION_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
+// whisper-large-v3-turbo is faster and still high quality on the free tier.
+const MODEL = 'whisper-large-v3-turbo';
 
 /**
- * Transcribe one or more audio files via OpenAI Whisper (whisper-1) and
- * concatenate the results in order. Each file is uploaded as multipart/form-data
- * directly from its file URI — we never load the bytes into JS memory.
+ * Transcribe one or more audio files via Groq's free-tier Whisper endpoint
+ * (OpenAI-compatible) and concatenate the results in order. Each file is
+ * uploaded as multipart/form-data directly from its file URI — we never
+ * load the bytes into JS memory.
  *
- * The SermonRecorder rotates files at ~22 MB to stay safely under Whisper's
- * 25 MB per-file limit, so each individual upload here is just a single POST.
+ * SermonRecorder rotates files at ~22 MB to stay safely under the 25 MB
+ * per-file limit, so each individual upload here is a single POST.
  */
 export async function transcribeAudio(
   audioUris: string[],
   apiKey: string,
   opts: { language?: string; signal?: AbortSignal } = {},
 ): Promise<string> {
-  if (!apiKey) throw new Error('OpenAI API key is not set. Add it in Settings.');
+  if (!apiKey) throw new Error('Groq API key is not set. Add it in Settings.');
   if (audioUris.length === 0) return '';
 
   const parts: string[] = [];
@@ -34,12 +37,14 @@ async function transcribeOne(
   const info = await FileSystem.getInfoAsync(uri);
   if (!info.exists) throw new Error(`Audio file missing: ${uri}`);
 
-  // Use uploadAsync so the OS streams the file straight into the request body.
-  const params: Record<string, string> = { model: 'whisper-1' };
+  const params: Record<string, string> = {
+    model: MODEL,
+    response_format: 'json',
+  };
   if (opts.language) params.language = opts.language;
 
   const result = await retryWithBackoff(async () => {
-    const r = await FileSystem.uploadAsync(WHISPER_URL, uri, {
+    const r = await FileSystem.uploadAsync(GROQ_TRANSCRIPTION_URL, uri, {
       httpMethod: 'POST',
       uploadType: FileSystem.FileSystemUploadType.MULTIPART,
       fieldName: 'file',
@@ -50,7 +55,7 @@ async function transcribeOne(
       },
     });
     if (r.status < 200 || r.status >= 300) {
-      throw new Error(`Whisper request failed (${r.status}): ${r.body}`);
+      throw new Error(`Groq transcription failed (${r.status}): ${r.body}`);
     }
     return r.body;
   });
@@ -59,7 +64,7 @@ async function transcribeOne(
     const json = JSON.parse(result) as { text?: string };
     return json.text ?? '';
   } catch {
-    throw new Error(`Whisper returned non-JSON response: ${result.slice(0, 200)}`);
+    throw new Error(`Groq returned non-JSON response: ${result.slice(0, 200)}`);
   }
 }
 

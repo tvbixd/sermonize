@@ -13,11 +13,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SermonRecorder } from '@/audio/SermonRecorder';
 import { RecordButton } from '@/components/RecordButton';
 import { lookupVerses } from '@/services/bible';
-import { extractOutline } from '@/services/claude';
+import { extractOutline } from '@/services/outline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
 import { transcribeAudio } from '@/services/whisper';
 import { useSessionStore } from '@/state/sessionStore';
-import { getAnthropicKey, getOpenAiKey, getTranslation } from '@/storage/keys';
+import { getGroqKey, getTranslation } from '@/storage/keys';
 import { ensureAudioDir, saveSermon } from '@/storage/sermons';
 import type { ProcessingStep, Sermon } from '@/types';
 import { formatElapsed } from '@/util/format';
@@ -26,7 +26,7 @@ import { newId } from '@/util/id';
 const STEP_LABEL: Record<ProcessingStep, string> = {
   idle: '',
   transcribing: 'Transcribing audio…',
-  outlining: 'Outlining sermon with Claude…',
+  outlining: 'Outlining sermon…',
   scriptures: 'Looking up scriptures…',
   saving: 'Saving sermon…',
   done: 'Done!',
@@ -126,18 +126,17 @@ export default function RecordScreen() {
     setError(null);
     setRetryAvailable(false);
 
-    const openaiKey = await getOpenAiKey();
-    const anthropicKey = await getAnthropicKey();
-    if (!openaiKey || !anthropicKey) {
-      throw new Error('API keys are not set. Open Settings to add them.');
+    const groqKey = await getGroqKey();
+    if (!groqKey) {
+      throw new Error('Groq API key is not set. Open Settings to add it.');
     }
     const translation = await getTranslation();
 
     setStep('transcribing');
-    const transcript = await transcribeAudio(audioUrisRef.current, openaiKey);
+    const transcript = await transcribeAudio(audioUrisRef.current, groqKey);
 
     setStep('outlining');
-    const outline = await extractOutline(transcript, anthropicKey);
+    const outline = await extractOutline(transcript, groqKey);
 
     setStep('scriptures');
     const allRefs = new Set<string>();

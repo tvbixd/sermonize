@@ -14,9 +14,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { OutlineView } from '@/components/OutlineView';
 import { ScriptureCard } from '@/components/ScriptureCard';
 import { lookupVerses } from '@/services/bible';
-import { extractOutline } from '@/services/claude';
+import { extractOutline } from '@/services/outline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
-import { getAnthropicKey, getTranslation } from '@/storage/keys';
+import { getGroqKey, getTranslation } from '@/storage/keys';
 import { getSermon, saveSermon } from '@/storage/sermons';
 import type { Sermon } from '@/types';
 import { formatDate, formatElapsed, sermonToMarkdown } from '@/util/format';
@@ -59,10 +59,10 @@ export default function SermonDetail() {
     if (!sermon.transcript.trim()) return;
     setBusy(true);
     try {
-      const anthropicKey = await getAnthropicKey();
-      if (!anthropicKey) throw new Error('Anthropic API key is not set.');
+      const groqKey = await getGroqKey();
+      if (!groqKey) throw new Error('Groq API key is not set.');
       const translation = await getTranslation();
-      const outline = await extractOutline(sermon.transcript, anthropicKey);
+      const outline = await extractOutline(sermon.transcript, groqKey);
       const refs = new Set<string>(findScriptureReferences(sermon.transcript));
       for (const p of outline.points) for (const r of p.scriptures) refs.add(r);
       const scriptures = await lookupVerses([...refs], translation);

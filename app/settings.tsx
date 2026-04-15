@@ -11,11 +11,9 @@ import {
   View,
 } from 'react-native';
 import {
-  getAnthropicKey,
-  getOpenAiKey,
+  getGroqKey,
   getTranslation,
-  setAnthropicKey,
-  setOpenAiKey,
+  setGroqKey,
   setTranslation,
 } from '@/storage/keys';
 
@@ -27,23 +25,20 @@ const TRANSLATIONS = [
 ];
 
 export default function SettingsScreen() {
-  const [openai, setOpenai] = useState('');
-  const [anthropic, setAnthropic] = useState('');
+  const [groq, setGroq] = useState('');
   const [translation, setTrans] = useState('web');
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     void (async () => {
-      setOpenai((await getOpenAiKey()) ?? '');
-      setAnthropic((await getAnthropicKey()) ?? '');
+      setGroq((await getGroqKey()) ?? '');
       setTrans(await getTranslation());
       setLoaded(true);
     })();
   }, []);
 
   const onSave = async () => {
-    await setOpenAiKey(openai.trim());
-    await setAnthropicKey(anthropic.trim());
+    await setGroqKey(groq.trim());
     await setTranslation(translation);
     Alert.alert('Saved', 'Your settings have been stored securely on this device.');
   };
@@ -56,25 +51,16 @@ export default function SettingsScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.label}>OpenAI API Key</Text>
-        <Text style={styles.help}>Used for Whisper transcription. Stored in secure storage on this device.</Text>
+        <Text style={styles.label}>Groq API Key</Text>
+        <Text style={styles.help}>
+          Sermonize uses Groq's free tier for both transcription (Whisper) and outlining (Llama 3.3 70B).
+          Create a free account and key at console.groq.com — no credit card required. Stored securely on this device.
+        </Text>
         <TextInput
           style={styles.input}
-          value={openai}
-          onChangeText={setOpenai}
-          placeholder="sk-..."
-          autoCapitalize="none"
-          autoCorrect={false}
-          secureTextEntry
-        />
-
-        <Text style={styles.label}>Anthropic API Key</Text>
-        <Text style={styles.help}>Used for outlining via Claude. Stored in secure storage on this device.</Text>
-        <TextInput
-          style={styles.input}
-          value={anthropic}
-          onChangeText={setAnthropic}
-          placeholder="sk-ant-..."
+          value={groq}
+          onChangeText={setGroq}
+          placeholder="gsk_..."
           autoCapitalize="none"
           autoCorrect={false}
           secureTextEntry
