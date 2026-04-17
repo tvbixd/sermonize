@@ -1,4 +1,5 @@
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -21,32 +22,32 @@ import { transcribeAudio } from '@/services/whisper';
 import { useSessionStore } from '@/state/sessionStore';
 import { getGroqKey, getTranslation } from '@/storage/keys';
 import { ensureAudioDir, saveSermon } from '@/storage/sermons';
+import { colors, radius, spacing, typography } from '@/theme';
 import type { Sermon } from '@/types';
 import { formatElapsed } from '@/util/format';
 import { newId } from '@/util/id';
 
-// Regenerate outline after every N chunks
 const OUTLINE_EVERY_N_CHUNKS = 2;
 
 export default function RecordScreen() {
   const router = useRouter();
 
-  const status      = useSessionStore((s) => s.status);
-  const step        = useSessionStore((s) => s.step);
-  const elapsedMs   = useSessionStore((s) => s.elapsedMs);
-  const errorMessage = useSessionStore((s) => s.errorMessage);
+  const status         = useSessionStore((s) => s.status);
+  const step           = useSessionStore((s) => s.step);
+  const elapsedMs      = useSessionStore((s) => s.elapsedMs);
+  const errorMessage   = useSessionStore((s) => s.errorMessage);
   const liveTranscript = useSessionStore((s) => s.liveTranscript);
-  const liveOutline = useSessionStore((s) => s.liveOutline);
-  const chunkCount  = useSessionStore((s) => s.chunkCount);
+  const liveOutline    = useSessionStore((s) => s.liveOutline);
+  const chunkCount     = useSessionStore((s) => s.chunkCount);
 
-  const setStatus   = useSessionStore((s) => s.setStatus);
-  const setStep     = useSessionStore((s) => s.setStep);
-  const setElapsed  = useSessionStore((s) => s.setElapsed);
-  const setError    = useSessionStore((s) => s.setError);
+  const setStatus        = useSessionStore((s) => s.setStatus);
+  const setStep          = useSessionStore((s) => s.setStep);
+  const setElapsed       = useSessionStore((s) => s.setElapsed);
+  const setError         = useSessionStore((s) => s.setError);
   const appendTranscript = useSessionStore((s) => s.appendTranscript);
   const setLiveOutline   = useSessionStore((s) => s.setLiveOutline);
   const incrementChunk   = useSessionStore((s) => s.incrementChunk);
-  const reset       = useSessionStore((s) => s.reset);
+  const reset            = useSessionStore((s) => s.reset);
 
   const recorderRef   = useRef<SermonRecorder | null>(null);
   const sermonIdRef   = useRef<string>('');
@@ -54,7 +55,7 @@ export default function RecordScreen() {
   const durationRef   = useRef<number>(0);
   const tickerRef     = useRef<ReturnType<typeof setInterval> | null>(null);
   const groqKeyRef    = useRef<string>('');
-  const transcriptRef = useRef<string>(''); // shadow of zustand for use in callbacks
+  const transcriptRef = useRef<string>('');
   const chunkCountRef = useRef<number>(0);
   const [retryAvailable, setRetryAvailable] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
@@ -68,7 +69,6 @@ export default function RecordScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep transcript shadow in sync
   useEffect(() => { transcriptRef.current = liveTranscript; }, [liveTranscript]);
   useEffect(() => { chunkCountRef.current = chunkCount; }, [chunkCount]);
 
@@ -83,7 +83,6 @@ export default function RecordScreen() {
     if (tickerRef.current) { clearInterval(tickerRef.current); tickerRef.current = null; }
   };
 
-  /** Called each time a 30s chunk is ready — transcribe it immediately. */
   const onChunkReady = async (chunkUri: string) => {
     try {
       const text = await transcribeAudio([chunkUri], groqKeyRef.current);
@@ -91,14 +90,13 @@ export default function RecordScreen() {
       appendTranscript(text);
       incrementChunk();
       const newCount = chunkCountRef.current + 1;
-      // Regenerate outline every N chunks
       if (newCount % OUTLINE_EVERY_N_CHUNKS === 0) {
         const fullTranscript = transcriptRef.current + ' ' + text;
         const outline = await extractOutline(fullTranscript, groqKeyRef.current);
         setLiveOutline(outline);
       }
     } catch {
-      // Silently skip failed chunk — transcript continues
+      // silently skip failed chunk
     }
   };
 
@@ -111,7 +109,6 @@ export default function RecordScreen() {
           return;
         }
         groqKeyRef.current = key;
-
         const id = newId();
         sermonIdRef.current = id;
         const dir = await ensureAudioDir(id);
@@ -145,10 +142,8 @@ export default function RecordScreen() {
       audioUrisRef.current = result?.uris ?? [];
       durationRef.current = result?.durationMs ?? 0;
 
-      // Wait a moment for the final chunk transcription to land
       await new Promise((r) => setTimeout(r, 2000));
 
-      // Final outline pass over the full transcript
       setStep('outlining');
       const transcript = transcriptRef.current;
       const outline = transcript.trim()
@@ -210,21 +205,28 @@ export default function RecordScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      {/* Timer */}
+      <StatusBar style="light" />
+      <Stack.Screen
+        options={{
+          headerStyle: { backgroundColor: colors.darkBgPrimary },
+          headerTintColor: colors.darkTextPrimary,
+          contentStyle: { backgroundColor: colors.darkBgPrimary },
+        }}
+      />
+
       <View style={styles.timerRow}>
         <Text style={styles.timer}>{formatElapsed(elapsedMs)}</Text>
         <Text style={styles.statusLabel}>
           {status === 'recording' ? '● Recording' :
            status === 'paused' ? '❚❚ Paused' :
            status === 'processing' ? stepLabel[step] ?? 'Processing…' :
-           status === 'error' ? 'Error' : 'Ready'}
+           status === 'error' ? 'Error' : 'Ready to Record'}
         </Text>
       </View>
 
-      {/* Main content area */}
       {status === 'processing' ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#0369a1" />
+          <ActivityIndicator size="large" color={colors.darkTextPrimary} />
           <Text style={styles.stepText}>{stepLabel[step] ?? 'Processing…'}</Text>
         </View>
       ) : status === 'error' ? (
@@ -239,7 +241,6 @@ export default function RecordScreen() {
         </View>
       ) : (
         <ScrollView style={styles.liveArea} contentContainerStyle={styles.liveContent}>
-          {/* Record button */}
           <View style={styles.btnWrap}>
             <RecordButton
               status={status === 'recording' ? 'recording' : status === 'paused' ? 'paused' : 'idle'}
@@ -253,7 +254,6 @@ export default function RecordScreen() {
             </Text>
           )}
 
-          {/* Live transcript */}
           {liveTranscript.length > 0 && (
             <View style={styles.panel}>
               <Text style={styles.panelTitle}>Live Transcript</Text>
@@ -261,7 +261,6 @@ export default function RecordScreen() {
             </View>
           )}
 
-          {/* Live outline toggle */}
           {liveOutline && liveOutline.points.length > 0 && (
             <View style={styles.panel}>
               <TouchableOpacity
@@ -277,7 +276,6 @@ export default function RecordScreen() {
         </ScrollView>
       )}
 
-      {/* Controls */}
       {isActive && (
         <View style={styles.controls}>
           <Pressable style={styles.stopBtn} onPress={onStop}>
@@ -293,38 +291,67 @@ export default function RecordScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f1f5f9' },
-  timerRow: { alignItems: 'center', paddingTop: 12, paddingBottom: 4 },
-  timer: { fontSize: 48, fontWeight: '300', color: '#0f172a', fontVariant: ['tabular-nums'] },
-  statusLabel: { fontSize: 14, color: '#64748b', marginTop: 2 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  stepText: { marginTop: 16, fontSize: 16, color: '#334155', textAlign: 'center' },
-  errorTitle: { fontSize: 18, fontWeight: '700', color: '#b91c1c', marginBottom: 8 },
-  errorBody: { fontSize: 14, color: '#475569', textAlign: 'center', marginBottom: 16 },
-  retryBtn: { backgroundColor: '#0369a1', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10 },
-  retryText: { color: '#fff', fontWeight: '600' },
-  liveArea: { flex: 1 },
-  liveContent: { padding: 16, paddingBottom: 8 },
-  btnWrap: { alignItems: 'center', marginBottom: 24 },
-  hint: { color: '#64748b', fontSize: 14, textAlign: 'center', marginBottom: 16 },
-  panel: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
+  container: { flex: 1, backgroundColor: colors.darkBgPrimary, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+
+  timerRow: { alignItems: 'center', marginTop: spacing.md, paddingBottom: spacing.xs },
+  timer: {
+    fontSize: 56,
+    fontWeight: '200',
+    color: colors.darkTextPrimary,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -1,
   },
-  panelTitle: { fontSize: 13, fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 },
-  transcriptText: { fontSize: 15, color: '#1e293b', lineHeight: 22, marginTop: 8 },
+  statusLabel: { ...typography.subhead, color: colors.darkTextSecondary, marginTop: spacing.xs },
+
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
+  stepText: { marginTop: spacing.md, ...typography.body, color: colors.darkTextSecondary, textAlign: 'center' },
+  errorTitle: { ...typography.headline, color: colors.accentRed, marginBottom: spacing.sm },
+  errorBody: { ...typography.subhead, color: colors.darkTextSecondary, textAlign: 'center', marginBottom: spacing.md },
+  retryBtn: {
+    backgroundColor: colors.darkBgSurfaceRaised,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 12,
+    borderRadius: radius.small,
+  },
+  retryText: { ...typography.headline, color: colors.accentBlue },
+
+  liveArea: { flex: 1 },
+  liveContent: { paddingVertical: spacing.md, paddingBottom: spacing.sm },
+  btnWrap: { alignItems: 'center', marginBottom: spacing.lg },
+  hint: { ...typography.footnote, color: colors.darkTextSecondary, textAlign: 'center', marginBottom: spacing.md },
+
+  panel: {
+    backgroundColor: colors.darkBgSurface,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  panelTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.darkTextSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  transcriptText: { ...typography.subhead, color: colors.darkTextPrimary, lineHeight: 22, marginTop: spacing.sm },
   outlineToggle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  chevron: { color: '#64748b', fontSize: 14 },
-  controls: { flexDirection: 'row', gap: 12, padding: 16, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
-  stopBtn: { flex: 2, backgroundColor: '#0f172a', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  stopText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  cancelBtn: { flex: 1, backgroundColor: '#e2e8f0', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  cancelText: { color: '#334155', fontWeight: '600', fontSize: 16 },
+  chevron: { color: colors.darkTextSecondary, fontSize: 14 },
+
+  controls: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
+  stopBtn: {
+    flex: 2,
+    backgroundColor: colors.darkBgSurfaceRaised,
+    paddingVertical: 15,
+    borderRadius: radius.card,
+    alignItems: 'center',
+  },
+  stopText: { ...typography.headline, color: colors.darkTextPrimary },
+  cancelBtn: {
+    flex: 1,
+    backgroundColor: colors.darkBgSurface,
+    paddingVertical: 15,
+    borderRadius: radius.card,
+    alignItems: 'center',
+  },
+  cancelText: { ...typography.headline, color: colors.accentRed },
 });
