@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { colors, typography } from '@/theme';
 
 type Props = {
   status: 'idle' | 'recording' | 'paused';
@@ -8,17 +9,16 @@ type Props = {
 
 export function RecordButton({ status, onPress }: Props) {
   const label =
-    status === 'idle' ? 'Start Recording' : status === 'recording' ? 'Recording' : 'Paused';
-  const inner = status === 'idle' ? 'circle' : status === 'recording' ? 'pulse' : 'square';
+    status === 'idle' ? 'Tap to Record' : status === 'recording' ? 'Tap to Pause' : 'Tap to Resume';
 
   return (
     <Pressable onPress={onPress} accessibilityLabel={label} style={styles.outer}>
-      <View style={[styles.ring, status === 'recording' && styles.ringActive]}>
+      <View style={[styles.ring, status === 'recording' && styles.ringRecording]}>
         <View
           style={[
             styles.inner,
-            inner === 'pulse' && styles.innerRecording,
-            inner === 'square' && styles.innerPaused,
+            status === 'recording' && styles.innerRecording,
+            status === 'paused' && styles.innerPaused,
           ]}
         />
       </View>
@@ -30,22 +30,32 @@ export function RecordButton({ status, onPress }: Props) {
 const styles = StyleSheet.create({
   outer: { alignItems: 'center', justifyContent: 'center' },
   ring: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    borderWidth: 4,
-    borderColor: '#cbd5e1',
+    width: 164,
+    height: 164,
+    borderRadius: 82,
+    borderWidth: 3,
+    borderColor: colors.darkBgSurfaceRaised,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ringActive: { borderColor: '#dc2626' },
+  ringRecording: { borderColor: colors.accentRed },
   inner: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: '#dc2626',
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    backgroundColor: colors.accentRed,
   },
-  innerRecording: { backgroundColor: '#dc2626' },
-  innerPaused: { borderRadius: 12, width: 80, height: 80, backgroundColor: '#475569' },
-  label: { marginTop: 16, fontSize: 18, fontWeight: '600', color: '#334155' },
+  innerRecording: { backgroundColor: colors.accentRed },
+  innerPaused: {
+    borderRadius: 14,
+    width: 72,
+    height: 72,
+    backgroundColor: colors.darkTextSecondary,
+  },
+  label: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.darkTextSecondary,
+    marginTop: 20,
+  },
 });

@@ -1,4 +1,5 @@
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -19,6 +20,7 @@ import { transcribeAudio } from '@/services/whisper';
 import { useSessionStore } from '@/state/sessionStore';
 import { getGroqKey, getTranslation } from '@/storage/keys';
 import { ensureAudioDir, saveSermon } from '@/storage/sermons';
+import { colors, radius, spacing, typography } from '@/theme';
 import type { ProcessingStep, Sermon } from '@/types';
 import { formatElapsed } from '@/util/format';
 import { newId } from '@/util/id';
@@ -55,7 +57,6 @@ export default function RecordScreen() {
     reset();
     return () => {
       if (tickerRef.current) clearInterval(tickerRef.current);
-      // best-effort cleanup if user leaves mid-recording
       void recorderRef.current?.stop().catch(() => undefined);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -195,6 +196,9 @@ export default function RecordScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
+      <StatusBar style="light" />
+      <Stack.Screen options={{ headerStyle: { backgroundColor: colors.darkBgPrimary } }} />
+
       <View style={styles.timerRow}>
         <Text style={styles.timer}>{formatElapsed(elapsedMs)}</Text>
         <Text style={styles.statusLabel}>
@@ -203,17 +207,17 @@ export default function RecordScreen() {
             : status === 'paused'
               ? '❚❚ Paused'
               : status === 'processing'
-                ? 'Processing'
+                ? 'Processing…'
                 : status === 'error'
                   ? 'Error'
-                  : 'Ready'}
+                  : 'Ready to Record'}
         </Text>
       </View>
 
       <View style={styles.center}>
         {status === 'processing' ? (
           <View style={styles.processing}>
-            <ActivityIndicator size="large" color="#0369a1" />
+            <ActivityIndicator size="large" color={colors.darkTextPrimary} />
             <Text style={styles.stepText}>{STEP_LABEL[step]}</Text>
           </View>
         ) : status === 'error' ? (
@@ -247,8 +251,7 @@ export default function RecordScreen() {
 
       {status === 'idle' ? (
         <Text style={styles.hint}>
-          Tap the button to start recording. You can pause and resume; tap “Stop & Outline” when the
-          sermon ends.
+          Tap to start recording. Pause and resume freely — tap "Stop & Outline" when done.
         </Text>
       ) : null}
     </SafeAreaView>
@@ -256,38 +259,48 @@ export default function RecordScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f1f5f9', padding: 20 },
-  timerRow: { alignItems: 'center', marginTop: 8 },
-  timer: { fontSize: 48, fontWeight: '300', color: '#0f172a', fontVariant: ['tabular-nums'] },
-  statusLabel: { fontSize: 14, color: '#64748b', marginTop: 4 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  processing: { alignItems: 'center', padding: 24 },
-  stepText: { marginTop: 16, fontSize: 16, color: '#334155', textAlign: 'center' },
-  errorTitle: { fontSize: 18, fontWeight: '700', color: '#b91c1c', marginBottom: 8 },
-  errorBody: { fontSize: 14, color: '#475569', textAlign: 'center', marginBottom: 16 },
-  retryBtn: {
-    backgroundColor: '#0369a1',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
+  container: { flex: 1, backgroundColor: colors.darkBgPrimary, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+
+  timerRow: { alignItems: 'center', marginTop: spacing.md },
+  timer: {
+    fontSize: 56,
+    fontWeight: '200',
+    color: colors.darkTextPrimary,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -1,
   },
-  retryText: { color: '#fff', fontWeight: '600' },
-  controls: { flexDirection: 'row', gap: 12 },
+  statusLabel: { ...typography.subhead, color: colors.darkTextSecondary, marginTop: spacing.xs },
+
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  processing: { alignItems: 'center', padding: spacing.lg },
+  stepText: { marginTop: spacing.md, ...typography.body, color: colors.darkTextSecondary, textAlign: 'center' },
+  errorTitle: { ...typography.headline, color: colors.accentRed, marginBottom: spacing.sm },
+  errorBody: { ...typography.subhead, color: colors.darkTextSecondary, textAlign: 'center', marginBottom: spacing.md },
+  retryBtn: {
+    backgroundColor: colors.darkBgSurfaceRaised,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 12,
+    borderRadius: radius.small,
+  },
+  retryText: { ...typography.headline, color: colors.accentBlue },
+
+  controls: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
   stopBtn: {
     flex: 2,
-    backgroundColor: '#0f172a',
-    paddingVertical: 14,
-    borderRadius: 12,
+    backgroundColor: colors.darkBgSurfaceRaised,
+    paddingVertical: 15,
+    borderRadius: radius.card,
     alignItems: 'center',
   },
-  stopText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  stopText: { ...typography.headline, color: colors.darkTextPrimary },
   cancelBtn: {
     flex: 1,
-    backgroundColor: '#e2e8f0',
-    paddingVertical: 14,
-    borderRadius: 12,
+    backgroundColor: colors.darkBgSurface,
+    paddingVertical: 15,
+    borderRadius: radius.card,
     alignItems: 'center',
   },
-  cancelText: { color: '#334155', fontWeight: '600', fontSize: 16 },
-  hint: { color: '#64748b', fontSize: 14, textAlign: 'center', marginBottom: 12 },
+  cancelText: { ...typography.headline, color: colors.accentRed },
+
+  hint: { ...typography.footnote, color: colors.darkTextSecondary, textAlign: 'center', marginBottom: spacing.md },
 });

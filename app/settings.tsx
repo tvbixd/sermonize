@@ -16,6 +16,7 @@ import {
   setGroqKey,
   setTranslation,
 } from '@/storage/keys';
+import { colors, radius, spacing, typography } from '@/theme';
 
 const TRANSLATIONS = [
   { id: 'web', label: 'World English Bible' },
@@ -50,41 +51,46 @@ export default function SettingsScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.label}>Groq API Key</Text>
-        <Text style={styles.help}>
-          Sermonize uses Groq's free tier for both transcription (Whisper) and outlining (Llama 3.3 70B).
-          Create a free account and key at console.groq.com — no credit card required. Stored securely on this device.
-        </Text>
-        <TextInput
-          style={styles.input}
-          value={groq}
-          onChangeText={setGroq}
-          placeholder="gsk_..."
-          autoCapitalize="none"
-          autoCorrect={false}
-          secureTextEntry
-        />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <Text style={styles.sectionLabel}>GROQ API KEY</Text>
+        <View style={styles.card}>
+          <Text style={styles.helpText}>
+            Sermonize uses Groq's free tier for transcription (Whisper) and outlining (Llama 3.3 70B). Create a free account at console.groq.com — no credit card required.
+          </Text>
+          <View style={styles.divider} />
+          <TextInput
+            style={styles.input}
+            value={groq}
+            onChangeText={setGroq}
+            placeholder="gsk_..."
+            placeholderTextColor={colors.textTertiary}
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry
+          />
+        </View>
 
-        <Text style={styles.label}>Bible Translation</Text>
-        <View style={styles.choices}>
-          {TRANSLATIONS.map((t) => (
-            <TouchableOpacity
-              key={t.id}
-              onPress={() => setTrans(t.id)}
-              style={[styles.choice, translation === t.id && styles.choiceActive]}
-            >
-              <Text
-                style={[styles.choiceText, translation === t.id && styles.choiceTextActive]}
+        <Text style={styles.sectionLabel}>BIBLE TRANSLATION</Text>
+        <View style={styles.card}>
+          {TRANSLATIONS.map((t, i) => (
+            <React.Fragment key={t.id}>
+              <TouchableOpacity
+                onPress={() => setTrans(t.id)}
+                style={styles.row}
+                activeOpacity={0.6}
               >
-                {t.label}
-              </Text>
-            </TouchableOpacity>
+                <Text style={styles.rowLabel}>{t.label}</Text>
+                {translation === t.id ? (
+                  <Text style={styles.checkmark}>✓</Text>
+                ) : null}
+              </TouchableOpacity>
+              {i < TRANSLATIONS.length - 1 && <View style={styles.divider} />}
+            </React.Fragment>
           ))}
         </View>
 
-        <TouchableOpacity style={styles.save} onPress={onSave}>
-          <Text style={styles.saveText}>Save</Text>
+        <TouchableOpacity style={styles.saveBtn} onPress={onSave} activeOpacity={0.8}>
+          <Text style={styles.saveBtnText}>Save Settings</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -92,35 +98,58 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f1f5f9' },
-  content: { padding: 20 },
-  label: { fontSize: 15, fontWeight: '700', color: '#0f172a', marginTop: 16 },
-  help: { fontSize: 13, color: '#64748b', marginTop: 4, marginBottom: 8 },
+  container: { flex: 1, backgroundColor: colors.bgPrimary },
+  content: { padding: spacing.md, paddingTop: spacing.lg },
+
+  sectionLabel: {
+    ...typography.footnote,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+    marginLeft: spacing.xs,
+  },
+
+  card: {
+    backgroundColor: colors.bgSurface,
+    borderRadius: radius.card,
+    marginBottom: spacing.lg,
+    overflow: 'hidden',
+  },
+  helpText: {
+    ...typography.footnote,
+    color: colors.textSecondary,
+    padding: spacing.md,
+    lineHeight: 18,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.separator,
+    marginLeft: spacing.md,
+  },
   input: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
+    ...typography.body,
+    color: colors.textPrimary,
+    padding: spacing.md,
+    minHeight: spacing.rowMinHeight,
   },
-  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  choice: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: '#e2e8f0',
-  },
-  choiceActive: { backgroundColor: '#0369a1' },
-  choiceText: { color: '#334155', fontWeight: '600' },
-  choiceTextActive: { color: '#fff' },
-  save: {
-    marginTop: 28,
-    backgroundColor: '#0f172a',
-    paddingVertical: 14,
-    borderRadius: 12,
+
+  row: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    minHeight: spacing.rowMinHeight,
   },
-  saveText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  rowLabel: { ...typography.body, color: colors.textPrimary, flex: 1 },
+  checkmark: { ...typography.headline, color: colors.accentBlue },
+
+  saveBtn: {
+    backgroundColor: colors.accentBlue,
+    borderRadius: radius.card,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  saveBtnText: { ...typography.headline, color: '#FFFFFF' },
 });

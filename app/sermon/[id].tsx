@@ -1,5 +1,5 @@
 import * as FileSystem from 'expo-file-system';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
 import {
@@ -18,6 +18,7 @@ import { extractOutline } from '@/services/outline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
 import { getGroqKey, getTranslation } from '@/storage/keys';
 import { getSermon, saveSermon } from '@/storage/sermons';
+import { colors, radius, spacing, typography } from '@/theme';
 import type { Sermon } from '@/types';
 import { formatDate, formatElapsed, sermonToMarkdown } from '@/util/format';
 
@@ -41,7 +42,7 @@ export default function SermonDetail() {
   if (!sermon) {
     return (
       <SafeAreaView style={styles.container}>
-        <ActivityIndicator style={{ marginTop: 40 }} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={colors.textSecondary} />
       </SafeAreaView>
     );
   }
@@ -76,12 +77,25 @@ export default function SermonDetail() {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle} numberOfLines={2}>
+      <Stack.Screen
+        options={{
+          title: '',
+          headerStyle: { backgroundColor: colors.bgSurface },
+          headerShadowVisible: false,
+          headerRight: () => (
+            <TouchableOpacity style={styles.exportBtn} onPress={onExport}>
+              <Text style={styles.exportBtnText}>Export</Text>
+            </TouchableOpacity>
+          ),
+        }}
+      />
+
+      <View style={styles.titleBlock}>
+        <Text style={styles.sermonTitle} numberOfLines={3}>
           {sermon.title}
         </Text>
-        <Text style={styles.headerMeta}>
-          {formatDate(sermon.createdAt)} • {formatElapsed(sermon.durationMs)}
+        <Text style={styles.sermonMeta}>
+          {formatDate(sermon.createdAt)} · {formatElapsed(sermon.durationMs)}
         </Text>
       </View>
 
@@ -113,18 +127,15 @@ export default function SermonDetail() {
         )}
       </ScrollView>
 
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.secondary} onPress={onRegenerate} disabled={busy}>
-          {busy ? <ActivityIndicator color="#334155" /> : <Text style={styles.secondaryText}>Regenerate Outline</Text>}
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.primary} onPress={onExport}>
-          <Text style={styles.primaryText}>Export</Text>
+      <View style={styles.toolbar}>
+        <TouchableOpacity style={styles.regenerateBtn} onPress={onRegenerate} disabled={busy}>
+          {busy ? (
+            <ActivityIndicator color={colors.textSecondary} />
+          ) : (
+            <Text style={styles.regenerateBtnText}>Regenerate Outline</Text>
+          )}
         </TouchableOpacity>
       </View>
-
-      <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
-        <Text style={styles.backLinkText}>← Back</Text>
-      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -134,30 +145,54 @@ function sanitize(name: string): string {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f1f5f9' },
-  header: { padding: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: '#0f172a' },
-  headerMeta: { fontSize: 13, color: '#64748b', marginTop: 4 },
-  tabs: { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-  tab: { flex: 1, paddingVertical: 12, alignItems: 'center' },
-  tabActive: { borderBottomWidth: 2, borderBottomColor: '#0369a1' },
-  tabText: { fontSize: 14, color: '#64748b', fontWeight: '600' },
-  tabTextActive: { color: '#0369a1' },
-  body: { padding: 16 },
-  empty: { color: '#64748b', fontStyle: 'italic' },
-  transcript: { fontSize: 15, color: '#1e293b', lineHeight: 22 },
-  footer: {
-    flexDirection: 'row',
-    padding: 16,
-    gap: 12,
-    backgroundColor: '#f1f5f9',
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
+  container: { flex: 1, backgroundColor: colors.bgPrimary },
+
+  titleBlock: {
+    backgroundColor: colors.bgSurface,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.separator,
   },
-  primary: { flex: 1, backgroundColor: '#0f172a', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  primaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  secondary: { flex: 2, backgroundColor: '#e2e8f0', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  secondaryText: { color: '#334155', fontWeight: '600', fontSize: 16 },
-  backLink: { padding: 8, alignItems: 'center' },
-  backLinkText: { color: '#64748b', fontSize: 14 },
+  sermonTitle: { ...typography.title2, color: colors.textPrimary },
+  sermonMeta: { ...typography.footnote, color: colors.textSecondary, marginTop: spacing.xs },
+
+  exportBtn: { paddingHorizontal: spacing.sm },
+  exportBtnText: { ...typography.headline, color: colors.accentBlue },
+
+  tabs: {
+    flexDirection: 'row',
+    backgroundColor: colors.bgSurface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.separator,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabActive: { borderBottomColor: colors.textPrimary },
+  tabText: { ...typography.subhead, fontWeight: '600', color: colors.textSecondary },
+  tabTextActive: { color: colors.textPrimary },
+
+  body: { padding: spacing.md, paddingBottom: spacing.xl },
+  empty: { ...typography.subhead, color: colors.textSecondary, fontStyle: 'italic' },
+  transcript: { ...typography.subhead, color: colors.textPrimary, lineHeight: 24 },
+
+  toolbar: {
+    backgroundColor: colors.bgSurface,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.separator,
+    padding: spacing.md,
+  },
+  regenerateBtn: {
+    paddingVertical: 14,
+    borderRadius: radius.card,
+    backgroundColor: colors.bgPrimary,
+    alignItems: 'center',
+  },
+  regenerateBtnText: { ...typography.headline, color: colors.textPrimary },
 });

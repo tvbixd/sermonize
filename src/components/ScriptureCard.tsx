@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { colors, radius, spacing, typography } from '@/theme';
 import type { Scripture } from '../types';
 
 export function ScriptureCard({ scripture }: { scripture: Scripture }) {
@@ -7,7 +8,7 @@ export function ScriptureCard({ scripture }: { scripture: Scripture }) {
     <View style={styles.card}>
       <Text style={styles.ref}>
         {scripture.reference}
-        {scripture.translation ? ` (${scripture.translation})` : ''}
+        {scripture.translation ? `  ·  ${scripture.translation}` : ''}
       </Text>
       {scripture.text ? (
         <Text style={styles.text}>{scripture.text}</Text>
@@ -20,14 +21,14 @@ export function ScriptureCard({ scripture }: { scripture: Scripture }) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#f8fafc',
-    borderLeftWidth: 4,
-    borderLeftColor: '#0369a1',
-    padding: 12,
-    marginBottom: 12,
-    borderRadius: 6,
+    backgroundColor: colors.bgSurface,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accentBlue,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderRadius: radius.small,
   },
-  ref: { fontSize: 14, fontWeight: '700', color: '#0369a1', marginBottom: 6 },
-  text: { fontSize: 15, color: '#1e293b', lineHeight: 22 },
-  placeholder: { fontSize: 13, color: '#94a3b8', fontStyle: 'italic' },
+  ref: { ...typography.footnote, fontWeight: '700', color: colors.accentBlue, marginBottom: spacing.sm },
+  text: { ...typography.subhead, color: colors.textPrimary, lineHeight: 22 },
+  placeholder: { ...typography.footnote, color: colors.textSecondary, fontStyle: 'italic' },
 });
