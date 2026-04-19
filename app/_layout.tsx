@@ -18,12 +18,21 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: t.bgPrimary },
         }}
       >
+        <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen
-          name="index"
+          name="folders"
           options={{
-            title: 'Sermonize',
+            title: 'Folders',
             headerLargeTitle: true,
             headerLargeTitleStyle: { fontWeight: '700', color: t.textPrimary },
+            headerStyle: { backgroundColor: t.bgSurface },
+            contentStyle: { backgroundColor: t.bgPrimary },
+          }}
+        />
+        <Stack.Screen
+          name="sermons"
+          options={{
+            headerLargeTitle: true,
             headerStyle: { backgroundColor: t.bgSurface },
             contentStyle: { backgroundColor: t.bgPrimary },
           }}

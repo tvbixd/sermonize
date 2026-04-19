@@ -9,10 +9,14 @@ export function ScriptureCard({ scripture }: { scripture: Scripture }) {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.ref}>
-        {scripture.reference}
-        {scripture.translation ? `  ·  ${scripture.translation}` : ''}
-      </Text>
+      <View style={styles.refRow}>
+        <Text style={styles.ref}>{scripture.reference}</Text>
+        {scripture.translation ? (
+          <View style={styles.translationBadge}>
+            <Text style={styles.translationText}>{scripture.translation}</Text>
+          </View>
+        ) : null}
+      </View>
       {scripture.text ? (
         <Text style={styles.text}>{scripture.text}</Text>
       ) : (
@@ -32,7 +36,20 @@ function makeStyles(t: Colors) {
       marginBottom: spacing.sm,
       borderRadius: radius.small,
     },
-    ref: { ...typography.footnote, fontWeight: '700', color: t.accentBlue, marginBottom: spacing.sm },
+    refRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+    ref: { ...typography.headline, color: t.accentBlue },
+    translationBadge: {
+      backgroundColor: t.bgSurfaceRaised,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    translationText: { ...typography.caption, color: t.textSecondary },
     text: { ...typography.subhead, color: t.textPrimary, lineHeight: 22 },
     placeholder: { ...typography.footnote, color: t.textSecondary, fontStyle: 'italic' },
   });

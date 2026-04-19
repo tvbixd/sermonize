@@ -19,16 +19,17 @@ import {
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 
 const TRANSLATIONS = [
-  { id: 'web', label: 'World English Bible' },
-  { id: 'kjv', label: 'King James Version' },
-  { id: 'bbe', label: 'Bible in Basic English' },
-  { id: 'oeb-us', label: 'Open English Bible (US)' },
+  { id: 'web', label: 'World English Bible', abbr: 'WEB — modern, public domain' },
+  { id: 'kjv', label: 'King James Version', abbr: 'KJV — classic English' },
+  { id: 'bbe', label: 'Bible in Basic English', abbr: 'BBE — simplified vocabulary' },
+  { id: 'oeb-us', label: 'Open English Bible', abbr: 'OEB — contemporary, open' },
 ];
 
 export default function SettingsScreen() {
   const [groq, setGroq] = useState('');
   const [translation, setTrans] = useState('web');
   const [loaded, setLoaded] = useState(false);
+  const [showKey, setShowKey] = useState(false);
   const t = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 
@@ -54,22 +55,28 @@ export default function SettingsScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+
         <Text style={styles.sectionLabel}>GROQ API KEY</Text>
         <View style={styles.card}>
           <Text style={styles.helpText}>
-            Sermonize uses Groq's free tier for transcription (Whisper) and outlining (Llama 3.3 70B). Create a free account at console.groq.com — no credit card required.
+            Sermonize uses Groq for fast transcription and outlining. Create a free key at console.groq.com — no credit card required.
           </Text>
           <View style={styles.divider} />
-          <TextInput
-            style={styles.input}
-            value={groq}
-            onChangeText={setGroq}
-            placeholder="gsk_..."
-            placeholderTextColor={t.textTertiary}
-            autoCapitalize="none"
-            autoCorrect={false}
-            secureTextEntry
-          />
+          <View style={styles.keyRow}>
+            <TextInput
+              style={styles.keyInput}
+              value={groq}
+              onChangeText={setGroq}
+              placeholder="gsk_..."
+              placeholderTextColor={t.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry={!showKey}
+            />
+            <TouchableOpacity onPress={() => setShowKey((v) => !v)} style={styles.eyeBtn} hitSlop={8}>
+              <Text style={styles.eyeIcon}>{showKey ? '🙈' : '👁'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <Text style={styles.sectionLabel}>BIBLE TRANSLATION</Text>
@@ -81,7 +88,10 @@ export default function SettingsScreen() {
                 style={styles.row}
                 activeOpacity={0.6}
               >
-                <Text style={styles.rowLabel}>{tr.label}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowLabel}>{tr.label}</Text>
+                  <Text style={styles.rowSub}>{tr.abbr}</Text>
+                </View>
                 {translation === tr.id ? (
                   <Text style={styles.checkmark}>✓</Text>
                 ) : null}
@@ -91,9 +101,22 @@ export default function SettingsScreen() {
           ))}
         </View>
 
+        <Text style={styles.sectionLabel}>ABOUT</Text>
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Version</Text>
+            <Text style={styles.rowValue}>1.0.0</Text>
+          </View>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.row} activeOpacity={0.6}>
+            <Text style={[styles.rowLabel, { color: t.accentBlue }]}>Privacy Policy</Text>
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity style={styles.saveBtn} onPress={onSave} activeOpacity={0.8}>
-          <Text style={styles.saveBtnText}>Save Settings</Text>
+          <Text style={styles.saveBtnText}>Save</Text>
         </TouchableOpacity>
+
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -102,14 +125,11 @@ export default function SettingsScreen() {
 function makeStyles(t: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bgPrimary },
-    content: { padding: spacing.md, paddingTop: spacing.lg },
+    content: { padding: spacing.md, paddingTop: spacing.lg, paddingBottom: spacing.xl },
 
     sectionLabel: {
-      ...typography.footnote,
-      fontWeight: '600',
+      ...typography.sectionHeader,
       color: t.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
       marginBottom: spacing.sm,
       marginLeft: spacing.xs,
     },
@@ -131,27 +151,40 @@ function makeStyles(t: Colors) {
       backgroundColor: t.separator,
       marginLeft: spacing.md,
     },
-    input: {
-      ...typography.body,
-      color: t.textPrimary,
-      padding: spacing.md,
+
+    keyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
       minHeight: spacing.rowMinHeight,
     },
+    keyInput: {
+      ...typography.body,
+      color: t.textPrimary,
+      flex: 1,
+      paddingVertical: spacing.sm,
+    },
+    eyeBtn: { padding: spacing.xs },
+    eyeIcon: { fontSize: 16 },
 
     row: {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: spacing.md,
       minHeight: spacing.rowMinHeight,
+      paddingVertical: spacing.sm,
     },
     rowLabel: { ...typography.body, color: t.textPrimary, flex: 1 },
+    rowSub: { ...typography.footnote, color: t.textSecondary, marginTop: 2 },
+    rowValue: { ...typography.body, color: t.textSecondary },
     checkmark: { ...typography.headline, color: t.accentBlue },
 
     saveBtn: {
       backgroundColor: t.accentBlue,
-      borderRadius: radius.card,
-      paddingVertical: 15,
+      borderRadius: radius.pill,
+      height: 50,
       alignItems: 'center',
+      justifyContent: 'center',
       marginTop: spacing.sm,
     },
     saveBtnText: { ...typography.headline, color: '#FFFFFF' },

@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useColorScheme,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,8 +30,24 @@ import { newId } from '@/util/id';
 
 const OUTLINE_EVERY_N_CHUNKS = 2;
 
+const IDLE_BAR_HEIGHTS = [14, 22, 10, 30, 18, 44, 24, 36, 20, 40, 16, 28, 12, 34, 20];
+
+const STEP_INDEX: Record<string, number> = {
+  outlining: 1,
+  scriptures: 2,
+  saving: 3,
+};
+
+const STEP_NEXT: Record<string, string> = {
+  outlining: 'Scriptures',
+  scriptures: 'Saving',
+  saving: 'Done',
+};
+
 export default function RecordScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
   const status         = useSessionStore((s) => s.status);
   const step           = useSessionStore((s) => s.step);
@@ -60,7 +77,7 @@ export default function RecordScreen() {
   const [retryAvailable, setRetryAvailable] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
   const t = useTheme();
-  const styles = useMemo(() => makeStyles(t), [t]);
+  const styles = useMemo(() => makeStyles(t, isDark), [t, isDark]);
 
   useEffect(() => {
     reset();
@@ -205,9 +222,11 @@ export default function RecordScreen() {
     done: 'Done!',
   };
 
+  const currentStepIndex = STEP_INDEX[step] ?? 0;
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <StatusBar style="light" />
+      <StatusBar style="auto" />
       <Stack.Screen
         options={{
           headerStyle: { backgroundColor: t.bgSurface },
@@ -228,8 +247,26 @@ export default function RecordScreen() {
 
       {status === 'processing' ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.darkTextPrimary} />
+          <ActivityIndicator size="large" color={t.textPrimary} />
           <Text style={styles.stepText}>{stepLabel[step] ?? 'Processing…'}</Text>
+          {currentStepIndex > 0 && (
+            <>
+              <Text style={styles.stepSubText}>
+                Step {currentStepIndex} of 3 · {STEP_NEXT[step] ?? ''}
+              </Text>
+              <View style={styles.pipRow}>
+                {[1, 2, 3].map((i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.pip,
+                      { backgroundColor: i <= currentStepIndex ? t.accentBlue : t.stepPipInactive },
+                    ]}
+                  />
+                ))}
+              </View>
+            </>
+          )}
         </View>
       ) : status === 'error' ? (
         <View style={styles.center}>
@@ -251,9 +288,16 @@ export default function RecordScreen() {
           </View>
 
           {status === 'idle' && (
-            <Text style={styles.hint}>
-              Tap to start. Transcript and outline update live every 30 seconds.
-            </Text>
+            <View style={styles.idleHintWrap}>
+              <View style={styles.waveformRow}>
+                {IDLE_BAR_HEIGHTS.map((h, i) => (
+                  <View key={i} style={[styles.waveformBar, { height: h }]} />
+                ))}
+              </View>
+              <Text style={styles.hint}>
+                {'Recording will transcribe and outline\nyour sermon automatically.'}
+              </Text>
+            </View>
           )}
 
           {liveTranscript.length > 0 && (
@@ -292,7 +336,7 @@ export default function RecordScreen() {
   );
 }
 
-function makeStyles(t: Colors) {
+function makeStyles(t: Colors, isDark: boolean) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bgPrimary, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
 
@@ -308,6 +352,11 @@ function makeStyles(t: Colors) {
 
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
     stepText: { marginTop: spacing.md, ...typography.body, color: t.textSecondary, textAlign: 'center' },
+    stepSubText: { marginTop: spacing.xs, ...typography.footnote, color: t.textTertiary, textAlign: 'center' },
+
+    pipRow: { flexDirection: 'row', gap: 6, marginTop: spacing.sm, alignItems: 'center' },
+    pip: { width: 20, height: 3, borderRadius: 2 },
+
     errorTitle: { ...typography.headline, color: t.accentRed, marginBottom: spacing.sm },
     errorBody: { ...typography.subhead, color: t.textSecondary, textAlign: 'center', marginBottom: spacing.md },
     retryBtn: {
@@ -321,7 +370,11 @@ function makeStyles(t: Colors) {
     liveArea: { flex: 1 },
     liveContent: { paddingVertical: spacing.md, paddingBottom: spacing.sm },
     btnWrap: { alignItems: 'center', marginBottom: spacing.lg },
-    hint: { ...typography.footnote, color: t.textSecondary, textAlign: 'center', marginBottom: spacing.md },
+
+    idleHintWrap: { alignItems: 'center', marginBottom: spacing.md },
+    waveformRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: spacing.sm },
+    waveformBar: { width: 3, borderRadius: 2, backgroundColor: t.textTertiary },
+    hint: { ...typography.footnote, color: t.textSecondary, textAlign: 'center' },
 
     panel: {
       backgroundColor: t.bgSurface,
@@ -343,18 +396,21 @@ function makeStyles(t: Colors) {
     controls: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
     stopBtn: {
       flex: 2,
-      backgroundColor: t.bgSurfaceRaised,
-      paddingVertical: 15,
-      borderRadius: radius.card,
+      height: 52,
+      backgroundColor: isDark ? t.bgSurfaceRaised : '#000000',
+      borderRadius: radius.button,
       alignItems: 'center',
+      justifyContent: 'center',
     },
-    stopText: { ...typography.headline, color: t.textPrimary },
+    stopText: { ...typography.headline, color: '#FFFFFF' },
     cancelBtn: {
       flex: 1,
+      height: 52,
       backgroundColor: t.bgSurface,
-      paddingVertical: 15,
-      borderRadius: radius.card,
+      borderRadius: radius.button,
       alignItems: 'center',
+      justifyContent: 'center',
+      ...(isDark ? {} : { borderWidth: 0.5, borderColor: t.separator }),
     },
     cancelText: { ...typography.headline, color: t.accentRed },
   });
