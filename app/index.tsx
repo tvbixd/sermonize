@@ -1,5 +1,5 @@
 import { Link, Stack, useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   SectionList,
@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { deleteSermon, listSermons } from '@/storage/sermons';
-import { colors, radius, spacing, typography } from '@/theme';
+import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Sermon } from '@/types';
 import { formatDate, formatElapsed } from '@/util/format';
 
@@ -41,6 +41,8 @@ function groupSermons(sermons: Sermon[]): Section[] {
 export default function HomeScreen() {
   const [sermons, setSermons] = useState<Sermon[]>([]);
   const router = useRouter();
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
 
   const refresh = useCallback(async () => {
     const items = await listSermons();
@@ -73,6 +75,7 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <Stack.Screen
         options={{
+          headerStyle: { backgroundColor: t.bgSurface },
           headerRight: () => (
             <Link href="/settings" asChild>
               <TouchableOpacity style={styles.settingsBtn} hitSlop={8}>
@@ -104,9 +107,7 @@ export default function HomeScreen() {
               onLongPress={() => onDelete(item)}
               activeOpacity={0.7}
             >
-              <Text style={styles.cardTitle} numberOfLines={2}>
-                {item.title}
-              </Text>
+              <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
               <Text style={styles.cardMeta}>
                 {formatDate(item.createdAt)} · {formatElapsed(item.durationMs)} · {item.outline.points.length} points
               </Text>
@@ -124,73 +125,55 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgPrimary },
-  settingsBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  settingsBtnText: { fontSize: 20 },
+function makeStyles(t: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bgPrimary },
+    settingsBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+    settingsBtnText: { fontSize: 20 },
 
-  list: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: 100 },
-  sectionHeader: {
-    ...typography.footnote,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-    marginLeft: spacing.xs,
-  },
+    list: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: 100 },
+    sectionHeader: {
+      ...typography.footnote,
+      fontWeight: '600',
+      color: t.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginTop: spacing.lg,
+      marginBottom: spacing.sm,
+      marginLeft: spacing.xs,
+    },
 
-  card: {
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.card,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
-    marginBottom: spacing.sm,
-    minHeight: spacing.rowMinHeight,
-  },
-  cardTitle: {
-    ...typography.headline,
-    color: colors.textPrimary,
-    marginBottom: spacing.xs,
-  },
-  cardMeta: {
-    ...typography.footnote,
-    color: colors.textSecondary,
-  },
+    card: {
+      backgroundColor: t.bgSurface,
+      borderRadius: radius.card,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 14,
+      marginBottom: spacing.sm,
+      minHeight: spacing.rowMinHeight,
+    },
+    cardTitle: { ...typography.headline, color: t.textPrimary, marginBottom: spacing.xs },
+    cardMeta: { ...typography.footnote, color: t.textSecondary },
 
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-  },
-  emptyTitle: {
-    ...typography.title3,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  emptySub: {
-    ...typography.subhead,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
+    empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
+    emptyTitle: { ...typography.title3, color: t.textSecondary, marginBottom: spacing.sm },
+    emptySub: { ...typography.subhead, color: t.textSecondary, textAlign: 'center' },
 
-  fab: {
-    position: 'absolute',
-    bottom: 32,
-    right: spacing.lg,
-    width: 60,
-    height: 60,
-    borderRadius: radius.fab,
-    backgroundColor: colors.accentRed,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  fabIcon: { fontSize: 26 },
-});
+    fab: {
+      position: 'absolute',
+      bottom: 32,
+      right: spacing.lg,
+      width: 60,
+      height: 60,
+      borderRadius: radius.fab,
+      backgroundColor: t.accentRed,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#000',
+      shadowOpacity: 0.2,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 6,
+    },
+    fabIcon: { fontSize: 26 },
+  });
+}

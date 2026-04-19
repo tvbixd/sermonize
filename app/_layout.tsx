@@ -1,18 +1,21 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useTheme } from '@/theme';
 
 export default function RootLayout() {
+  const t = useTheme();
+
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
+      <StatusBar style="auto" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: '#F2F2F7' },
-          headerTintColor: '#000000',
-          headerTitleStyle: { fontWeight: '600', fontSize: 17 },
+          headerStyle: { backgroundColor: t.bgSurface },
+          headerTintColor: t.accentBlue,
+          headerTitleStyle: { fontWeight: '600', fontSize: 17, color: t.textPrimary },
           headerShadowVisible: false,
-          contentStyle: { backgroundColor: '#F2F2F7' },
+          contentStyle: { backgroundColor: t.bgPrimary },
         }}
       >
         <Stack.Screen
@@ -20,17 +23,19 @@ export default function RootLayout() {
           options={{
             title: 'Sermonize',
             headerLargeTitle: true,
-            headerLargeTitleStyle: { fontWeight: '700', color: '#000000' },
+            headerLargeTitleStyle: { fontWeight: '700', color: t.textPrimary },
+            headerStyle: { backgroundColor: t.bgSurface },
+            contentStyle: { backgroundColor: t.bgPrimary },
           }}
         />
         <Stack.Screen
           name="record"
           options={{
             title: 'New Recording',
-            headerStyle: { backgroundColor: '#000000' },
-            headerTintColor: '#FFFFFF',
-            headerTitleStyle: { fontWeight: '600', fontSize: 17, color: '#FFFFFF' },
-            contentStyle: { backgroundColor: '#000000' },
+            headerStyle: { backgroundColor: t.bgSurface },
+            headerTintColor: t.accentBlue,
+            headerTitleStyle: { fontWeight: '600', fontSize: 17, color: t.textPrimary },
+            contentStyle: { backgroundColor: t.bgPrimary },
           }}
         />
         <Stack.Screen

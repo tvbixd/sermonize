@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import React, { useEffect, useLayoutEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -21,7 +21,7 @@ import { extractOutline } from '@/services/outline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
 import { getGroqKey, getTranslation } from '@/storage/keys';
 import { getSermon, saveSermon } from '@/storage/sermons';
-import { colors, radius, spacing, typography } from '@/theme';
+import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Outline, Sermon } from '@/types';
 import { formatDate, formatElapsed, sermonToMarkdown } from '@/util/format';
 
@@ -43,6 +43,8 @@ export default function SermonDetail() {
   const [draftPoints, setDraftPoints] = useState<Outline['points']>([]);
   const [newScriptureRef, setNewScriptureRef] = useState('');
   const [addingScripture, setAddingScripture] = useState(false);
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
 
   useEffect(() => {
     void (async () => {
@@ -65,15 +67,15 @@ export default function SermonDetail() {
         editing ? (
           <View style={{ flexDirection: 'row', gap: 12, marginRight: 4 }}>
             <TouchableOpacity onPress={onCancelEdit}>
-              <Text style={{ color: colors.textSecondary, fontWeight: '600', fontSize: 15 }}>Cancel</Text>
+              <Text style={{ color: t.textSecondary, fontWeight: '600', fontSize: 15 }}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={onSaveEdit}>
-              <Text style={{ color: colors.accentBlue, fontWeight: '700', fontSize: 15 }}>Save</Text>
+              <Text style={{ color: t.accentBlue, fontWeight: '700', fontSize: 15 }}>Save</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <TouchableOpacity onPress={() => setEditing(true)} style={{ marginRight: 4 }}>
-            <Text style={{ color: colors.accentBlue, fontWeight: '600', fontSize: 15 }}>Edit</Text>
+            <Text style={{ color: t.accentBlue, fontWeight: '600', fontSize: 15 }}>Edit</Text>
           </TouchableOpacity>
         ),
     });
@@ -405,132 +407,134 @@ function sanitize(name: string): string {
   return name.replace(/[^a-z0-9-_]+/gi, '_').slice(0, 60) || 'sermon';
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgPrimary },
+function makeStyles(t: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bgPrimary },
 
-  titleBlock: { paddingHorizontal: spacing.md, paddingVertical: spacing.md, backgroundColor: colors.bgSurface },
-  sermonTitle: { ...typography.title2, color: colors.textPrimary, marginBottom: spacing.xs },
-  titleInput: {
-    ...typography.title2,
-    color: colors.textPrimary,
-    borderBottomWidth: 2,
-    borderBottomColor: colors.accentBlue,
-    paddingVertical: 4,
-    marginBottom: spacing.xs,
-  },
-  sermonMeta: { ...typography.footnote, color: colors.textSecondary },
+    titleBlock: { paddingHorizontal: spacing.md, paddingVertical: spacing.md, backgroundColor: t.bgSurface },
+    sermonTitle: { ...typography.title2, color: t.textPrimary, marginBottom: spacing.xs },
+    titleInput: {
+      ...typography.title2,
+      color: t.textPrimary,
+      borderBottomWidth: 2,
+      borderBottomColor: t.accentBlue,
+      paddingVertical: 4,
+      marginBottom: spacing.xs,
+    },
+    sermonMeta: { ...typography.footnote, color: t.textSecondary },
 
-  tabs: {
-    flexDirection: 'row',
-    backgroundColor: colors.bgSurface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.separator,
-  },
-  tab: { flex: 1, paddingVertical: 12, alignItems: 'center' },
-  tabActive: { borderBottomWidth: 2, borderBottomColor: colors.accentBlue },
-  tabText: { ...typography.subhead, color: colors.textSecondary, fontWeight: '600' },
-  tabTextActive: { color: colors.accentBlue },
+    tabs: {
+      flexDirection: 'row',
+      backgroundColor: t.bgSurface,
+      borderBottomWidth: 1,
+      borderBottomColor: t.separator,
+    },
+    tab: { flex: 1, paddingVertical: 12, alignItems: 'center' },
+    tabActive: { borderBottomWidth: 2, borderBottomColor: t.accentBlue },
+    tabText: { ...typography.subhead, color: t.textSecondary, fontWeight: '600' },
+    tabTextActive: { color: t.accentBlue },
 
-  body: { padding: spacing.md, paddingBottom: spacing.xl },
+    body: { padding: spacing.md, paddingBottom: spacing.xl },
 
-  fieldLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.xs,
-    marginTop: spacing.md,
-  },
-  input: {
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.small,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    ...typography.subhead,
-    borderWidth: 1,
-    borderColor: colors.separator,
-    marginBottom: spacing.sm,
-    color: colors.textPrimary,
-  },
+    fieldLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: t.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: spacing.xs,
+      marginTop: spacing.md,
+    },
+    input: {
+      backgroundColor: t.bgSurface,
+      borderRadius: radius.small,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+      ...typography.subhead,
+      borderWidth: 1,
+      borderColor: t.separator,
+      marginBottom: spacing.sm,
+      color: t.textPrimary,
+    },
 
-  theme: { ...typography.subhead, fontStyle: 'italic', color: colors.textSecondary, marginBottom: spacing.sm },
-  summary: { ...typography.subhead, color: colors.textPrimary, marginBottom: spacing.md, lineHeight: 22 },
+    theme: { ...typography.subhead, fontStyle: 'italic', color: t.textSecondary, marginBottom: spacing.sm },
+    summary: { ...typography.subhead, color: t.textPrimary, marginBottom: spacing.md, lineHeight: 22 },
 
-  pointCard: {
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.card,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
-  },
-  pointRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  pointHeading: { ...typography.headline, color: colors.textPrimary, marginBottom: spacing.xs },
-  subRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginLeft: spacing.sm },
-  bullet: { color: colors.textSecondary, fontSize: 16 },
-  subPoint: { ...typography.subhead, color: colors.textPrimary, marginLeft: spacing.md, marginVertical: 2, lineHeight: 22 },
-  pointRefs: { ...typography.footnote, color: colors.accentBlue, marginTop: spacing.xs, marginLeft: spacing.md },
-  removeBtn: { padding: 6 },
-  removeBtnText: { color: colors.accentRed, fontWeight: '700', fontSize: 16 },
-  addLink: { marginTop: spacing.xs },
-  addLinkText: { ...typography.subhead, color: colors.accentBlue, fontWeight: '600' },
-  addPointBtn: {
-    borderWidth: 2,
-    borderColor: colors.accentBlue,
-    borderStyle: 'dashed',
-    borderRadius: radius.card,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
-  addPointText: { ...typography.headline, color: colors.accentBlue },
+    pointCard: {
+      backgroundColor: t.bgSurface,
+      borderRadius: radius.card,
+      padding: spacing.md,
+      marginBottom: spacing.sm,
+      shadowColor: '#000',
+      shadowOpacity: 0.04,
+      shadowRadius: 3,
+      shadowOffset: { width: 0, height: 1 },
+      elevation: 1,
+    },
+    pointRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    pointHeading: { ...typography.headline, color: t.textPrimary, marginBottom: spacing.xs },
+    subRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginLeft: spacing.sm },
+    bullet: { color: t.textSecondary, fontSize: 16 },
+    subPoint: { ...typography.subhead, color: t.textPrimary, marginLeft: spacing.md, marginVertical: 2, lineHeight: 22 },
+    pointRefs: { ...typography.footnote, color: t.accentBlue, marginTop: spacing.xs, marginLeft: spacing.md },
+    removeBtn: { padding: 6 },
+    removeBtnText: { color: t.accentRed, fontWeight: '700', fontSize: 16 },
+    addLink: { marginTop: spacing.xs },
+    addLinkText: { ...typography.subhead, color: t.accentBlue, fontWeight: '600' },
+    addPointBtn: {
+      borderWidth: 2,
+      borderColor: t.accentBlue,
+      borderStyle: 'dashed',
+      borderRadius: radius.card,
+      paddingVertical: 14,
+      alignItems: 'center',
+      marginTop: spacing.xs,
+    },
+    addPointText: { ...typography.headline, color: t.accentBlue },
 
-  addScriptureRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
-  addScriptureBtn: {
-    backgroundColor: colors.accentBlue,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    borderRadius: radius.small,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 64,
-  },
-  addScriptureBtnText: { color: '#fff', fontWeight: '700' },
-  emptyText: { ...typography.subhead, color: colors.textSecondary, fontStyle: 'italic', textAlign: 'center', marginTop: spacing.xl },
-  scriptureWrap: { marginBottom: spacing.xs },
-  scriptureRemove: { alignSelf: 'flex-end', marginTop: -4, marginBottom: spacing.sm, paddingHorizontal: spacing.xs },
-  scriptureRemoveText: { ...typography.footnote, color: colors.accentRed, fontWeight: '600' },
+    addScriptureRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+    addScriptureBtn: {
+      backgroundColor: t.accentBlue,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+      borderRadius: radius.small,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: 64,
+    },
+    addScriptureBtnText: { color: '#fff', fontWeight: '700' },
+    emptyText: { ...typography.subhead, color: t.textSecondary, fontStyle: 'italic', textAlign: 'center', marginTop: spacing.xl },
+    scriptureWrap: { marginBottom: spacing.xs },
+    scriptureRemove: { alignSelf: 'flex-end', marginTop: -4, marginBottom: spacing.sm, paddingHorizontal: spacing.xs },
+    scriptureRemoveText: { ...typography.footnote, color: t.accentRed, fontWeight: '600' },
 
-  transcript: { ...typography.subhead, color: colors.textPrimary, lineHeight: 22 },
+    transcript: { ...typography.subhead, color: t.textPrimary, lineHeight: 22 },
 
-  footer: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.separator,
-    backgroundColor: colors.bgPrimary,
-  },
-  primary: {
-    flex: 1,
-    backgroundColor: colors.textPrimary,
-    paddingVertical: 14,
-    borderRadius: radius.card,
-    alignItems: 'center',
-  },
-  primaryText: { ...typography.headline, color: '#fff' },
-  secondary: {
-    flex: 2,
-    backgroundColor: colors.bgSurface,
-    paddingVertical: 14,
-    borderRadius: radius.card,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.separator,
-  },
-  secondaryText: { ...typography.headline, color: colors.textPrimary },
-});
+    footer: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: t.separator,
+      backgroundColor: t.bgPrimary,
+    },
+    primary: {
+      flex: 1,
+      backgroundColor: t.textPrimary,
+      paddingVertical: 14,
+      borderRadius: radius.card,
+      alignItems: 'center',
+    },
+    primaryText: { ...typography.headline, color: t.bgPrimary },
+    secondary: {
+      flex: 2,
+      backgroundColor: t.bgSurface,
+      paddingVertical: 14,
+      borderRadius: radius.card,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: t.separator,
+    },
+    secondaryText: { ...typography.headline, color: t.textPrimary },
+  });
+}

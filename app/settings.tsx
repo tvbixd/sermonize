@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -16,7 +16,7 @@ import {
   setGroqKey,
   setTranslation,
 } from '@/storage/keys';
-import { colors, radius, spacing, typography } from '@/theme';
+import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 
 const TRANSLATIONS = [
   { id: 'web', label: 'World English Bible' },
@@ -29,6 +29,8 @@ export default function SettingsScreen() {
   const [groq, setGroq] = useState('');
   const [translation, setTrans] = useState('web');
   const [loaded, setLoaded] = useState(false);
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
 
   useEffect(() => {
     void (async () => {
@@ -63,7 +65,7 @@ export default function SettingsScreen() {
             value={groq}
             onChangeText={setGroq}
             placeholder="gsk_..."
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={t.textTertiary}
             autoCapitalize="none"
             autoCorrect={false}
             secureTextEntry
@@ -72,15 +74,15 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionLabel}>BIBLE TRANSLATION</Text>
         <View style={styles.card}>
-          {TRANSLATIONS.map((t, i) => (
-            <React.Fragment key={t.id}>
+          {TRANSLATIONS.map((tr, i) => (
+            <React.Fragment key={tr.id}>
               <TouchableOpacity
-                onPress={() => setTrans(t.id)}
+                onPress={() => setTrans(tr.id)}
                 style={styles.row}
                 activeOpacity={0.6}
               >
-                <Text style={styles.rowLabel}>{t.label}</Text>
-                {translation === t.id ? (
+                <Text style={styles.rowLabel}>{tr.label}</Text>
+                {translation === tr.id ? (
                   <Text style={styles.checkmark}>✓</Text>
                 ) : null}
               </TouchableOpacity>
@@ -97,59 +99,61 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgPrimary },
-  content: { padding: spacing.md, paddingTop: spacing.lg },
+function makeStyles(t: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bgPrimary },
+    content: { padding: spacing.md, paddingTop: spacing.lg },
 
-  sectionLabel: {
-    ...typography.footnote,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.sm,
-    marginLeft: spacing.xs,
-  },
+    sectionLabel: {
+      ...typography.footnote,
+      fontWeight: '600',
+      color: t.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: spacing.sm,
+      marginLeft: spacing.xs,
+    },
 
-  card: {
-    backgroundColor: colors.bgSurface,
-    borderRadius: radius.card,
-    marginBottom: spacing.lg,
-    overflow: 'hidden',
-  },
-  helpText: {
-    ...typography.footnote,
-    color: colors.textSecondary,
-    padding: spacing.md,
-    lineHeight: 18,
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.separator,
-    marginLeft: spacing.md,
-  },
-  input: {
-    ...typography.body,
-    color: colors.textPrimary,
-    padding: spacing.md,
-    minHeight: spacing.rowMinHeight,
-  },
+    card: {
+      backgroundColor: t.bgSurface,
+      borderRadius: radius.card,
+      marginBottom: spacing.lg,
+      overflow: 'hidden',
+    },
+    helpText: {
+      ...typography.footnote,
+      color: t.textSecondary,
+      padding: spacing.md,
+      lineHeight: 18,
+    },
+    divider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: t.separator,
+      marginLeft: spacing.md,
+    },
+    input: {
+      ...typography.body,
+      color: t.textPrimary,
+      padding: spacing.md,
+      minHeight: spacing.rowMinHeight,
+    },
 
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    minHeight: spacing.rowMinHeight,
-  },
-  rowLabel: { ...typography.body, color: colors.textPrimary, flex: 1 },
-  checkmark: { ...typography.headline, color: colors.accentBlue },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
+      minHeight: spacing.rowMinHeight,
+    },
+    rowLabel: { ...typography.body, color: t.textPrimary, flex: 1 },
+    checkmark: { ...typography.headline, color: t.accentBlue },
 
-  saveBtn: {
-    backgroundColor: colors.accentBlue,
-    borderRadius: radius.card,
-    paddingVertical: 15,
-    alignItems: 'center',
-    marginTop: spacing.sm,
-  },
-  saveBtnText: { ...typography.headline, color: '#FFFFFF' },
-});
+    saveBtn: {
+      backgroundColor: t.accentBlue,
+      borderRadius: radius.card,
+      paddingVertical: 15,
+      alignItems: 'center',
+      marginTop: spacing.sm,
+    },
+    saveBtnText: { ...typography.headline, color: '#FFFFFF' },
+  });
+}

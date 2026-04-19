@@ -1,27 +1,43 @@
-export const colors = {
-  // Light mode (Apple Notes style)
+import { useMemo } from 'react';
+import { useColorScheme } from 'react-native';
+
+export const lightColors = {
   bgPrimary: '#F2F2F7',
   bgSurface: '#FFFFFF',
+  bgSurfaceRaised: '#F2F2F7',
   textPrimary: '#000000',
   textSecondary: '#8E8E93',
   textTertiary: '#C7C7CC',
   separator: 'rgba(60,60,67,0.12)',
-
-  // Dark mode (Voice Memos style)
-  darkBgPrimary: '#000000',
-  darkBgSurface: '#1C1C1E',
-  darkBgSurfaceRaised: '#2C2C2E',
-  darkTextPrimary: '#FFFFFF',
-  darkTextSecondary: '#8E8E93',
-
-  // Accents
-  accentBlue: '#0A84FF',
+  accentBlue: '#007AFF',
   accentRed: '#FF3B30',
   accentGold: '#FFD60A',
-
-  // Semantic
   destructive: '#FF3B30',
 } as const;
+
+export const darkColors = {
+  bgPrimary: '#000000',
+  bgSurface: '#1C1C1E',
+  bgSurfaceRaised: '#2C2C2E',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#8E8E93',
+  textTertiary: '#636366',
+  separator: 'rgba(84,84,88,0.65)',
+  accentBlue: '#0A84FF',
+  accentRed: '#FF453A',
+  accentGold: '#FFD60A',
+  destructive: '#FF453A',
+} as const;
+
+export type Colors = typeof lightColors;
+
+export function useTheme(): Colors {
+  const scheme = useColorScheme();
+  return useMemo(() => (scheme === 'dark' ? darkColors : lightColors), [scheme]);
+}
+
+// Keep static `colors` export for backwards compat (resolves to light)
+export const colors = lightColors;
 
 export const typography = {
   largeTitle: { fontSize: 34, fontWeight: '700' as const },

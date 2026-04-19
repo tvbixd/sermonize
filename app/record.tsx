@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -22,7 +22,7 @@ import { transcribeAudio } from '@/services/whisper';
 import { useSessionStore } from '@/state/sessionStore';
 import { getGroqKey, getTranslation } from '@/storage/keys';
 import { ensureAudioDir, saveSermon } from '@/storage/sermons';
-import { colors, radius, spacing, typography } from '@/theme';
+import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Sermon } from '@/types';
 import { formatElapsed } from '@/util/format';
 import { newId } from '@/util/id';
@@ -59,6 +59,8 @@ export default function RecordScreen() {
   const chunkCountRef = useRef<number>(0);
   const [retryAvailable, setRetryAvailable] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
 
   useEffect(() => {
     reset();
@@ -208,9 +210,9 @@ export default function RecordScreen() {
       <StatusBar style="light" />
       <Stack.Screen
         options={{
-          headerStyle: { backgroundColor: colors.darkBgPrimary },
-          headerTintColor: colors.darkTextPrimary,
-          contentStyle: { backgroundColor: colors.darkBgPrimary },
+          headerStyle: { backgroundColor: t.bgSurface },
+          headerTintColor: t.accentBlue,
+          contentStyle: { backgroundColor: t.bgPrimary },
         }}
       />
 
@@ -290,68 +292,70 @@ export default function RecordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.darkBgPrimary, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+function makeStyles(t: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bgPrimary, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
 
-  timerRow: { alignItems: 'center', marginTop: spacing.md, paddingBottom: spacing.xs },
-  timer: {
-    fontSize: 56,
-    fontWeight: '200',
-    color: colors.darkTextPrimary,
-    fontVariant: ['tabular-nums'],
-    letterSpacing: -1,
-  },
-  statusLabel: { ...typography.subhead, color: colors.darkTextSecondary, marginTop: spacing.xs },
+    timerRow: { alignItems: 'center', marginTop: spacing.md, paddingBottom: spacing.xs },
+    timer: {
+      fontSize: 56,
+      fontWeight: '200',
+      color: t.textPrimary,
+      fontVariant: ['tabular-nums'],
+      letterSpacing: -1,
+    },
+    statusLabel: { ...typography.subhead, color: t.textSecondary, marginTop: spacing.xs },
 
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
-  stepText: { marginTop: spacing.md, ...typography.body, color: colors.darkTextSecondary, textAlign: 'center' },
-  errorTitle: { ...typography.headline, color: colors.accentRed, marginBottom: spacing.sm },
-  errorBody: { ...typography.subhead, color: colors.darkTextSecondary, textAlign: 'center', marginBottom: spacing.md },
-  retryBtn: {
-    backgroundColor: colors.darkBgSurfaceRaised,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 12,
-    borderRadius: radius.small,
-  },
-  retryText: { ...typography.headline, color: colors.accentBlue },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
+    stepText: { marginTop: spacing.md, ...typography.body, color: t.textSecondary, textAlign: 'center' },
+    errorTitle: { ...typography.headline, color: t.accentRed, marginBottom: spacing.sm },
+    errorBody: { ...typography.subhead, color: t.textSecondary, textAlign: 'center', marginBottom: spacing.md },
+    retryBtn: {
+      backgroundColor: t.bgSurfaceRaised,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 12,
+      borderRadius: radius.small,
+    },
+    retryText: { ...typography.headline, color: t.accentBlue },
 
-  liveArea: { flex: 1 },
-  liveContent: { paddingVertical: spacing.md, paddingBottom: spacing.sm },
-  btnWrap: { alignItems: 'center', marginBottom: spacing.lg },
-  hint: { ...typography.footnote, color: colors.darkTextSecondary, textAlign: 'center', marginBottom: spacing.md },
+    liveArea: { flex: 1 },
+    liveContent: { paddingVertical: spacing.md, paddingBottom: spacing.sm },
+    btnWrap: { alignItems: 'center', marginBottom: spacing.lg },
+    hint: { ...typography.footnote, color: t.textSecondary, textAlign: 'center', marginBottom: spacing.md },
 
-  panel: {
-    backgroundColor: colors.darkBgSurface,
-    borderRadius: radius.card,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  panelTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.darkTextSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  transcriptText: { ...typography.subhead, color: colors.darkTextPrimary, lineHeight: 22, marginTop: spacing.sm },
-  outlineToggle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  chevron: { color: colors.darkTextSecondary, fontSize: 14 },
+    panel: {
+      backgroundColor: t.bgSurface,
+      borderRadius: radius.card,
+      padding: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    panelTitle: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: t.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+    },
+    transcriptText: { ...typography.subhead, color: t.textPrimary, lineHeight: 22, marginTop: spacing.sm },
+    outlineToggle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    chevron: { color: t.textSecondary, fontSize: 14 },
 
-  controls: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
-  stopBtn: {
-    flex: 2,
-    backgroundColor: colors.darkBgSurfaceRaised,
-    paddingVertical: 15,
-    borderRadius: radius.card,
-    alignItems: 'center',
-  },
-  stopText: { ...typography.headline, color: colors.darkTextPrimary },
-  cancelBtn: {
-    flex: 1,
-    backgroundColor: colors.darkBgSurface,
-    paddingVertical: 15,
-    borderRadius: radius.card,
-    alignItems: 'center',
-  },
-  cancelText: { ...typography.headline, color: colors.accentRed },
-});
+    controls: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
+    stopBtn: {
+      flex: 2,
+      backgroundColor: t.bgSurfaceRaised,
+      paddingVertical: 15,
+      borderRadius: radius.card,
+      alignItems: 'center',
+    },
+    stopText: { ...typography.headline, color: t.textPrimary },
+    cancelBtn: {
+      flex: 1,
+      backgroundColor: t.bgSurface,
+      paddingVertical: 15,
+      borderRadius: radius.card,
+      alignItems: 'center',
+    },
+    cancelText: { ...typography.headline, color: t.accentRed },
+  });
+}
