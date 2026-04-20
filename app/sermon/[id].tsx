@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScriptureCard } from '@/components/ScriptureCard';
-import { CloseIcon, ExportIcon, PlusIcon, RegenIcon } from '@/components/icons';
+import { BackChevronIcon, CloseIcon, ExportIcon, PlusIcon, RegenIcon } from '@/components/icons';
 import { lookupVerse, lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
@@ -31,7 +31,6 @@ type Tab = 'outline' | 'scriptures' | 'transcript';
 export default function SermonDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const navigation = useNavigation();
   const t = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 
@@ -62,25 +61,13 @@ export default function SermonDetail() {
     setDraftPoints(JSON.parse(JSON.stringify(s.outline.points)));
   };
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () =>
-        editing ? (
-          <View style={{ flexDirection: 'row', gap: 16, marginRight: 4 }}>
-            <TouchableOpacity onPress={onCancelEdit}>
-              <Text style={{ color: t.textSecondary, fontWeight: '600', fontSize: 15 }}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onSaveEdit}>
-              <Text style={{ color: t.accentBlue, fontWeight: '700', fontSize: 15 }}>Save</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity onPress={() => setEditing(true)} style={{ marginRight: 4 }}>
-            <Text style={{ color: t.accentBlue, fontWeight: '600', fontSize: 15 }}>Edit</Text>
-          </TouchableOpacity>
-        ),
-    });
-  }, [editing, draftTitle, draftTheme, draftSummary, draftPoints, t]);
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/sermons');
+    }
+  };
 
   const onCancelEdit = () => {
     if (sermon) seedDraft(sermon);
@@ -196,23 +183,38 @@ export default function SermonDetail() {
 
   if (!sermon) {
     return (
-      <SafeAreaView style={styles.container}>
-        <Stack.Screen options={{ title: '' }} />
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator style={{ marginTop: 40 }} color={t.textSecondary} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <Stack.Screen
-        options={{
-          title: '',
-          headerStyle: { backgroundColor: t.bgSurface },
-          headerShadowVisible: false,
-          headerTintColor: t.accentBlue,
-        }}
-      />
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* Nav bar */}
+      <View style={styles.navBar}>
+        <TouchableOpacity onPress={goBack} style={styles.navBack} hitSlop={8}>
+          <BackChevronIcon color={t.accentBlue} size={20} />
+          <Text style={styles.navText}>Sermons</Text>
+        </TouchableOpacity>
+        {editing ? (
+          <View style={styles.navRight}>
+            <TouchableOpacity onPress={onCancelEdit}>
+              <Text style={[styles.navText, { color: t.textSecondary }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onSaveEdit}>
+              <Text style={[styles.navText, { color: t.accentBlue, fontWeight: '700' }]}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity onPress={() => setEditing(true)} hitSlop={8}>
+            <Text style={[styles.navText, { color: t.accentBlue }]}>Edit</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* Header: title + meta */}
       <View style={styles.titleBlock}>
@@ -435,6 +437,19 @@ function sanitize(name: string): string {
 function makeStyles(t: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bgSurface },
+
+    navBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.xs,
+      backgroundColor: t.bgSurface,
+    },
+    navBack: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    navText: { ...typography.body, color: t.accentBlue },
+    navRight: { flexDirection: 'row', gap: 16 },
 
     titleBlock: {
       paddingHorizontal: spacing.md,

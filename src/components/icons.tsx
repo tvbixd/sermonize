@@ -82,9 +82,10 @@ export function ExportIcon({ size = 18, color = '#fff' }: IconProps) {
 
 export function RegenIcon({ size = 18, color = '#000' }: IconProps) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-      <Path d="M16 5.5A7 7 0 1 0 17 10" stroke={color} strokeWidth="1.7" strokeLinecap="round" fill="none" />
-      <Path d="M12.5 3l3.5 2.5L13.8 9" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M1 4v6h6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M23 20v-6h-6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 0 1 3.51 15" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }

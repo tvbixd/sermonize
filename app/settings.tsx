@@ -1,3 +1,4 @@
+import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -27,6 +28,7 @@ const TRANSLATIONS = [
 ];
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const [groq, setGroq] = useState('');
   const [translation, setTrans] = useState('web');
   const [loaded, setLoaded] = useState(false);
@@ -50,11 +52,18 @@ export default function SettingsScreen() {
 
   if (!loaded) return null;
 
+  const onDone = async () => {
+    await onSave();
+    router.back();
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
+
       {/* Grab handle (modal) */}
       <View style={styles.grabHandle} />
 
@@ -62,7 +71,9 @@ export default function SettingsScreen() {
       <View style={styles.modalHeader}>
         <View style={{ width: 60 }} />
         <Text style={styles.modalTitle}>Settings</Text>
-        <View style={{ width: 60, alignItems: 'flex-end' }} />
+        <TouchableOpacity onPress={onDone} style={{ width: 60, alignItems: 'flex-end' }}>
+          <Text style={[styles.doneText, { color: t.accentBlue }]}>Done</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -154,6 +165,7 @@ function makeStyles(t: Colors) {
       paddingVertical: 10,
     },
     modalTitle: { ...typography.headline, color: t.textPrimary },
+    doneText: { ...typography.body, fontWeight: '600' },
 
     content: { paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.xl },
 
