@@ -99,7 +99,7 @@ export default function FoldersScreen() {
   const allCount = countFor(undefined);
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Nav bar */}
