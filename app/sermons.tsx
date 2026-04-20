@@ -1,9 +1,8 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  ActionSheetIOS,
   Alert,
-  Platform,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,11 +10,19 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { deleteSermon, listSermons, saveSermon } from '@/storage/sermons';
+import { listFolders } from '@/storage/folders';
+import {
+  deleteSermon,
+  listDeletedSermons,
+  listSermons,
+  restoreSermon,
+  saveSermon,
+  softDeleteSermon,
+} from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
-import type { Sermon } from '@/types';
+import type { Folder, Sermon } from '@/types';
 import { formatDate, formatElapsed } from '@/util/format';
-import { BackChevronIcon, ChevronIcon, MicIcon, WaveformIcon } from '@/components/icons';
+import { BackChevronIcon, ChevronIcon, FolderIcon, MicIcon, TrashIcon, WaveformIcon } from '@/components/icons';
 
 type Section = { title: string; data: Sermon[] };
 
@@ -46,55 +53,73 @@ function groupSermons(sermons: Sermon[]): Section[] {
 }
 
 export default function SermonsScreen() {
-  const { folderId, folderName } = useLocalSearchParams<{ folderId?: string; folderName?: string }>();
+  const { folderId, folderName, isDeleted } = useLocalSearchParams<{
+    folderId?: string;
+    folderName?: string;
+    isDeleted?: string;
+  }>();
+  const isTrash = isDeleted === 'true';
   const [sermons, setSermons] = useState<Sermon[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [menuSermon, setMenuSermon] = useState<Sermon | null>(null);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
   const router = useRouter();
   const t = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 
   const refresh = useCallback(async () => {
-    const all = await listSermons();
-    const filtered = folderId ? all.filter((s) => s.folderId === folderId) : all;
-    setSermons(filtered);
-  }, [folderId]);
+    if (isTrash) {
+      setSermons(await listDeletedSermons());
+    } else {
+      const all = await listSermons();
+      const filtered = folderId ? all.filter((s) => s.folderId === folderId) : all;
+      setSermons(filtered);
+    }
+    setFolders(await listFolders());
+  }, [folderId, isTrash]);
 
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
   const onPin = async (s: Sermon) => {
     await saveSermon({ ...s, pinned: !s.pinned });
+    setMenuSermon(null);
     await refresh();
   };
 
-  const onDelete = (s: Sermon) => {
-    Alert.alert('Delete sermon?', s.title, [
+  const onSoftDelete = async (s: Sermon) => {
+    setMenuSermon(null);
+    await softDeleteSermon(s.id);
+    await refresh();
+  };
+
+  const onRestore = async (s: Sermon) => {
+    await restoreSermon(s.id);
+    await refresh();
+  };
+
+  const onPermanentDelete = (s: Sermon) => {
+    Alert.alert('Delete permanently?', `"${s.title}" will be permanently removed.`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => { await deleteSermon(s.id); await refresh(); } },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await deleteSermon(s.id);
+          await refresh();
+        },
+      },
     ]);
   };
 
-  const showContextMenu = (s: Sermon) => {
-    const pinLabel = s.pinned ? 'Unpin' : 'Pin to Top';
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        { options: [pinLabel, 'Edit', 'Delete', 'Cancel'], destructiveButtonIndex: 2, cancelButtonIndex: 3, title: s.title },
-        (idx) => {
-          if (idx === 0) void onPin(s);
-          else if (idx === 1) router.push(`/sermon/${s.id}`);
-          else if (idx === 2) onDelete(s);
-        },
-      );
-    } else {
-      Alert.alert(s.title, 'Choose action', [
-        { text: pinLabel, onPress: () => void onPin(s) },
-        { text: 'Edit', onPress: () => router.push(`/sermon/${s.id}`) },
-        { text: 'Delete', style: 'destructive', onPress: () => onDelete(s) },
-        { text: 'Cancel', style: 'cancel' },
-      ]);
-    }
+  const onMoveToFolder = async (s: Sermon, targetFolderId: string | undefined) => {
+    await saveSermon({ ...s, folderId: targetFolderId });
+    setShowFolderPicker(false);
+    setMenuSermon(null);
+    await refresh();
   };
 
   const sections = groupSermons(sermons);
-  const title = folderName ?? 'All Sermons';
+  const title = folderName ?? (isTrash ? 'Recently Deleted' : 'All Sermons');
   const total = sermons.length;
 
   return (
@@ -117,52 +142,150 @@ export default function SermonsScreen() {
       {sermons.length === 0 ? (
         <View style={styles.empty}>
           <View style={styles.emptyIcon}>
-            <WaveformIcon size={56} color={t.textTertiary} />
+            {isTrash
+              ? <TrashIcon size={56} color={t.textTertiary} />
+              : <WaveformIcon size={56} color={t.textTertiary} />}
           </View>
-          <Text style={styles.emptyTitle}>No sermons yet</Text>
-          <Text style={styles.emptySub}>{'Tap the mic to record\nyour first sermon'}</Text>
+          <Text style={styles.emptyTitle}>{isTrash ? 'Nothing here' : 'No sermons yet'}</Text>
+          <Text style={styles.emptySub}>
+            {isTrash
+              ? 'Deleted sermons will appear here.'
+              : 'Tap the mic to record\nyour first sermon'}
+          </Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.listContent}>
           <Text style={styles.subtitle}>
             {total} {total === 1 ? 'recording' : 'recordings'}
           </Text>
-          {sections.map((section) => (
-            <View key={section.title}>
-              <Text style={styles.sectionHeader}>{section.title}</Text>
-              <View style={styles.card}>
-                {section.data.map((item, index) => {
-                  const isLast = index === section.data.length - 1;
-                  return (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={[styles.row, !isLast && styles.rowBorder]}
-                      onPress={() => router.push(`/sermon/${item.id}`)}
-                      onLongPress={() => showContextMenu(item)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.rowContent}>
-                        <View style={styles.rowTop}>
-                          <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
-                          {item.pinned && <Text style={styles.pin}>📌</Text>}
-                        </View>
-                        <Text style={styles.rowMeta}>
-                          {formatDate(item.createdAt)} · {formatElapsed(item.durationMs)}
-                        </Text>
-                      </View>
-                      <ChevronIcon color={t.textTertiary} size={12} />
+
+          {isTrash ? (
+            <View style={styles.card}>
+              {sermons.map((item, index) => {
+                const isLast = index === sermons.length - 1;
+                return (
+                  <View key={item.id} style={[styles.row, !isLast && styles.rowBorder]}>
+                    <View style={styles.rowContent}>
+                      <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+                      <Text style={styles.rowMeta}>{formatDate(item.createdAt)}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => onRestore(item)} hitSlop={6}>
+                      <Text style={styles.restoreBtn}>Restore</Text>
                     </TouchableOpacity>
-                  );
-                })}
-              </View>
+                    <TouchableOpacity onPress={() => onPermanentDelete(item)} hitSlop={6}>
+                      <TrashIcon size={18} color={t.accentRed} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
             </View>
-          ))}
+          ) : (
+            sections.map((section) => (
+              <View key={section.title}>
+                <Text style={styles.sectionHeader}>{section.title}</Text>
+                <View style={styles.card}>
+                  {section.data.map((item, index) => {
+                    const isLast = index === section.data.length - 1;
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={[styles.row, !isLast && styles.rowBorder]}
+                        onPress={() => router.push(`/sermon/${item.id}`)}
+                        onLongPress={() => setMenuSermon(item)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.rowContent}>
+                          <View style={styles.rowTop}>
+                            <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+                            {item.pinned && <Text style={styles.pin}>📌</Text>}
+                          </View>
+                          <Text style={styles.rowMeta}>
+                            {formatDate(item.createdAt)} · {formatElapsed(item.durationMs)}
+                          </Text>
+                        </View>
+                        <ChevronIcon color={t.textTertiary} size={12} />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            ))
+          )}
         </ScrollView>
       )}
 
-      <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={() => router.push('/record')}>
-        <MicIcon size={28} color="#fff" />
-      </TouchableOpacity>
+      {!isTrash && (
+        <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={() => router.push('/record')}>
+          <MicIcon size={28} color="#fff" />
+        </TouchableOpacity>
+      )}
+
+      {/* Context menu bottom sheet */}
+      <Modal visible={!!menuSermon} transparent animationType="slide" onRequestClose={() => setMenuSermon(null)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setMenuSermon(null)}>
+          <View style={styles.sheet}>
+            <View style={styles.grabHandle} />
+            <Text style={styles.sheetTitle} numberOfLines={1}>{menuSermon?.title}</Text>
+
+            <TouchableOpacity style={styles.sheetRow} onPress={() => { if (menuSermon) { router.push(`/sermon/${menuSermon.id}`); setMenuSermon(null); } }}>
+              <Text style={styles.sheetRowText}>Open</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sheetRow} onPress={() => { if (menuSermon) void onPin(menuSermon); }}>
+              <Text style={styles.sheetRowText}>{menuSermon?.pinned ? 'Unpin' : 'Pin to Top'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.sheetRow} onPress={() => { setShowFolderPicker(true); }}>
+              <Text style={styles.sheetRowText}>Move to Folder</Text>
+            </TouchableOpacity>
+
+            <View style={styles.sheetDivider} />
+
+            <TouchableOpacity style={styles.sheetRow} onPress={() => { if (menuSermon) void onSoftDelete(menuSermon); }}>
+              <Text style={[styles.sheetRowText, { color: t.accentRed }]}>Delete</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.sheetRow, styles.sheetCancel]} onPress={() => setMenuSermon(null)}>
+              <Text style={[styles.sheetRowText, { fontWeight: '600' }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Folder picker sheet */}
+      <Modal visible={showFolderPicker} transparent animationType="slide" onRequestClose={() => setShowFolderPicker(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowFolderPicker(false)}>
+          <View style={styles.sheet}>
+            <View style={styles.grabHandle} />
+            <Text style={styles.sheetTitle}>Move to Folder</Text>
+
+            <TouchableOpacity
+              style={styles.sheetRow}
+              onPress={() => { if (menuSermon) void onMoveToFolder(menuSermon, undefined); }}
+            >
+              <FolderIcon kind="all" size={22} color={t.accentBlue} />
+              <Text style={styles.sheetRowText}>All Sermons</Text>
+              {!menuSermon?.folderId && <Text style={styles.checkMark}>✓</Text>}
+            </TouchableOpacity>
+
+            {folders.map((f) => (
+              <TouchableOpacity
+                key={f.id}
+                style={styles.sheetRow}
+                onPress={() => { if (menuSermon) void onMoveToFolder(menuSermon, f.id); }}
+              >
+                <FolderIcon kind="folder" size={22} color={f.color} />
+                <Text style={styles.sheetRowText}>{f.name}</Text>
+                {menuSermon?.folderId === f.id && <Text style={styles.checkMark}>✓</Text>}
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity style={[styles.sheetRow, styles.sheetCancel]} onPress={() => setShowFolderPicker(false)}>
+              <Text style={[styles.sheetRowText, { fontWeight: '600' }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -220,6 +343,7 @@ function makeStyles(t: Colors) {
     rowTitle: { ...typography.headline, color: t.textPrimary, flex: 1 },
     pin: { fontSize: 12 },
     rowMeta: { ...typography.footnote, color: t.textSecondary },
+    restoreBtn: { ...typography.subhead, color: t.accentBlue, fontWeight: '600', marginRight: spacing.sm },
 
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: 20 },
     emptyIcon: {
@@ -236,5 +360,38 @@ function makeStyles(t: Colors) {
       shadowColor: t.accentRed, shadowOpacity: 0.38, shadowRadius: 12, shadowOffset: { width: 0, height: 8 },
       elevation: 6,
     },
+
+    overlay: { flex: 1, backgroundColor: t.dimOverlay, justifyContent: 'flex-end' },
+    sheet: {
+      backgroundColor: t.bgSurface,
+      borderTopLeftRadius: 14,
+      borderTopRightRadius: 14,
+      paddingBottom: 34,
+    },
+    grabHandle: {
+      width: 36, height: 5, borderRadius: 3,
+      backgroundColor: t.textTertiary,
+      alignSelf: 'center',
+      marginTop: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+    sheetTitle: {
+      ...typography.headline,
+      color: t.textPrimary,
+      textAlign: 'center',
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.sm,
+    },
+    sheetRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 14,
+    },
+    sheetRowText: { ...typography.body, color: t.textPrimary, flex: 1 },
+    sheetDivider: { height: StyleSheet.hairlineWidth, backgroundColor: t.separator, marginHorizontal: spacing.lg, marginVertical: 4 },
+    sheetCancel: { marginTop: spacing.xs },
+    checkMark: { ...typography.body, color: t.accentBlue, fontWeight: '600' },
   });
 }

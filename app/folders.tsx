@@ -173,7 +173,11 @@ export default function FoldersScreen() {
             <ChevronIcon color={t.textTertiary} size={12} />
           </TouchableOpacity>
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.row} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push({ pathname: '/sermons', params: { folderName: 'Recently Deleted', isDeleted: 'true' } })}
+            activeOpacity={0.7}
+          >
             <FolderIcon kind="trash" size={28} />
             <Text style={styles.rowLabel}>Recently Deleted</Text>
             <ChevronIcon color={t.textTertiary} size={12} />

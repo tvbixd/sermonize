@@ -27,7 +27,7 @@ export async function ensureAudioDir(id: string): Promise<string> {
   return dir;
 }
 
-export async function listSermons(): Promise<Sermon[]> {
+async function loadAll(): Promise<Sermon[]> {
   await ensureDir();
   const entries = await FileSystem.readDirectoryAsync(SERMONS_DIR);
   const jsonFiles = entries.filter((e) => e.endsWith('.json'));
@@ -44,6 +44,16 @@ export async function listSermons(): Promise<Sermon[]> {
   return sermons;
 }
 
+export async function listSermons(): Promise<Sermon[]> {
+  const all = await loadAll();
+  return all.filter((s) => !s.deletedAt);
+}
+
+export async function listDeletedSermons(): Promise<Sermon[]> {
+  const all = await loadAll();
+  return all.filter((s) => !!s.deletedAt);
+}
+
 export async function getSermon(id: string): Promise<Sermon | null> {
   await ensureDir();
   const path = jsonPath(id);
@@ -56,6 +66,22 @@ export async function getSermon(id: string): Promise<Sermon | null> {
 export async function saveSermon(sermon: Sermon): Promise<void> {
   await ensureDir();
   await FileSystem.writeAsStringAsync(jsonPath(sermon.id), JSON.stringify(sermon, null, 2));
+}
+
+export async function softDeleteSermon(id: string): Promise<void> {
+  const sermon = await getSermon(id);
+  if (sermon) {
+    sermon.deletedAt = Date.now();
+    await saveSermon(sermon);
+  }
+}
+
+export async function restoreSermon(id: string): Promise<void> {
+  const sermon = await getSermon(id);
+  if (sermon) {
+    delete sermon.deletedAt;
+    await saveSermon(sermon);
+  }
 }
 
 export async function deleteSermon(id: string): Promise<void> {

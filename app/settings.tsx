@@ -25,6 +25,10 @@ const TRANSLATIONS = [
   { id: 'kjv', label: 'King James Version', abbr: 'KJV — classic English' },
   { id: 'bbe', label: 'Bible in Basic English', abbr: 'BBE — simplified vocabulary' },
   { id: 'oeb-us', label: 'Open English Bible', abbr: 'OEB — contemporary, open' },
+  { id: 'almeida', label: 'Almeida (Portuguese)', abbr: 'Almeida — Português' },
+  { id: 'rccv', label: 'Romanian Cornilescu', abbr: 'RCCV — Română' },
+  { id: 'cherokee', label: 'Cherokee New Testament', abbr: 'Cherokee — ᏣᎳᎩ' },
+  { id: 'clementine', label: 'Clementine Vulgate (Latin)', abbr: 'Latin — classic liturgical' },
 ];
 
 export default function SettingsScreen() {

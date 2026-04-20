@@ -28,6 +28,7 @@ export type Sermon = {
   durationMs: number;
   folderId?: string; // undefined = All Sermons
   pinned?: boolean;
+  deletedAt?: number;
 };
 
 export type Folder = {
