@@ -119,7 +119,7 @@ export default function FoldersScreen() {
         <Text style={styles.largeTitle}>Folders</Text>
       </View>
       <Text style={styles.subtitle}>
-        {allCount} {allCount === 1 ? 'recording' : 'recordings'}
+        {allCount} {allCount === 1 ? 'recording' : 'recordings'} · UI v2
       </Text>
 
       <ScrollView contentContainerStyle={styles.content}>
