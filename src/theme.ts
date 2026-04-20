@@ -51,7 +51,7 @@ export type Colors = typeof lightColors;
 
 export function useTheme(): Colors {
   const scheme = useColorScheme();
-  return useMemo(() => (scheme === 'dark' ? darkColors : lightColors), [scheme]);
+  return useMemo(() => (scheme === 'dark' ? darkColors as unknown as Colors : lightColors), [scheme]);
 }
 
 export const colors = lightColors;

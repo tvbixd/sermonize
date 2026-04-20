@@ -1,4 +1,4 @@
-import { Link, Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActionSheetIOS,
@@ -15,6 +15,7 @@ import { deleteSermon, listSermons, saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Sermon } from '@/types';
 import { formatDate, formatElapsed } from '@/util/format';
+import { ChevronIcon, MicIcon, WaveformIcon } from '@/components/icons';
 
 type Section = { title: string; data: Sermon[] };
 
@@ -53,7 +54,6 @@ export default function SermonsScreen() {
 
   const refresh = useCallback(async () => {
     const all = await listSermons();
-    // folderId=undefined means "All Sermons" (show everything)
     const filtered = folderId ? all.filter((s) => s.folderId === folderId) : all;
     setSermons(filtered);
   }, [folderId]);
@@ -79,7 +79,6 @@ export default function SermonsScreen() {
   const showContextMenu = (s: Sermon) => {
     const pinLabel = s.pinned ? 'Unpin' : 'Pin to Top';
     const options = [pinLabel, 'Edit', 'Delete', 'Cancel'];
-
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         { options, destructiveButtonIndex: 2, cancelButtonIndex: 3, title: s.title },
@@ -101,6 +100,7 @@ export default function SermonsScreen() {
 
   const sections = groupSermons(sermons);
   const title = folderName ?? 'All Sermons';
+  const total = sermons.length;
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -111,57 +111,65 @@ export default function SermonsScreen() {
           headerLargeTitleStyle: { fontWeight: '700', color: t.textPrimary },
           headerStyle: { backgroundColor: t.bgSurface },
           headerBackTitle: 'Folders',
+          headerTintColor: t.accentBlue,
         }}
       />
 
       {sermons.length === 0 ? (
         <View style={styles.empty}>
           <View style={styles.emptyIcon}>
-            <Text style={styles.emptyIconText}>🎙</Text>
+            <WaveformIcon size={56} color={t.textTertiary} />
           </View>
           <Text style={styles.emptyTitle}>No sermons yet</Text>
           <Text style={styles.emptySub}>{'Tap the mic to record\nyour first sermon'}</Text>
         </View>
       ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(s) => s.id}
-          contentContainerStyle={styles.list}
-          stickySectionHeadersEnabled={false}
-          renderSectionHeader={({ section }) => (
-            <Text style={styles.sectionHeader}>{section.title}</Text>
-          )}
-          renderItem={({ item, index, section }) => {
-            const isLast = index === section.data.length - 1;
-            return (
-              <TouchableOpacity
-                style={[styles.row, !isLast && styles.rowBorder]}
-                onPress={() => router.push(`/sermon/${item.id}`)}
-                onLongPress={() => showContextMenu(item)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.rowContent}>
-                  <View style={styles.rowTop}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
-                    {item.pinned && <Text style={styles.pin}>📌</Text>}
+        <>
+          <Text style={styles.subtitle}>
+            {total} {total === 1 ? 'recording' : 'recordings'}
+          </Text>
+          <SectionList
+            sections={sections}
+            keyExtractor={(s) => s.id}
+            contentContainerStyle={styles.list}
+            stickySectionHeadersEnabled={false}
+            renderSectionHeader={({ section }) => (
+              <Text style={styles.sectionHeader}>{section.title}</Text>
+            )}
+            renderItem={({ item, index, section }) => {
+              const isLast = index === section.data.length - 1;
+              return (
+                <TouchableOpacity
+                  style={[styles.row, !isLast && styles.rowBorder]}
+                  onPress={() => router.push(`/sermon/${item.id}`)}
+                  onLongPress={() => showContextMenu(item)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.rowContent}>
+                    <View style={styles.rowTop}>
+                      <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+                      {item.pinned && <Text style={styles.pin}>📌</Text>}
+                    </View>
+                    <Text style={styles.rowMeta}>
+                      {formatDate(item.createdAt)} · {formatElapsed(item.durationMs)}
+                    </Text>
                   </View>
-                  <Text style={styles.rowMeta}>
-                    {formatDate(item.createdAt)} · {formatElapsed(item.durationMs)} · {item.outline.points.length} points
-                  </Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
-              </TouchableOpacity>
-            );
-          }}
-          renderSectionFooter={() => <View style={styles.sectionFooter} />}
-        />
+                  <ChevronIcon color={t.textTertiary} size={12} />
+                </TouchableOpacity>
+              );
+            }}
+            renderSectionFooter={() => <View style={styles.sectionFooter} />}
+          />
+        </>
       )}
 
-      <Link href="/record" asChild>
-        <TouchableOpacity style={styles.fab} activeOpacity={0.85}>
-          <Text style={styles.fabIcon}>🎙</Text>
-        </TouchableOpacity>
-      </Link>
+      <TouchableOpacity
+        style={styles.fab}
+        activeOpacity={0.85}
+        onPress={() => router.push('/record')}
+      >
+        <MicIcon size={28} color="#fff" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -170,13 +178,21 @@ function makeStyles(t: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bgPrimary },
 
+    subtitle: {
+      ...typography.subhead,
+      color: t.textSecondary,
+      paddingHorizontal: 20,
+      paddingTop: 2,
+      paddingBottom: spacing.md,
+    },
+
     list: { paddingBottom: 100 },
     sectionHeader: {
       ...typography.sectionHeader,
       color: t.textSecondary,
       paddingTop: 20,
       paddingBottom: spacing.sm,
-      paddingHorizontal: spacing.xl,
+      paddingHorizontal: spacing.md,
     },
     sectionFooter: { marginBottom: spacing.sm },
 
@@ -187,32 +203,42 @@ function makeStyles(t: Colors) {
       paddingHorizontal: spacing.md,
       paddingVertical: 14,
       minHeight: 62,
+      gap: spacing.sm,
     },
-    rowBorder: {
-      borderBottomWidth: 0.5,
-      borderBottomColor: t.separator,
-    },
+    rowBorder: { borderBottomWidth: 0.5, borderBottomColor: t.separator },
     rowContent: { flex: 1 },
     rowTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs },
     rowTitle: { ...typography.headline, color: t.textPrimary, flex: 1 },
     pin: { fontSize: 12 },
     rowMeta: { ...typography.footnote, color: t.textSecondary },
-    chevron: { fontSize: 20, color: t.textTertiary, marginLeft: spacing.sm },
 
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: 20 },
-    emptyIcon: { width: 104, height: 104, borderRadius: 52, backgroundColor: t.emptyBg, alignItems: 'center', justifyContent: 'center' },
-    emptyIconText: { fontSize: 44 },
+    emptyIcon: {
+      width: 104,
+      height: 104,
+      borderRadius: 52,
+      backgroundColor: t.emptyBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     emptyTitle: { ...typography.title2, color: t.textPrimary },
     emptySub: { ...typography.subhead, color: t.textSecondary, textAlign: 'center', lineHeight: 22 },
 
     fab: {
-      position: 'absolute', bottom: 32, right: spacing.lg,
-      width: 64, height: 64, borderRadius: 32,
+      position: 'absolute',
+      bottom: 32,
+      right: spacing.lg,
+      width: 64,
+      height: 64,
+      borderRadius: 32,
       backgroundColor: t.accentRed,
-      alignItems: 'center', justifyContent: 'center',
-      shadowColor: t.accentRed, shadowOpacity: 0.38, shadowRadius: 12, shadowOffset: { width: 0, height: 8 },
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: t.accentRed,
+      shadowOpacity: 0.38,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 8 },
       elevation: 6,
     },
-    fabIcon: { fontSize: 28 },
   });
 }

@@ -2,9 +2,9 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
-  Pressable,
+  Animated,
+  Easing,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,9 +13,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Svg, Circle, Path } from 'react-native-svg';
 import { SermonRecorder } from '@/audio/SermonRecorder';
-import { RecordButton } from '@/components/RecordButton';
-import { OutlineView } from '@/components/OutlineView';
 import { lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
@@ -25,29 +24,51 @@ import { getGroqKey, getTranslation } from '@/storage/keys';
 import { ensureAudioDir, saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Sermon } from '@/types';
-import { formatElapsed } from '@/util/format';
 import { newId } from '@/util/id';
+import { BackChevronIcon, ChevronIcon } from '@/components/icons';
 
 const OUTLINE_EVERY_N_CHUNKS = 2;
 
-const IDLE_BAR_HEIGHTS = [14, 22, 10, 30, 18, 44, 24, 36, 20, 40, 16, 28, 12, 34, 20];
+const IDLE_BARS = [12, 22, 16, 32, 28, 44, 38, 24, 18, 30, 14, 26, 20, 36, 10];
 
-const STEP_INDEX: Record<string, number> = {
-  outlining: 1,
-  scriptures: 2,
-  saving: 3,
-};
+function formatTimer(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+  const ss = String(totalSec % 60).padStart(2, '0');
+  const cs = String(Math.floor((ms % 1000) / 10)).padStart(2, '0');
+  return `${mm}:${ss}.${cs}`;
+}
 
-const STEP_NEXT: Record<string, string> = {
-  outlining: 'Scriptures',
-  scriptures: 'Saving',
-  saving: 'Done',
-};
+function SpinnerSvg({ isDark }: { isDark: boolean }) {
+  const rotation = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(rotation, { toValue: 1, duration: 1000, easing: Easing.linear, useNativeDriver: true }),
+    ).start();
+    return () => rotation.stopAnimation();
+  }, [rotation]);
+
+  const spin = rotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const trackColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)';
+  const arcColor = isDark ? '#ffffff' : '#0A84FF';
+
+  return (
+    <Animated.View style={{ transform: [{ rotate: spin }] }}>
+      <Svg width={56} height={56} viewBox="0 0 56 56">
+        <Circle cx="28" cy="28" r="22" stroke={trackColor} strokeWidth="3" fill="none" />
+        <Path d="M28 6 A22 22 0 0 1 50 28" stroke={arcColor} strokeWidth="3" fill="none" strokeLinecap="round" />
+      </Svg>
+    </Animated.View>
+  );
+}
 
 export default function RecordScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t, isDark), [t, isDark]);
 
   const status         = useSessionStore((s) => s.status);
   const step           = useSessionStore((s) => s.step);
@@ -74,10 +95,7 @@ export default function RecordScreen() {
   const groqKeyRef    = useRef<string>('');
   const transcriptRef = useRef<string>('');
   const chunkCountRef = useRef<number>(0);
-  const [retryAvailable, setRetryAvailable] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
-  const t = useTheme();
-  const styles = useMemo(() => makeStyles(t, isDark), [t, isDark]);
 
   useEffect(() => {
     reset();
@@ -85,7 +103,6 @@ export default function RecordScreen() {
       stopTicker();
       void recorderRef.current?.stop().catch(() => undefined);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => { transcriptRef.current = liveTranscript; }, [liveTranscript]);
@@ -110,13 +127,10 @@ export default function RecordScreen() {
       incrementChunk();
       const newCount = chunkCountRef.current + 1;
       if (newCount % OUTLINE_EVERY_N_CHUNKS === 0) {
-        const fullTranscript = transcriptRef.current + ' ' + text;
-        const outline = await extractOutline(fullTranscript, groqKeyRef.current);
+        const outline = await extractOutline(transcriptRef.current + ' ' + text, groqKeyRef.current);
         setLiveOutline(outline);
       }
-    } catch {
-      // silently skip failed chunk
-    }
+    } catch { /* silently skip */ }
   };
 
   const onRecordPress = async () => {
@@ -142,6 +156,7 @@ export default function RecordScreen() {
       } else if (status === 'paused') {
         await recorderRef.current?.resume();
         setStatus('recording');
+        startTicker();
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -154,14 +169,11 @@ export default function RecordScreen() {
     if (status !== 'recording' && status !== 'paused') return;
     stopTicker();
     setStatus('processing');
-    setStep('saving');
 
     try {
       const result = await recorderRef.current?.stop();
       audioUrisRef.current = result?.uris ?? [];
       durationRef.current = result?.durationMs ?? 0;
-
-      await new Promise((r) => setTimeout(r, 2000));
 
       setStep('outlining');
       const transcript = transcriptRef.current;
@@ -187,13 +199,11 @@ export default function RecordScreen() {
         durationMs: durationRef.current,
       };
       await saveSermon(sermon);
-      setStep('done');
       setStatus('done');
       router.replace(`/sermon/${sermon.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus('error');
-      setRetryAvailable(true);
     }
   };
 
@@ -214,122 +224,191 @@ export default function RecordScreen() {
   };
 
   const isActive = status === 'recording' || status === 'paused';
+  const isProcessing = status === 'processing';
 
-  const stepLabel: Record<string, string> = {
-    outlining: 'Building outline…',
-    scriptures: 'Looking up scriptures…',
-    saving: 'Saving…',
-    done: 'Done!',
-  };
+  const stepLabel = { outlining: 'Building outline…', scriptures: 'Looking up scriptures…', saving: 'Saving…' };
+  const stepIndex = { outlining: 1, scriptures: 2, saving: 3 };
+  const stepNext = { outlining: 'Looking up scriptures next', scriptures: 'Saving next', saving: '' };
+  const currentStep = step as keyof typeof stepLabel;
 
-  const currentStepIndex = STEP_INDEX[step] ?? 0;
+  const primaryText = isDark ? '#FFFFFF' : '#000000';
+  const secondaryText = isDark ? 'rgba(235,235,245,0.6)' : '#8E8E93';
+  const ringIdle = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.18)';
+  const ringColor = isActive ? t.accentRed : ringIdle;
+
+  // Record button inner shape
+  const innerSize = status === 'recording' ? 64 : 112;
+  const innerRadius = status === 'recording' ? 12 : status === 'paused' ? 22 : 56;
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <StatusBar style="auto" />
-      <Stack.Screen
-        options={{
-          headerStyle: { backgroundColor: t.bgSurface },
-          headerTintColor: t.accentBlue,
-          contentStyle: { backgroundColor: t.bgPrimary },
-        }}
-      />
+    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#000' : t.bgPrimary }]} edges={['bottom']}>
+      <StatusBar style={isDark ? 'light' : 'auto'} />
+      <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.timerRow}>
-        <Text style={styles.timer}>{formatElapsed(elapsedMs)}</Text>
-        <Text style={styles.statusLabel}>
-          {status === 'recording' ? '● Recording' :
-           status === 'paused' ? '❚❚ Paused' :
-           status === 'processing' ? stepLabel[step] ?? 'Processing…' :
-           status === 'error' ? 'Error' : 'Ready to Record'}
-        </Text>
+      {/* Nav bar */}
+      <View style={styles.navBar}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.navBack} hitSlop={8}>
+          <BackChevronIcon color={t.accentBlue} size={20} />
+          <Text style={[styles.navText, { color: t.accentBlue }]}>Sermons</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={isActive ? onDiscard : () => router.back()}
+          hitSlop={8}
+          style={[styles.cancelBtn, isActive && { opacity: 0.4 }]}
+        >
+          <Text style={styles.navText}>Cancel</Text>
+        </TouchableOpacity>
       </View>
 
-      {status === 'processing' ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={t.textPrimary} />
-          <Text style={styles.stepText}>{stepLabel[step] ?? 'Processing…'}</Text>
-          {currentStepIndex > 0 && (
-            <>
-              <Text style={styles.stepSubText}>
-                Step {currentStepIndex} of 3 · {STEP_NEXT[step] ?? ''}
-              </Text>
-              <View style={styles.pipRow}>
-                {[1, 2, 3].map((i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.pip,
-                      { backgroundColor: i <= currentStepIndex ? t.accentBlue : t.stepPipInactive },
-                    ]}
-                  />
-                ))}
-              </View>
-            </>
+      {/* Timer */}
+      <View style={[styles.timerSection, { paddingTop: status === 'idle' ? 80 : 28 }]}>
+        <Text style={[styles.timer, { color: primaryText }]}>{formatTimer(elapsedMs)}</Text>
+        <View style={styles.statusRow}>
+          {status === 'recording' && <View style={styles.recDot} />}
+          {status === 'paused' && (
+            <View style={styles.pauseBars}>
+              <View style={[styles.pauseBar, { backgroundColor: secondaryText }]} />
+              <View style={[styles.pauseBar, { backgroundColor: secondaryText }]} />
+            </View>
           )}
+          <Text style={[styles.statusText, { color: secondaryText }]}>
+            {status === 'idle' ? 'Ready to Record'
+              : status === 'recording' ? 'Recording'
+              : status === 'paused' ? 'Paused'
+              : 'Processing'}
+          </Text>
         </View>
-      ) : status === 'error' ? (
-        <View style={styles.center}>
-          <Text style={styles.errorTitle}>Something went wrong</Text>
-          <Text style={styles.errorBody}>{errorMessage}</Text>
-          {retryAvailable && (
-            <TouchableOpacity style={styles.retryBtn} onPress={() => setStatus('processing')}>
-              <Text style={styles.retryText}>Retry</Text>
-            </TouchableOpacity>
-          )}
+      </View>
+
+      {isProcessing ? (
+        <View style={styles.processingArea}>
+          <SpinnerSvg isDark={isDark} />
+          <View style={styles.processingText}>
+            <Text style={[styles.processingTitle, { color: primaryText }]}>
+              {stepLabel[currentStep] ?? 'Processing…'}
+            </Text>
+            <Text style={[styles.processingSubtitle, { color: secondaryText }]}>
+              Step {stepIndex[currentStep] ?? 1} of 3 · {stepNext[currentStep] ?? ''}
+            </Text>
+          </View>
+          <View style={styles.pips}>
+            {[1, 2, 3].map((i) => (
+              <View
+                key={i}
+                style={[
+                  styles.pip,
+                  { backgroundColor: i <= (stepIndex[currentStep] ?? 0) ? t.accentBlue : (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)') },
+                ]}
+              />
+            ))}
+          </View>
         </View>
       ) : (
-        <ScrollView style={styles.liveArea} contentContainerStyle={styles.liveContent}>
-          <View style={styles.btnWrap}>
-            <RecordButton
-              status={status === 'recording' ? 'recording' : status === 'paused' ? 'paused' : 'idle'}
+        <>
+          {/* Record button */}
+          <View style={styles.btnArea}>
+            <TouchableOpacity
               onPress={onRecordPress}
-            />
+              style={[styles.ring, { borderColor: ringColor }]}
+              activeOpacity={0.9}
+            >
+              <View style={[styles.innerShape, {
+                width: innerSize,
+                height: innerSize,
+                borderRadius: innerRadius,
+                backgroundColor: t.accentRed,
+              }]} />
+            </TouchableOpacity>
+            <Text style={[styles.btnLabel, { color: secondaryText }]}>
+              {status === 'idle' ? 'Tap to Record'
+                : status === 'recording' ? 'Tap to Pause'
+                : 'Tap to Resume'}
+            </Text>
           </View>
 
           {status === 'idle' && (
-            <View style={styles.idleHintWrap}>
-              <View style={styles.waveformRow}>
-                {IDLE_BAR_HEIGHTS.map((h, i) => (
-                  <View key={i} style={[styles.waveformBar, { height: h }]} />
+            <View style={styles.idleHint}>
+              <View style={styles.idleBars}>
+                {IDLE_BARS.map((h, i) => (
+                  <View
+                    key={i}
+                    style={[styles.idleBar, {
+                      height: h,
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.35)',
+                    }]}
+                  />
                 ))}
               </View>
-              <Text style={styles.hint}>
+              <Text style={[styles.hintText, { color: secondaryText }]}>
                 {'Recording will transcribe and outline\nyour sermon automatically.'}
               </Text>
             </View>
           )}
 
-          {liveTranscript.length > 0 && (
-            <View style={styles.panel}>
-              <Text style={styles.panelTitle}>Live Transcript</Text>
-              <Text style={styles.transcriptText}>{liveTranscript}</Text>
-            </View>
+          {isActive && (
+            <ScrollView style={styles.livePanels} contentContainerStyle={{ gap: 10, paddingBottom: 16 }}>
+              {liveTranscript.length > 0 && (
+                <View style={[styles.panel, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
+                  <Text style={[styles.panelLabel, { color: secondaryText }]}>LIVE TRANSCRIPT</Text>
+                  <Text style={[styles.panelText, { color: primaryText }]}>{liveTranscript}</Text>
+                </View>
+              )}
+              {liveOutline && liveOutline.points.length > 0 && (
+                <View style={[styles.panel, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
+                  <TouchableOpacity
+                    style={styles.panelHeader}
+                    onPress={() => setShowOutline((v) => !v)}
+                  >
+                    <Text style={[styles.panelLabel, { color: secondaryText }]}>LIVE OUTLINE</Text>
+                    <ChevronIcon dir={showOutline ? 'up' : 'down'} size={10} color={isDark ? 'rgba(235,235,245,0.45)' : '#C7C7CC'} />
+                  </TouchableOpacity>
+                  {showOutline && liveOutline.points.map((p, i) => (
+                    <Text key={i} style={[styles.panelText, { color: primaryText, marginTop: 2 }]}>
+                      {i + 1}. {p.heading}
+                    </Text>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
           )}
-
-          {liveOutline && liveOutline.points.length > 0 && (
-            <View style={styles.panel}>
-              <TouchableOpacity
-                style={styles.outlineToggle}
-                onPress={() => setShowOutline((v) => !v)}
-              >
-                <Text style={styles.panelTitle}>Live Outline</Text>
-                <Text style={styles.chevron}>{showOutline ? '▲' : '▼'}</Text>
-              </TouchableOpacity>
-              {showOutline && <OutlineView outline={liveOutline} />}
-            </View>
-          )}
-        </ScrollView>
+        </>
       )}
 
+      {/* Bottom bar */}
       {isActive && (
-        <View style={styles.controls}>
-          <Pressable style={styles.stopBtn} onPress={onStop}>
+        <View style={styles.bottomBar}>
+          <TouchableOpacity
+            style={[styles.stopBtn, { backgroundColor: isDark ? '#2C2C2E' : '#000000' }]}
+            onPress={onStop}
+            activeOpacity={0.8}
+          >
             <Text style={styles.stopText}>Stop & Save</Text>
-          </Pressable>
-          <Pressable style={styles.cancelBtn} onPress={onDiscard}>
-            <Text style={styles.cancelText}>Discard</Text>
-          </Pressable>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.discardBtn, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderWidth: isDark ? 0 : 0.5, borderColor: 'rgba(60,60,67,0.12)' }]}
+            onPress={onDiscard}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.discardText, { color: t.accentRed }]}>Discard</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {isProcessing && (
+        <View style={styles.bottomBar}>
+          <View style={[styles.stopBtn, { backgroundColor: isDark ? '#2C2C2E' : '#FFFFFF', opacity: 0.5 }]}>
+            <Text style={[styles.stopText, { color: secondaryText }]}>Please wait…</Text>
+          </View>
+        </View>
+      )}
+
+      {status === 'error' && (
+        <View style={styles.errorWrap}>
+          <Text style={styles.errorTitle}>Something went wrong</Text>
+          <Text style={[styles.errorBody, { color: secondaryText }]}>{errorMessage}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => reset()}>
+            <Text style={{ color: t.accentBlue, fontWeight: '600' }}>Try Again</Text>
+          </TouchableOpacity>
         </View>
       )}
     </SafeAreaView>
@@ -338,80 +417,91 @@ export default function RecordScreen() {
 
 function makeStyles(t: Colors, isDark: boolean) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: t.bgPrimary, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+    container: { flex: 1 },
 
-    timerRow: { alignItems: 'center', marginTop: spacing.md, paddingBottom: spacing.xs },
-    timer: {
-      fontSize: 56,
-      fontWeight: '200',
-      color: t.textPrimary,
-      fontVariant: ['tabular-nums'],
-      letterSpacing: -1,
+    navBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 18,
+      paddingTop: 12,
+      paddingBottom: 4,
     },
-    statusLabel: { ...typography.subhead, color: t.textSecondary, marginTop: spacing.xs },
+    navBack: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    navText: { ...typography.body, color: t.accentBlue },
+    cancelBtn: {},
 
-    center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
-    stepText: { marginTop: spacing.md, ...typography.body, color: t.textSecondary, textAlign: 'center' },
-    stepSubText: { marginTop: spacing.xs, ...typography.footnote, color: t.textTertiary, textAlign: 'center' },
+    timerSection: { alignItems: 'center', paddingBottom: 8 },
+    timer: { fontSize: 56, fontWeight: '200', letterSpacing: -1, lineHeight: 64, fontVariant: ['tabular-nums'] },
+    statusRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 14 },
+    statusText: { ...typography.subhead },
+    recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF3B30' },
+    pauseBars: { flexDirection: 'row', gap: 2 },
+    pauseBar: { width: 2.5, height: 10, borderRadius: 1 },
 
-    pipRow: { flexDirection: 'row', gap: 6, marginTop: spacing.sm, alignItems: 'center' },
+    btnArea: { alignItems: 'center', paddingTop: 32, paddingBottom: 8 },
+    ring: {
+      width: 164,
+      height: 164,
+      borderRadius: 82,
+      borderWidth: 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    innerShape: {},
+    btnLabel: { ...typography.subhead, marginTop: 18 },
+
+    idleHint: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 48 },
+    idleBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 48, marginBottom: 20 },
+    idleBar: { width: 3, borderRadius: 2 },
+    hintText: { ...typography.footnote, textAlign: 'center', lineHeight: 20 },
+
+    livePanels: { flex: 1, marginTop: 18, paddingHorizontal: spacing.md },
+    panel: { borderRadius: radius.card, padding: 12 },
+    panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    panelLabel: {
+      fontSize: 11,
+      fontWeight: '600',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+      marginBottom: 6,
+    },
+    panelText: { ...typography.subhead, lineHeight: 21 },
+
+    processingArea: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.lg,
+      gap: 24,
+    },
+    processingText: { alignItems: 'center', gap: 6 },
+    processingTitle: { ...typography.headline },
+    processingSubtitle: { ...typography.footnote },
+    pips: { flexDirection: 'row', gap: 6 },
     pip: { width: 20, height: 3, borderRadius: 2 },
 
-    errorTitle: { ...typography.headline, color: t.accentRed, marginBottom: spacing.sm },
-    errorBody: { ...typography.subhead, color: t.textSecondary, textAlign: 'center', marginBottom: spacing.md },
-    retryBtn: {
-      backgroundColor: t.bgSurfaceRaised,
-      paddingHorizontal: spacing.lg,
-      paddingVertical: 12,
-      borderRadius: radius.small,
-    },
-    retryText: { ...typography.headline, color: t.accentBlue },
-
-    liveArea: { flex: 1 },
-    liveContent: { paddingVertical: spacing.md, paddingBottom: spacing.sm },
-    btnWrap: { alignItems: 'center', marginBottom: spacing.lg },
-
-    idleHintWrap: { alignItems: 'center', marginBottom: spacing.md },
-    waveformRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: spacing.sm },
-    waveformBar: { width: 3, borderRadius: 2, backgroundColor: t.textTertiary },
-    hint: { ...typography.footnote, color: t.textSecondary, textAlign: 'center' },
-
-    panel: {
-      backgroundColor: t.bgSurface,
-      borderRadius: radius.card,
-      padding: spacing.md,
-      marginBottom: spacing.sm,
-    },
-    panelTitle: {
-      fontSize: 11,
-      fontWeight: '700',
-      color: t.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.6,
-    },
-    transcriptText: { ...typography.subhead, color: t.textPrimary, lineHeight: 22, marginTop: spacing.sm },
-    outlineToggle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    chevron: { color: t.textSecondary, fontSize: 14 },
-
-    controls: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
+    bottomBar: { flexDirection: 'row', gap: 10, padding: 12, paddingBottom: 16 },
     stopBtn: {
       flex: 2,
       height: 52,
-      backgroundColor: isDark ? t.bgSurfaceRaised : '#000000',
       borderRadius: radius.button,
       alignItems: 'center',
       justifyContent: 'center',
     },
     stopText: { ...typography.headline, color: '#FFFFFF' },
-    cancelBtn: {
+    discardBtn: {
       flex: 1,
       height: 52,
-      backgroundColor: t.bgSurface,
       borderRadius: radius.button,
       alignItems: 'center',
       justifyContent: 'center',
-      ...(isDark ? {} : { borderWidth: 0.5, borderColor: t.separator }),
     },
-    cancelText: { ...typography.headline, color: t.accentRed },
+    discardText: { ...typography.headline },
+
+    errorWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: 12 },
+    errorTitle: { ...typography.headline, color: t.accentRed },
+    errorBody: { ...typography.subhead, textAlign: 'center' },
+    retryBtn: { padding: spacing.sm },
   });
 }

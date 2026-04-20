@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScriptureCard } from '@/components/ScriptureCard';
+import { CloseIcon, ExportIcon, PlusIcon, RegenIcon } from '@/components/icons';
 import { lookupVerse, lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
@@ -31,6 +32,8 @@ export default function SermonDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const navigation = useNavigation();
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
 
   const [sermon, setSermon] = useState<Sermon | null>(null);
   const [tab, setTab] = useState<Tab>('outline');
@@ -43,8 +46,6 @@ export default function SermonDetail() {
   const [draftPoints, setDraftPoints] = useState<Outline['points']>([]);
   const [newScriptureRef, setNewScriptureRef] = useState('');
   const [addingScripture, setAddingScripture] = useState(false);
-  const t = useTheme();
-  const styles = useMemo(() => makeStyles(t), [t]);
 
   useEffect(() => {
     void (async () => {
@@ -65,7 +66,7 @@ export default function SermonDetail() {
     navigation.setOptions({
       headerRight: () =>
         editing ? (
-          <View style={{ flexDirection: 'row', gap: 12, marginRight: 4 }}>
+          <View style={{ flexDirection: 'row', gap: 16, marginRight: 4 }}>
             <TouchableOpacity onPress={onCancelEdit}>
               <Text style={{ color: t.textSecondary, fontWeight: '600', fontSize: 15 }}>Cancel</Text>
             </TouchableOpacity>
@@ -79,7 +80,7 @@ export default function SermonDetail() {
           </TouchableOpacity>
         ),
     });
-  }, [editing, draftTitle, draftTheme, draftSummary, draftPoints]);
+  }, [editing, draftTitle, draftTheme, draftSummary, draftPoints, t]);
 
   const onCancelEdit = () => {
     if (sermon) seedDraft(sermon);
@@ -196,7 +197,8 @@ export default function SermonDetail() {
   if (!sermon) {
     return (
       <SafeAreaView style={styles.container}>
-        <ActivityIndicator style={{ marginTop: 40 }} color={colors.textSecondary} />
+        <Stack.Screen options={{ title: '' }} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={t.textSecondary} />
       </SafeAreaView>
     );
   }
@@ -206,11 +208,13 @@ export default function SermonDetail() {
       <Stack.Screen
         options={{
           title: '',
-          headerStyle: { backgroundColor: colors.bgSurface },
+          headerStyle: { backgroundColor: t.bgSurface },
           headerShadowVisible: false,
+          headerTintColor: t.accentBlue,
         }}
       />
 
+      {/* Header: title + meta */}
       <View style={styles.titleBlock}>
         {editing ? (
           <TextInput
@@ -218,7 +222,7 @@ export default function SermonDetail() {
             value={draftTitle}
             onChangeText={setDraftTitle}
             placeholder="Sermon title"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={t.textTertiary}
           />
         ) : (
           <Text style={styles.sermonTitle} numberOfLines={3}>{sermon.title}</Text>
@@ -228,15 +232,16 @@ export default function SermonDetail() {
         </Text>
       </View>
 
+      {/* Segmented tabs */}
       <View style={styles.tabs}>
-        {(['outline', 'scriptures', 'transcript'] as Tab[]).map((t) => (
+        {(['outline', 'scriptures', 'transcript'] as Tab[]).map((tb) => (
           <TouchableOpacity
-            key={t}
-            onPress={() => setTab(t)}
-            style={[styles.tab, tab === t && styles.tabActive]}
+            key={tb}
+            onPress={() => { if (!editing) setTab(tb); }}
+            style={[styles.tab, tab === tb && styles.tabActive]}
           >
-            <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
-              {t === 'outline' ? 'Outline' : t === 'scriptures' ? 'Scriptures' : 'Transcript'}
+            <Text style={[styles.tabText, tab === tb && styles.tabTextActive]}>
+              {tb === 'outline' ? 'Outline' : tb === 'scriptures' ? 'Scriptures' : 'Transcript'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -247,7 +252,7 @@ export default function SermonDetail() {
 
           {tab === 'outline' && (
             <View>
-              {editing && (
+              {editing ? (
                 <>
                   <Text style={styles.fieldLabel}>Theme</Text>
                   <TextInput
@@ -255,7 +260,7 @@ export default function SermonDetail() {
                     value={draftTheme}
                     onChangeText={setDraftTheme}
                     placeholder="Central theme…"
-                    placeholderTextColor={colors.textTertiary}
+                    placeholderTextColor={t.textTertiary}
                     multiline
                   />
                   <Text style={styles.fieldLabel}>Summary</Text>
@@ -264,73 +269,86 @@ export default function SermonDetail() {
                     value={draftSummary}
                     onChangeText={setDraftSummary}
                     placeholder="Brief summary…"
-                    placeholderTextColor={colors.textTertiary}
+                    placeholderTextColor={t.textTertiary}
                     multiline
                   />
                   <Text style={styles.fieldLabel}>Points</Text>
-                </>
-              )}
 
-              {!editing && (
-                <>
-                  {sermon.outline.theme ? <Text style={styles.theme}>{sermon.outline.theme}</Text> : null}
-                  {sermon.outline.summary ? <Text style={styles.summary}>{sermon.outline.summary}</Text> : null}
-                </>
-              )}
-
-              {(editing ? draftPoints : sermon.outline.points).map((point, pi) => (
-                <View key={pi} style={styles.pointCard}>
-                  {editing ? (
-                    <>
+                  {draftPoints.map((point, pi) => (
+                    <View key={pi} style={styles.pointCard}>
+                      <Text style={styles.pointCardLabel}>Point {pi + 1}</Text>
                       <View style={styles.pointRow}>
                         <TextInput
-                          style={[styles.input, { flex: 1 }]}
+                          style={[styles.input, { flex: 1, marginBottom: 0 }]}
                           value={point.heading}
-                          onChangeText={(t) => updatePointHeading(pi, t)}
+                          onChangeText={(text) => updatePointHeading(pi, text)}
                           placeholder={`Point ${pi + 1} heading…`}
-                          placeholderTextColor={colors.textTertiary}
+                          placeholderTextColor={t.textTertiary}
                         />
-                        <TouchableOpacity onPress={() => removePoint(pi)} style={styles.removeBtn}>
-                          <Text style={styles.removeBtnText}>✕</Text>
+                        <TouchableOpacity onPress={() => removePoint(pi)} style={styles.removeCircle}>
+                          <CloseIcon size={12} color="#fff" />
                         </TouchableOpacity>
                       </View>
                       {point.subPoints.map((sp, si) => (
-                        <View key={si} style={styles.subRow}>
-                          <Text style={styles.bullet}>•</Text>
+                        <View key={si} style={[styles.pointRow, { marginTop: spacing.sm }]}>
                           <TextInput
-                            style={[styles.input, { flex: 1 }]}
+                            style={[styles.input, { flex: 1, marginBottom: 0 }]}
                             value={sp}
-                            onChangeText={(t) => updateSubPoint(pi, si, t)}
+                            onChangeText={(text) => updateSubPoint(pi, si, text)}
                             placeholder="Sub-point…"
-                            placeholderTextColor={colors.textTertiary}
+                            placeholderTextColor={t.textTertiary}
                           />
-                          <TouchableOpacity onPress={() => removeSubPoint(pi, si)} style={styles.removeBtn}>
-                            <Text style={styles.removeBtnText}>✕</Text>
+                          <TouchableOpacity onPress={() => removeSubPoint(pi, si)} style={styles.removeRing}>
+                            <CloseIcon size={10} color={t.textSecondary} />
                           </TouchableOpacity>
                         </View>
                       ))}
                       <TouchableOpacity onPress={() => addSubPoint(pi)} style={styles.addLink}>
-                        <Text style={styles.addLinkText}>+ Add sub-point</Text>
+                        <PlusIcon size={12} color={t.accentBlue} />
+                        <Text style={styles.addLinkText}>Add sub-point</Text>
                       </TouchableOpacity>
-                    </>
-                  ) : (
-                    <>
+                    </View>
+                  ))}
+
+                  <TouchableOpacity onPress={addPoint} style={styles.addPointBtn}>
+                    <PlusIcon size={14} color={t.accentBlue} />
+                    <Text style={styles.addPointText}>Add Point</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  {sermon.outline.theme ? (
+                    <View style={styles.themeBlock}>
+                      <Text style={styles.fieldLabel}>Theme</Text>
+                      <Text style={styles.theme}>{sermon.outline.theme}</Text>
+                    </View>
+                  ) : null}
+                  {sermon.outline.summary ? (
+                    <View style={styles.summaryBlock}>
+                      <Text style={styles.fieldLabel}>Summary</Text>
+                      <Text style={styles.summary}>{sermon.outline.summary}</Text>
+                    </View>
+                  ) : null}
+
+                  {sermon.outline.points.map((point, pi) => (
+                    <View key={pi} style={styles.pointCard}>
                       <Text style={styles.pointHeading}>{pi + 1}. {point.heading}</Text>
                       {point.subPoints.map((sp, si) => (
-                        <Text key={si} style={styles.subPoint}>• {sp}</Text>
+                        <View key={si} style={styles.subRow}>
+                          <Text style={styles.bullet}>•</Text>
+                          <Text style={styles.subPoint}>{sp}</Text>
+                        </View>
                       ))}
                       {point.scriptures.length > 0 && (
-                        <Text style={styles.pointRefs}>{point.scriptures.join('  ·  ')}</Text>
+                        <View style={styles.refsRow}>
+                          {point.scriptures.map((r, ri) => (
+                            <Text key={ri} style={styles.refTag}>{r}</Text>
+                          ))}
+                        </View>
                       )}
-                    </>
-                  )}
-                </View>
-              ))}
-
-              {editing && (
-                <TouchableOpacity onPress={addPoint} style={styles.addPointBtn}>
-                  <Text style={styles.addPointText}>+ Add Point</Text>
-                </TouchableOpacity>
+                    </View>
+                  ))}
+                </>
               )}
             </View>
           )}
@@ -339,11 +357,11 @@ export default function SermonDetail() {
             <View>
               <View style={styles.addScriptureRow}>
                 <TextInput
-                  style={[styles.input, { flex: 1 }]}
+                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
                   value={newScriptureRef}
                   onChangeText={setNewScriptureRef}
                   placeholder="e.g. John 3:16"
-                  placeholderTextColor={colors.textTertiary}
+                  placeholderTextColor={t.textTertiary}
                   autoCapitalize="words"
                   returnKeyType="done"
                   onSubmitEditing={onAddScripture}
@@ -360,7 +378,7 @@ export default function SermonDetail() {
               </View>
 
               {sermon.scriptures.length === 0 ? (
-                <Text style={styles.emptyText}>No scriptures yet. Type a reference above to add one.</Text>
+                <Text style={styles.emptyText}>No scriptures yet. Type a reference above.</Text>
               ) : (
                 sermon.scriptures.map((s, i) => (
                   <View key={i} style={styles.scriptureWrap}>
@@ -389,14 +407,21 @@ export default function SermonDetail() {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      {/* Footer */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.secondary} onPress={onRegenerate} disabled={busy}>
+        <TouchableOpacity style={styles.regenBtn} onPress={onRegenerate} disabled={busy}>
           {busy
-            ? <ActivityIndicator color={colors.textSecondary} />
-            : <Text style={styles.secondaryText}>Regenerate</Text>}
+            ? <ActivityIndicator color={t.textSecondary} />
+            : (
+              <>
+                <RegenIcon color={t.textPrimary} size={18} />
+                <Text style={styles.regenText}>Regenerate</Text>
+              </>
+            )}
         </TouchableOpacity>
-        <TouchableOpacity style={styles.primary} onPress={onExport}>
-          <Text style={styles.primaryText}>Export</Text>
+        <TouchableOpacity style={styles.exportBtn} onPress={onExport}>
+          <ExportIcon color="#fff" size={18} />
+          <Text style={styles.exportText}>Export</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -409,17 +434,22 @@ function sanitize(name: string): string {
 
 function makeStyles(t: Colors) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: t.bgPrimary },
+    container: { flex: 1, backgroundColor: t.bgSurface },
 
-    titleBlock: { paddingHorizontal: spacing.md, paddingVertical: spacing.md, backgroundColor: t.bgSurface },
-    sermonTitle: { ...typography.title2, color: t.textPrimary, marginBottom: spacing.xs },
+    titleBlock: {
+      paddingHorizontal: spacing.md,
+      paddingTop: 14,
+      paddingBottom: 10,
+      backgroundColor: t.bgSurface,
+    },
+    sermonTitle: { ...typography.title2, color: t.textPrimary, marginBottom: 4 },
     titleInput: {
       ...typography.title2,
       color: t.textPrimary,
       borderBottomWidth: 2,
       borderBottomColor: t.accentBlue,
       paddingVertical: 4,
-      marginBottom: spacing.xs,
+      marginBottom: 4,
     },
     sermonMeta: { ...typography.footnote, color: t.textSecondary },
 
@@ -429,18 +459,21 @@ function makeStyles(t: Colors) {
       borderBottomWidth: 0.5,
       borderBottomColor: t.separator,
     },
-    tab: { flex: 1, paddingVertical: 12, alignItems: 'center' },
-    tabActive: { borderBottomWidth: 2, borderBottomColor: t.accentBlue },
-    tabText: { ...typography.subhead, color: t.textSecondary, fontWeight: '600' },
-    tabTextActive: { color: t.accentBlue },
+    tab: { flex: 1, paddingVertical: 10, paddingBottom: 12, alignItems: 'center' },
+    tabActive: { borderBottomWidth: 2, borderBottomColor: t.accentBlue, marginBottom: -0.5 },
+    tabText: { ...typography.subhead, color: t.textSecondary, fontWeight: '400' },
+    tabTextActive: { color: t.accentBlue, fontWeight: '600' },
 
-    body: { padding: spacing.md, paddingBottom: spacing.xl },
+    body: { padding: spacing.md, paddingBottom: spacing.xl, backgroundColor: t.bgSurface },
 
     fieldLabel: {
-      ...typography.sectionHeader,
+      fontSize: 11,
+      fontWeight: '500',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
       color: t.textSecondary,
-      marginBottom: spacing.xs,
-      marginTop: spacing.md,
+      marginBottom: 6,
+      marginTop: spacing.xs,
     },
     input: {
       backgroundColor: t.bgSurfaceRaised,
@@ -454,37 +487,53 @@ function makeStyles(t: Colors) {
       color: t.textPrimary,
     },
 
-    theme: { ...typography.subhead, fontStyle: 'italic', color: t.textSecondary, marginBottom: spacing.sm },
-    summary: { ...typography.subhead, color: t.textPrimary, marginBottom: spacing.md, lineHeight: 22 },
+    themeBlock: { paddingVertical: spacing.xs, paddingHorizontal: 4, marginBottom: spacing.sm },
+    theme: { ...typography.subhead, fontStyle: 'italic', color: t.textSecondary, lineHeight: 22 },
+    summaryBlock: { paddingHorizontal: 4, marginBottom: spacing.md },
+    summary: { ...typography.subhead, color: t.textPrimary, lineHeight: 22 },
 
     pointCard: {
       backgroundColor: t.bgSurfaceRaised,
       borderRadius: radius.card,
-      padding: spacing.md,
+      padding: 14,
       marginBottom: spacing.sm,
       borderWidth: 0.5,
       borderColor: t.separator,
     },
+    pointCardLabel: { fontSize: 11, fontWeight: '500', letterSpacing: 0.5, textTransform: 'uppercase', color: t.textSecondary, marginBottom: 4 },
     pointRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    pointHeading: { ...typography.headline, color: t.textPrimary, marginBottom: spacing.xs },
-    subRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginLeft: spacing.sm },
-    bullet: { color: t.textSecondary, fontSize: 16 },
-    subPoint: { ...typography.subhead, color: t.textPrimary, marginLeft: spacing.md, marginVertical: 2, lineHeight: 22 },
-    pointRefs: { ...typography.footnote, color: t.accentBlue, marginTop: spacing.xs, marginLeft: spacing.md },
-    removeBtn: { padding: 6 },
-    removeBtnText: { color: t.accentRed, fontWeight: '700', fontSize: 16 },
-    addLink: { marginTop: spacing.xs },
-    addLinkText: { ...typography.subhead, color: t.accentBlue, fontWeight: '600' },
+    pointHeading: { ...typography.headline, color: t.textPrimary, marginBottom: spacing.sm },
+    subRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+    bullet: { color: t.textTertiary, fontWeight: '500', fontSize: 15, lineHeight: 21 },
+    subPoint: { ...typography.subhead, color: t.textPrimary, flex: 1, lineHeight: 21 },
+    refsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 10 },
+    refTag: { ...typography.footnote, color: t.accentBlue, fontWeight: '500' },
+
+    removeCircle: {
+      width: 24, height: 24, borderRadius: 12,
+      backgroundColor: t.accentRed,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    removeRing: {
+      width: 24, height: 24, borderRadius: 12,
+      borderWidth: 1, borderColor: t.textTertiary,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    addLink: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.sm },
+    addLinkText: { ...typography.footnote, color: t.accentBlue, fontWeight: '500' },
     addPointBtn: {
-      borderWidth: 2,
+      borderWidth: 1.5,
       borderColor: t.accentBlue,
       borderStyle: 'dashed',
       borderRadius: radius.card,
       paddingVertical: 14,
+      flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
       marginTop: spacing.xs,
     },
-    addPointText: { ...typography.headline, color: t.accentBlue },
+    addPointText: { ...typography.subhead, color: t.accentBlue, fontWeight: '500' },
 
     addScriptureRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
     addScriptureBtn: {
@@ -499,14 +548,14 @@ function makeStyles(t: Colors) {
     addScriptureBtnText: { color: '#fff', fontWeight: '700' },
     emptyText: { ...typography.subhead, color: t.textSecondary, fontStyle: 'italic', textAlign: 'center', marginTop: spacing.xl },
     scriptureWrap: { marginBottom: spacing.xs },
-    scriptureRemove: { alignSelf: 'flex-end', marginTop: -4, marginBottom: spacing.sm, paddingHorizontal: spacing.xs },
-    scriptureRemoveText: { ...typography.footnote, color: t.accentRed, fontWeight: '600' },
+    scriptureRemove: { alignSelf: 'flex-end', paddingHorizontal: spacing.xs, paddingBottom: spacing.sm },
+    scriptureRemoveText: { ...typography.footnote, color: t.accentRed },
 
     transcript: { ...typography.subhead, color: t.textPrimary, lineHeight: 22 },
 
     footer: {
       flexDirection: 'row',
-      gap: spacing.sm,
+      gap: 10,
       paddingHorizontal: spacing.md,
       paddingVertical: 10,
       paddingBottom: spacing.md,
@@ -514,25 +563,29 @@ function makeStyles(t: Colors) {
       borderTopColor: t.separator,
       backgroundColor: t.bgSurface,
     },
-    primary: {
-      flex: 1,
-      backgroundColor: t.textPrimary,
-      height: 46,
-      borderRadius: radius.pill,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    primaryText: { ...typography.headline, color: t.bgSurface },
-    secondary: {
+    regenBtn: {
       flex: 2,
-      backgroundColor: t.bgSurface,
       height: 46,
       borderRadius: radius.pill,
-      alignItems: 'center',
-      justifyContent: 'center',
       borderWidth: 0.5,
       borderColor: t.separator,
+      backgroundColor: t.bgSurface,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
     },
-    secondaryText: { ...typography.headline, color: t.textPrimary },
+    regenText: { ...typography.headline, color: t.textPrimary },
+    exportBtn: {
+      flex: 1,
+      height: 46,
+      borderRadius: radius.pill,
+      backgroundColor: t.textPrimary,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    exportText: { ...typography.headline, color: t.bgSurface },
   });
 }

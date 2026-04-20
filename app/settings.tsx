@@ -17,6 +17,7 @@ import {
   setTranslation,
 } from '@/storage/keys';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
+import { CheckIcon, EyeIcon, EyeOffIcon } from '@/components/icons';
 
 const TRANSLATIONS = [
   { id: 'web', label: 'World English Bible', abbr: 'WEB — modern, public domain' },
@@ -54,9 +55,19 @@ export default function SettingsScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      {/* Grab handle (modal) */}
+      <View style={styles.grabHandle} />
+
+      {/* Modal header */}
+      <View style={styles.modalHeader}>
+        <View style={{ width: 60 }} />
+        <Text style={styles.modalTitle}>Settings</Text>
+        <View style={{ width: 60, alignItems: 'flex-end' }} />
+      </View>
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
-        <Text style={styles.sectionLabel}>GROQ API KEY</Text>
+        <Text style={styles.sectionLabel}>Groq API Key</Text>
         <View style={styles.card}>
           <Text style={styles.helpText}>
             Sermonize uses Groq for fast transcription and outlining. Create a free key at console.groq.com — no credit card required.
@@ -74,12 +85,14 @@ export default function SettingsScreen() {
               secureTextEntry={!showKey}
             />
             <TouchableOpacity onPress={() => setShowKey((v) => !v)} style={styles.eyeBtn} hitSlop={8}>
-              <Text style={styles.eyeIcon}>{showKey ? '🙈' : '👁'}</Text>
+              {showKey
+                ? <EyeOffIcon size={18} color={t.textSecondary} />
+                : <EyeIcon size={18} color={t.textSecondary} />}
             </TouchableOpacity>
           </View>
         </View>
 
-        <Text style={styles.sectionLabel}>BIBLE TRANSLATION</Text>
+        <Text style={styles.sectionLabel}>Bible Translation</Text>
         <View style={styles.card}>
           {TRANSLATIONS.map((tr, i) => (
             <React.Fragment key={tr.id}>
@@ -92,16 +105,14 @@ export default function SettingsScreen() {
                   <Text style={styles.rowLabel}>{tr.label}</Text>
                   <Text style={styles.rowSub}>{tr.abbr}</Text>
                 </View>
-                {translation === tr.id ? (
-                  <Text style={styles.checkmark}>✓</Text>
-                ) : null}
+                {translation === tr.id && <CheckIcon size={18} color={t.accentBlue} />}
               </TouchableOpacity>
               {i < TRANSLATIONS.length - 1 && <View style={styles.divider} />}
             </React.Fragment>
           ))}
         </View>
 
-        <Text style={styles.sectionLabel}>ABOUT</Text>
+        <Text style={styles.sectionLabel}>About</Text>
         <View style={styles.card}>
           <View style={styles.row}>
             <Text style={styles.rowLabel}>Version</Text>
@@ -125,19 +136,39 @@ export default function SettingsScreen() {
 function makeStyles(t: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bgPrimary },
-    content: { padding: spacing.md, paddingTop: spacing.lg, paddingBottom: spacing.xl },
+
+    grabHandle: {
+      width: 36,
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: '#D1D1D6',
+      alignSelf: 'center',
+      marginTop: spacing.sm,
+      marginBottom: 2,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+    },
+    modalTitle: { ...typography.headline, color: t.textPrimary },
+
+    content: { paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.xl },
 
     sectionLabel: {
       ...typography.sectionHeader,
       color: t.textSecondary,
       marginBottom: spacing.sm,
       marginLeft: spacing.xs,
+      marginTop: 20,
     },
 
     card: {
       backgroundColor: t.bgSurface,
       borderRadius: radius.card,
-      marginBottom: spacing.lg,
+      marginBottom: spacing.sm,
       overflow: 'hidden',
     },
     helpText: {
@@ -165,7 +196,6 @@ function makeStyles(t: Colors) {
       paddingVertical: spacing.sm,
     },
     eyeBtn: { padding: spacing.xs },
-    eyeIcon: { fontSize: 16 },
 
     row: {
       flexDirection: 'row',
@@ -177,7 +207,6 @@ function makeStyles(t: Colors) {
     rowLabel: { ...typography.body, color: t.textPrimary, flex: 1 },
     rowSub: { ...typography.footnote, color: t.textSecondary, marginTop: 2 },
     rowValue: { ...typography.body, color: t.textSecondary },
-    checkmark: { ...typography.headline, color: t.accentBlue },
 
     saveBtn: {
       backgroundColor: t.accentBlue,
