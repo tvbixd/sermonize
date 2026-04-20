@@ -241,7 +241,7 @@ export default function RecordScreen() {
   const innerRadius = status === 'recording' ? 12 : status === 'paused' ? 22 : 56;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#000' : t.bgPrimary }]} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#000' : t.bgPrimary }]} edges={['top', 'bottom']}>
       <StatusBar style={isDark ? 'light' : 'auto'} />
       <Stack.Screen options={{ headerShown: false }} />
 
