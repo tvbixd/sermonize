@@ -4,7 +4,7 @@ import {
   ActionSheetIOS,
   Alert,
   Platform,
-  SectionList,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -68,20 +68,15 @@ export default function SermonsScreen() {
   const onDelete = (s: Sermon) => {
     Alert.alert('Delete sermon?', s.title, [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => { await deleteSermon(s.id); await refresh(); },
-      },
+      { text: 'Delete', style: 'destructive', onPress: async () => { await deleteSermon(s.id); await refresh(); } },
     ]);
   };
 
   const showContextMenu = (s: Sermon) => {
     const pinLabel = s.pinned ? 'Unpin' : 'Pin to Top';
-    const options = [pinLabel, 'Edit', 'Delete', 'Cancel'];
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
-        { options, destructiveButtonIndex: 2, cancelButtonIndex: 3, title: s.title },
+        { options: [pinLabel, 'Edit', 'Delete', 'Cancel'], destructiveButtonIndex: 2, cancelButtonIndex: 3, title: s.title },
         (idx) => {
           if (idx === 0) void onPin(s);
           else if (idx === 1) router.push(`/sermon/${s.id}`);
@@ -112,6 +107,7 @@ export default function SermonsScreen() {
           headerStyle: { backgroundColor: t.bgSurface },
           headerBackTitle: 'Folders',
           headerTintColor: t.accentBlue,
+          contentStyle: { backgroundColor: t.bgPrimary },
         }}
       />
 
@@ -124,50 +120,44 @@ export default function SermonsScreen() {
           <Text style={styles.emptySub}>{'Tap the mic to record\nyour first sermon'}</Text>
         </View>
       ) : (
-        <>
+        <ScrollView contentContainerStyle={styles.listContent}>
           <Text style={styles.subtitle}>
             {total} {total === 1 ? 'recording' : 'recordings'}
           </Text>
-          <SectionList
-            sections={sections}
-            keyExtractor={(s) => s.id}
-            contentContainerStyle={styles.list}
-            stickySectionHeadersEnabled={false}
-            renderSectionHeader={({ section }) => (
+          {sections.map((section) => (
+            <View key={section.title}>
               <Text style={styles.sectionHeader}>{section.title}</Text>
-            )}
-            renderItem={({ item, index, section }) => {
-              const isLast = index === section.data.length - 1;
-              return (
-                <TouchableOpacity
-                  style={[styles.row, !isLast && styles.rowBorder]}
-                  onPress={() => router.push(`/sermon/${item.id}`)}
-                  onLongPress={() => showContextMenu(item)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.rowContent}>
-                    <View style={styles.rowTop}>
-                      <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
-                      {item.pinned && <Text style={styles.pin}>📌</Text>}
-                    </View>
-                    <Text style={styles.rowMeta}>
-                      {formatDate(item.createdAt)} · {formatElapsed(item.durationMs)}
-                    </Text>
-                  </View>
-                  <ChevronIcon color={t.textTertiary} size={12} />
-                </TouchableOpacity>
-              );
-            }}
-            renderSectionFooter={() => <View style={styles.sectionFooter} />}
-          />
-        </>
+              <View style={styles.card}>
+                {section.data.map((item, index) => {
+                  const isLast = index === section.data.length - 1;
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[styles.row, !isLast && styles.rowBorder]}
+                      onPress={() => router.push(`/sermon/${item.id}`)}
+                      onLongPress={() => showContextMenu(item)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.rowContent}>
+                        <View style={styles.rowTop}>
+                          <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+                          {item.pinned && <Text style={styles.pin}>📌</Text>}
+                        </View>
+                        <Text style={styles.rowMeta}>
+                          {formatDate(item.createdAt)} · {formatElapsed(item.durationMs)}
+                        </Text>
+                      </View>
+                      <ChevronIcon color={t.textTertiary} size={12} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
+        </ScrollView>
       )}
 
-      <TouchableOpacity
-        style={styles.fab}
-        activeOpacity={0.85}
-        onPress={() => router.push('/record')}
-      >
+      <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={() => router.push('/record')}>
         <MicIcon size={28} color="#fff" />
       </TouchableOpacity>
     </SafeAreaView>
@@ -178,6 +168,7 @@ function makeStyles(t: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bgPrimary },
 
+    listContent: { paddingBottom: 100 },
     subtitle: {
       ...typography.subhead,
       color: t.textSecondary,
@@ -185,21 +176,23 @@ function makeStyles(t: Colors) {
       paddingTop: 2,
       paddingBottom: spacing.md,
     },
-
-    list: { paddingBottom: 100 },
     sectionHeader: {
       ...typography.sectionHeader,
       color: t.textSecondary,
       paddingTop: 20,
       paddingBottom: spacing.sm,
-      paddingHorizontal: spacing.md,
+      paddingHorizontal: spacing.xl,
     },
-    sectionFooter: { marginBottom: spacing.sm },
 
+    card: {
+      backgroundColor: t.bgSurface,
+      borderRadius: radius.card,
+      marginHorizontal: spacing.md,
+      overflow: 'hidden',
+    },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: t.bgSurface,
       paddingHorizontal: spacing.md,
       paddingVertical: 14,
       minHeight: 62,
@@ -214,30 +207,17 @@ function makeStyles(t: Colors) {
 
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: 20 },
     emptyIcon: {
-      width: 104,
-      height: 104,
-      borderRadius: 52,
-      backgroundColor: t.emptyBg,
-      alignItems: 'center',
-      justifyContent: 'center',
+      width: 104, height: 104, borderRadius: 52,
+      backgroundColor: t.emptyBg, alignItems: 'center', justifyContent: 'center',
     },
     emptyTitle: { ...typography.title2, color: t.textPrimary },
     emptySub: { ...typography.subhead, color: t.textSecondary, textAlign: 'center', lineHeight: 22 },
 
     fab: {
-      position: 'absolute',
-      bottom: 32,
-      right: spacing.lg,
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      backgroundColor: t.accentRed,
-      alignItems: 'center',
-      justifyContent: 'center',
-      shadowColor: t.accentRed,
-      shadowOpacity: 0.38,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 8 },
+      position: 'absolute', bottom: 32, right: spacing.lg,
+      width: 64, height: 64, borderRadius: 32,
+      backgroundColor: t.accentRed, alignItems: 'center', justifyContent: 'center',
+      shadowColor: t.accentRed, shadowOpacity: 0.38, shadowRadius: 12, shadowOffset: { width: 0, height: 8 },
       elevation: 6,
     },
   });

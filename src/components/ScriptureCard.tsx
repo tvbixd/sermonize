@@ -18,7 +18,7 @@ export function ScriptureCard({ scripture }: { scripture: Scripture }) {
         ) : null}
       </View>
       {scripture.text ? (
-        <Text style={styles.text}>{scripture.text}</Text>
+        <Text style={styles.text}>"{scripture.text}"</Text>
       ) : (
         <Text style={styles.placeholder}>Verse text unavailable.</Text>
       )}
@@ -30,17 +30,17 @@ function makeStyles(t: Colors) {
   return StyleSheet.create({
     card: {
       backgroundColor: t.bgSurface,
-      borderLeftWidth: 3,
-      borderLeftColor: t.accentBlue,
-      padding: spacing.md,
+      borderRadius: radius.card,
+      padding: 12,
       marginBottom: spacing.sm,
-      borderRadius: radius.small,
+      borderWidth: 0.5,
+      borderColor: t.separator,
     },
     refRow: {
       flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-      marginBottom: spacing.sm,
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      marginBottom: 6,
     },
     ref: { ...typography.headline, color: t.accentBlue },
     translationBadge: {
@@ -49,8 +49,8 @@ function makeStyles(t: Colors) {
       paddingVertical: 2,
       borderRadius: 4,
     },
-    translationText: { ...typography.caption, color: t.textSecondary },
-    text: { ...typography.subhead, color: t.textPrimary, lineHeight: 22 },
+    translationText: { ...typography.caption, color: t.textSecondary, fontWeight: '500' },
+    text: { ...typography.body, color: t.textPrimary, lineHeight: 22 },
     placeholder: { ...typography.footnote, color: t.textSecondary, fontStyle: 'italic' },
   });
 }
