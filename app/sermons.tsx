@@ -15,7 +15,7 @@ import { deleteSermon, listSermons, saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Sermon } from '@/types';
 import { formatDate, formatElapsed } from '@/util/format';
-import { ChevronIcon, MicIcon, WaveformIcon } from '@/components/icons';
+import { BackChevronIcon, ChevronIcon, MicIcon, WaveformIcon } from '@/components/icons';
 
 type Section = { title: string; data: Sermon[] };
 
@@ -98,18 +98,21 @@ export default function SermonsScreen() {
   const total = sermons.length;
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <Stack.Screen
-        options={{
-          title,
-          headerLargeTitle: true,
-          headerLargeTitleStyle: { fontWeight: '700', color: t.textPrimary },
-          headerStyle: { backgroundColor: t.bgSurface },
-          headerBackTitle: 'Folders',
-          headerTintColor: t.accentBlue,
-          contentStyle: { backgroundColor: t.bgPrimary },
-        }}
-      />
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* Nav bar */}
+      <View style={styles.navBar}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.navBack} hitSlop={8}>
+          <BackChevronIcon color={t.accentBlue} size={20} />
+          <Text style={[styles.navText, { color: t.accentBlue }]}>Folders</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Large title */}
+      <View style={styles.titleRow}>
+        <Text style={styles.largeTitle}>{title}</Text>
+      </View>
 
       {sermons.length === 0 ? (
         <View style={styles.empty}>
@@ -167,6 +170,19 @@ export default function SermonsScreen() {
 function makeStyles(t: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bgPrimary },
+
+    navBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.xs,
+    },
+    navBack: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    navText: { ...typography.body },
+
+    titleRow: { paddingHorizontal: 20, paddingTop: spacing.sm, paddingBottom: 2 },
+    largeTitle: { ...typography.largeTitle, color: t.textPrimary },
 
     listContent: { paddingBottom: 100 },
     subtitle: {
