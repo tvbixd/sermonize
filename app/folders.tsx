@@ -20,7 +20,6 @@ import {
   ChevronIcon,
   FolderIcon,
   GearIcon,
-  MicIcon,
   NewFolderIcon,
 } from '@/components/icons';
 
@@ -122,7 +121,7 @@ export default function FoldersScreen() {
         {allCount} {allCount === 1 ? 'recording' : 'recordings'} · UI v2
       </Text>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {/* All Sermons */}
         <View style={styles.card}>
           <TouchableOpacity
@@ -189,13 +188,6 @@ export default function FoldersScreen() {
           <Text style={styles.newFolderText}>New Folder</Text>
         </TouchableOpacity>
       </View>
-
-      {/* FAB */}
-      <Link href="/record" asChild>
-        <TouchableOpacity style={styles.fab} activeOpacity={0.85}>
-          <MicIcon size={24} color="#fff" />
-        </TouchableOpacity>
-      </Link>
 
       {/* Create / Edit modal */}
       <Modal visible={showModal} transparent animationType="slide" onRequestClose={() => setShowModal(false)}>
@@ -265,7 +257,8 @@ function makeStyles(t: Colors) {
     largeTitle: { ...typography.largeTitle, color: t.textPrimary },
     subtitle: { ...typography.subhead, color: t.textSecondary, paddingHorizontal: 20, paddingBottom: spacing.md },
 
-    content: { paddingHorizontal: spacing.md, paddingBottom: 120 },
+    scroll: { flex: 1 },
+    content: { paddingHorizontal: spacing.md, paddingBottom: spacing.md },
 
     sectionLabel: {
       ...typography.sectionHeader,
@@ -290,14 +283,9 @@ function makeStyles(t: Colors) {
     rowCount: { ...typography.body, color: t.textSecondary, marginRight: 6 },
 
     bottomBar: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      height: 72,
       paddingHorizontal: 22,
-      paddingBottom: spacing.sm,
-      justifyContent: 'flex-end',
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.md,
     },
     newFolderBtn: {
       flexDirection: 'row',
@@ -307,23 +295,6 @@ function makeStyles(t: Colors) {
       alignSelf: 'flex-start',
     },
     newFolderText: { ...typography.body, color: t.accentBlue },
-
-    fab: {
-      position: 'absolute',
-      right: 22,
-      bottom: 24,
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      backgroundColor: t.accentRed,
-      alignItems: 'center',
-      justifyContent: 'center',
-      shadowColor: t.accentRed,
-      shadowOpacity: 0.38,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: 6,
-    },
 
     overlay: { flex: 1, backgroundColor: t.dimOverlay, justifyContent: 'flex-end' },
     sheet: {
