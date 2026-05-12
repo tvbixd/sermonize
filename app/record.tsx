@@ -1,17 +1,20 @@
-import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import { Stack, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
-  Pressable,
+  Animated,
+  Easing,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useColorScheme,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Svg, Circle, Path } from 'react-native-svg';
 import { SermonRecorder } from '@/audio/SermonRecorder';
-import { RecordButton } from '@/components/RecordButton';
 import { lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
@@ -19,71 +22,131 @@ import { transcribeAudio } from '@/services/whisper';
 import { useSessionStore } from '@/state/sessionStore';
 import { getGroqKey, getTranslation } from '@/storage/keys';
 import { ensureAudioDir, saveSermon } from '@/storage/sermons';
-import type { ProcessingStep, Sermon } from '@/types';
-import { formatElapsed } from '@/util/format';
+import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
+import type { Sermon } from '@/types';
 import { newId } from '@/util/id';
+import { BackChevronIcon, ChevronIcon } from '@/components/icons';
 
-const STEP_LABEL: Record<ProcessingStep, string> = {
-  idle: '',
-  transcribing: 'Transcribing audio…',
-  outlining: 'Outlining sermon…',
-  scriptures: 'Looking up scriptures…',
-  saving: 'Saving sermon…',
-  done: 'Done!',
-};
+const OUTLINE_EVERY_N_CHUNKS = 2;
+
+const IDLE_BARS = [12, 22, 16, 32, 28, 44, 38, 24, 18, 30, 14, 26, 20, 36, 10];
+
+function formatTimer(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+  const ss = String(totalSec % 60).padStart(2, '0');
+  const cs = String(Math.floor((ms % 1000) / 10)).padStart(2, '0');
+  return `${mm}:${ss}.${cs}`;
+}
+
+function SpinnerSvg({ isDark }: { isDark: boolean }) {
+  const rotation = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(rotation, { toValue: 1, duration: 1000, easing: Easing.linear, useNativeDriver: true }),
+    ).start();
+    return () => rotation.stopAnimation();
+  }, [rotation]);
+
+  const spin = rotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const trackColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)';
+  const arcColor = isDark ? '#ffffff' : '#0A84FF';
+
+  return (
+    <Animated.View style={{ transform: [{ rotate: spin }] }}>
+      <Svg width={56} height={56} viewBox="0 0 56 56">
+        <Circle cx="28" cy="28" r="22" stroke={trackColor} strokeWidth="3" fill="none" />
+        <Path d="M28 6 A22 22 0 0 1 50 28" stroke={arcColor} strokeWidth="3" fill="none" strokeLinecap="round" />
+      </Svg>
+    </Animated.View>
+  );
+}
 
 export default function RecordScreen() {
   const router = useRouter();
-  const status = useSessionStore((s) => s.status);
-  const step = useSessionStore((s) => s.step);
-  const elapsedMs = useSessionStore((s) => s.elapsedMs);
-  const errorMessage = useSessionStore((s) => s.errorMessage);
-  const setStatus = useSessionStore((s) => s.setStatus);
-  const setStep = useSessionStore((s) => s.setStep);
-  const setElapsed = useSessionStore((s) => s.setElapsed);
-  const setError = useSessionStore((s) => s.setError);
-  const reset = useSessionStore((s) => s.reset);
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t, isDark), [t, isDark]);
 
-  const recorderRef = useRef<SermonRecorder | null>(null);
-  const sermonIdRef = useRef<string>('');
-  const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [retryAvailable, setRetryAvailable] = useState(false);
-  const audioUrisRef = useRef<string[]>([]);
-  const durationRef = useRef<number>(0);
+  const status         = useSessionStore((s) => s.status);
+  const step           = useSessionStore((s) => s.step);
+  const elapsedMs      = useSessionStore((s) => s.elapsedMs);
+  const errorMessage   = useSessionStore((s) => s.errorMessage);
+  const liveTranscript = useSessionStore((s) => s.liveTranscript);
+  const liveOutline    = useSessionStore((s) => s.liveOutline);
+  const chunkCount     = useSessionStore((s) => s.chunkCount);
+
+  const setStatus        = useSessionStore((s) => s.setStatus);
+  const setStep          = useSessionStore((s) => s.setStep);
+  const setElapsed       = useSessionStore((s) => s.setElapsed);
+  const setError         = useSessionStore((s) => s.setError);
+  const appendTranscript = useSessionStore((s) => s.appendTranscript);
+  const setLiveOutline   = useSessionStore((s) => s.setLiveOutline);
+  const incrementChunk   = useSessionStore((s) => s.incrementChunk);
+  const reset            = useSessionStore((s) => s.reset);
+
+  const recorderRef   = useRef<SermonRecorder | null>(null);
+  const sermonIdRef   = useRef<string>('');
+  const audioUrisRef  = useRef<string[]>([]);
+  const durationRef   = useRef<number>(0);
+  const tickerRef     = useRef<ReturnType<typeof setInterval> | null>(null);
+  const groqKeyRef    = useRef<string>('');
+  const transcriptRef = useRef<string>('');
+  const chunkCountRef = useRef<number>(0);
+  const [showOutline, setShowOutline] = useState(false);
 
   useEffect(() => {
     reset();
     return () => {
-      if (tickerRef.current) clearInterval(tickerRef.current);
-      // best-effort cleanup if user leaves mid-recording
+      stopTicker();
       void recorderRef.current?.stop().catch(() => undefined);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => { transcriptRef.current = liveTranscript; }, [liveTranscript]);
+  useEffect(() => { chunkCountRef.current = chunkCount; }, [chunkCount]);
+
   const startTicker = () => {
-    if (tickerRef.current) clearInterval(tickerRef.current);
+    stopTicker();
     tickerRef.current = setInterval(() => {
-      const r = recorderRef.current;
-      if (r) setElapsed(r.getElapsedMs());
+      if (recorderRef.current) setElapsed(recorderRef.current.getElapsedMs());
     }, 250);
   };
 
   const stopTicker = () => {
-    if (tickerRef.current) {
-      clearInterval(tickerRef.current);
-      tickerRef.current = null;
-    }
+    if (tickerRef.current) { clearInterval(tickerRef.current); tickerRef.current = null; }
+  };
+
+  const onChunkReady = async (chunkUri: string) => {
+    try {
+      const text = await transcribeAudio([chunkUri], groqKeyRef.current);
+      if (!text.trim()) return;
+      appendTranscript(text);
+      incrementChunk();
+      const newCount = chunkCountRef.current + 1;
+      if (newCount % OUTLINE_EVERY_N_CHUNKS === 0) {
+        const outline = await extractOutline(transcriptRef.current + ' ' + text, groqKeyRef.current);
+        setLiveOutline(outline);
+      }
+    } catch { /* silently skip */ }
   };
 
   const onRecordPress = async () => {
     try {
       if (status === 'idle') {
+        const key = await getGroqKey();
+        if (!key) {
+          Alert.alert('API Key Missing', 'Go to Settings and add your Groq API key first.');
+          return;
+        }
+        groqKeyRef.current = key;
         const id = newId();
         sermonIdRef.current = id;
         const dir = await ensureAudioDir(id);
         const recorder = new SermonRecorder(dir);
-        await recorder.start();
+        await recorder.start(onChunkReady);
         recorderRef.current = recorder;
         setStatus('recording');
         startTicker();
@@ -93,10 +156,10 @@ export default function RecordScreen() {
       } else if (status === 'paused') {
         await recorderRef.current?.resume();
         setStatus('recording');
+        startTicker();
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(msg);
+      setError(e instanceof Error ? e.message : String(e));
       setStatus('error');
       stopTicker();
     }
@@ -106,77 +169,46 @@ export default function RecordScreen() {
     if (status !== 'recording' && status !== 'paused') return;
     stopTicker();
     setStatus('processing');
+
     try {
       const result = await recorderRef.current?.stop();
-      if (!result || result.uris.length === 0) {
-        throw new Error('No audio was captured.');
-      }
-      audioUrisRef.current = result.uris;
-      durationRef.current = result.durationMs;
-      await processRecording();
+      audioUrisRef.current = result?.uris ?? [];
+      durationRef.current = result?.durationMs ?? 0;
+
+      setStep('outlining');
+      const transcript = transcriptRef.current;
+      const outline = transcript.trim()
+        ? await extractOutline(transcript, groqKeyRef.current)
+        : liveOutline ?? { title: 'Untitled Sermon', theme: '', summary: '', points: [] };
+
+      setStep('scriptures');
+      const translation = await getTranslation();
+      const allRefs = new Set<string>(findScriptureReferences(transcript));
+      for (const p of outline.points) for (const r of p.scriptures) allRefs.add(r);
+      const scriptures = await lookupVerses([...allRefs], translation);
+
+      setStep('saving');
+      const sermon: Sermon = {
+        id: sermonIdRef.current,
+        createdAt: Date.now(),
+        title: outline.title,
+        transcript,
+        outline,
+        scriptures,
+        audioUris: audioUrisRef.current,
+        durationMs: durationRef.current,
+      };
+      await saveSermon(sermon);
+      setStatus('done');
+      router.replace(`/sermon/${sermon.id}`);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(msg);
+      setError(e instanceof Error ? e.message : String(e));
       setStatus('error');
-      setRetryAvailable(audioUrisRef.current.length > 0);
     }
   };
 
-  const processRecording = async () => {
-    setError(null);
-    setRetryAvailable(false);
-
-    const groqKey = await getGroqKey();
-    if (!groqKey) {
-      throw new Error('Groq API key is not set. Open Settings to add it.');
-    }
-    const translation = await getTranslation();
-
-    setStep('transcribing');
-    const transcript = await transcribeAudio(audioUrisRef.current, groqKey);
-
-    setStep('outlining');
-    const outline = await extractOutline(transcript, groqKey);
-
-    setStep('scriptures');
-    const allRefs = new Set<string>();
-    for (const r of findScriptureReferences(transcript)) allRefs.add(r);
-    for (const p of outline.points) for (const r of p.scriptures) allRefs.add(r);
-    const scriptures = await lookupVerses([...allRefs], translation);
-
-    setStep('saving');
-    const sermon: Sermon = {
-      id: sermonIdRef.current,
-      createdAt: Date.now(),
-      title: outline.title,
-      transcript,
-      outline,
-      scriptures,
-      audioUris: audioUrisRef.current,
-      durationMs: durationRef.current,
-    };
-    await saveSermon(sermon);
-
-    setStep('done');
-    setStatus('done');
-    router.replace(`/sermon/${sermon.id}`);
-  };
-
-  const onRetry = async () => {
-    if (audioUrisRef.current.length === 0) return;
-    setStatus('processing');
-    try {
-      await processRecording();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(msg);
-      setStatus('error');
-      setRetryAvailable(true);
-    }
-  };
-
-  const onCancel = () => {
-    Alert.alert('Discard recording?', 'The audio captured so far will be deleted.', [
+  const onDiscard = () => {
+    Alert.alert('Discard recording?', 'Everything captured so far will be deleted.', [
       { text: 'Keep', style: 'cancel' },
       {
         text: 'Discard',
@@ -191,103 +223,285 @@ export default function RecordScreen() {
     ]);
   };
 
-  const isRecordingOrPaused = status === 'recording' || status === 'paused';
+  const isActive = status === 'recording' || status === 'paused';
+  const isProcessing = status === 'processing';
+
+  const stepLabel = { outlining: 'Building outline…', scriptures: 'Looking up scriptures…', saving: 'Saving…' };
+  const stepIndex = { outlining: 1, scriptures: 2, saving: 3 };
+  const stepNext = { outlining: 'Looking up scriptures next', scriptures: 'Saving next', saving: '' };
+  const currentStep = step as keyof typeof stepLabel;
+
+  const primaryText = isDark ? '#FFFFFF' : '#000000';
+  const secondaryText = isDark ? 'rgba(235,235,245,0.6)' : '#8E8E93';
+  const ringIdle = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.18)';
+  const ringColor = isActive ? t.accentRed : ringIdle;
+
+  // Record button inner shape
+  const innerSize = status === 'recording' ? 64 : 112;
+  const innerRadius = status === 'recording' ? 12 : status === 'paused' ? 22 : 56;
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <View style={styles.timerRow}>
-        <Text style={styles.timer}>{formatElapsed(elapsedMs)}</Text>
-        <Text style={styles.statusLabel}>
-          {status === 'recording'
-            ? '● Recording'
-            : status === 'paused'
-              ? '❚❚ Paused'
-              : status === 'processing'
-                ? 'Processing'
-                : status === 'error'
-                  ? 'Error'
-                  : 'Ready'}
-        </Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#000' : t.bgPrimary }]} edges={['top', 'bottom']}>
+      <StatusBar style={isDark ? 'light' : 'auto'} />
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* Nav bar */}
+      <View style={styles.navBar}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.navBack} hitSlop={8}>
+          <BackChevronIcon color={t.accentBlue} size={20} />
+          <Text style={[styles.navText, { color: t.accentBlue }]}>Sermons</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={isActive ? onDiscard : () => router.back()}
+          hitSlop={8}
+          style={[styles.cancelBtn, isActive && { opacity: 0.4 }]}
+        >
+          <Text style={styles.navText}>Cancel</Text>
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.center}>
-        {status === 'processing' ? (
-          <View style={styles.processing}>
-            <ActivityIndicator size="large" color="#0369a1" />
-            <Text style={styles.stepText}>{STEP_LABEL[step]}</Text>
-          </View>
-        ) : status === 'error' ? (
-          <View style={styles.processing}>
-            <Text style={styles.errorTitle}>Something went wrong</Text>
-            <Text style={styles.errorBody}>{errorMessage}</Text>
-            {retryAvailable ? (
-              <TouchableOpacity style={styles.retryBtn} onPress={onRetry}>
-                <Text style={styles.retryText}>Retry processing</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        ) : (
-          <RecordButton
-            status={status === 'recording' ? 'recording' : status === 'paused' ? 'paused' : 'idle'}
-            onPress={onRecordPress}
-          />
-        )}
-      </View>
-
-      {isRecordingOrPaused ? (
-        <View style={styles.controls}>
-          <Pressable style={styles.stopBtn} onPress={onStop}>
-            <Text style={styles.stopText}>Stop & Outline</Text>
-          </Pressable>
-          <Pressable style={styles.cancelBtn} onPress={onCancel}>
-            <Text style={styles.cancelText}>Discard</Text>
-          </Pressable>
+      {/* Timer */}
+      <View style={[styles.timerSection, { paddingTop: status === 'idle' ? 80 : 28 }]}>
+        <Text style={[styles.timer, { color: primaryText }]}>{formatTimer(elapsedMs)}</Text>
+        <View style={styles.statusRow}>
+          {status === 'recording' && <View style={styles.recDot} />}
+          {status === 'paused' && (
+            <View style={styles.pauseBars}>
+              <View style={[styles.pauseBar, { backgroundColor: secondaryText }]} />
+              <View style={[styles.pauseBar, { backgroundColor: secondaryText }]} />
+            </View>
+          )}
+          <Text style={[styles.statusText, { color: secondaryText }]}>
+            {status === 'idle' ? 'Ready to Record'
+              : status === 'recording' ? 'Recording'
+              : status === 'paused' ? 'Paused'
+              : 'Processing'}
+          </Text>
         </View>
-      ) : null}
+      </View>
 
-      {status === 'idle' ? (
-        <Text style={styles.hint}>
-          Tap the button to start recording. You can pause and resume; tap “Stop & Outline” when the
-          sermon ends.
-        </Text>
-      ) : null}
+      {isProcessing ? (
+        <View style={styles.processingArea}>
+          <SpinnerSvg isDark={isDark} />
+          <View style={styles.processingText}>
+            <Text style={[styles.processingTitle, { color: primaryText }]}>
+              {stepLabel[currentStep] ?? 'Processing…'}
+            </Text>
+            <Text style={[styles.processingSubtitle, { color: secondaryText }]}>
+              Step {stepIndex[currentStep] ?? 1} of 3 · {stepNext[currentStep] ?? ''}
+            </Text>
+          </View>
+          <View style={styles.pips}>
+            {[1, 2, 3].map((i) => (
+              <View
+                key={i}
+                style={[
+                  styles.pip,
+                  { backgroundColor: i <= (stepIndex[currentStep] ?? 0) ? t.accentBlue : (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)') },
+                ]}
+              />
+            ))}
+          </View>
+        </View>
+      ) : (
+        <>
+          {/* Record button */}
+          <View style={styles.btnArea}>
+            <TouchableOpacity
+              onPress={onRecordPress}
+              style={[styles.ring, { borderColor: ringColor }]}
+              activeOpacity={0.9}
+            >
+              <View style={[styles.innerShape, {
+                width: innerSize,
+                height: innerSize,
+                borderRadius: innerRadius,
+                backgroundColor: t.accentRed,
+              }]} />
+            </TouchableOpacity>
+            <Text style={[styles.btnLabel, { color: secondaryText }]}>
+              {status === 'idle' ? 'Tap to Record'
+                : status === 'recording' ? 'Tap to Pause'
+                : 'Tap to Resume'}
+            </Text>
+          </View>
+
+          {status === 'idle' && (
+            <View style={styles.idleHint}>
+              <View style={styles.idleBars}>
+                {IDLE_BARS.map((h, i) => (
+                  <View
+                    key={i}
+                    style={[styles.idleBar, {
+                      height: h,
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.35)',
+                    }]}
+                  />
+                ))}
+              </View>
+              <Text style={[styles.hintText, { color: secondaryText }]}>
+                {'Recording will transcribe and outline\nyour sermon automatically.'}
+              </Text>
+            </View>
+          )}
+
+          {isActive && (
+            <ScrollView style={styles.livePanels} contentContainerStyle={{ gap: 10, paddingBottom: 16 }}>
+              {liveTranscript.length > 0 && (
+                <View style={[styles.panel, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
+                  <Text style={[styles.panelLabel, { color: secondaryText }]}>LIVE TRANSCRIPT</Text>
+                  <Text style={[styles.panelText, { color: primaryText }]}>{liveTranscript}</Text>
+                </View>
+              )}
+              {liveOutline && liveOutline.points.length > 0 && (
+                <View style={[styles.panel, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
+                  <TouchableOpacity
+                    style={styles.panelHeader}
+                    onPress={() => setShowOutline((v) => !v)}
+                  >
+                    <Text style={[styles.panelLabel, { color: secondaryText }]}>LIVE OUTLINE</Text>
+                    <ChevronIcon dir={showOutline ? 'up' : 'down'} size={10} color={isDark ? 'rgba(235,235,245,0.45)' : '#C7C7CC'} />
+                  </TouchableOpacity>
+                  {showOutline && liveOutline.points.map((p, i) => (
+                    <Text key={i} style={[styles.panelText, { color: primaryText, marginTop: 2 }]}>
+                      {i + 1}. {p.heading}
+                    </Text>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+          )}
+        </>
+      )}
+
+      {/* Bottom bar */}
+      {isActive && (
+        <View style={styles.bottomBar}>
+          <TouchableOpacity
+            style={[styles.stopBtn, { backgroundColor: isDark ? '#2C2C2E' : '#000000' }]}
+            onPress={onStop}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.stopText}>Stop & Save</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.discardBtn, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderWidth: isDark ? 0 : 0.5, borderColor: 'rgba(60,60,67,0.12)' }]}
+            onPress={onDiscard}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.discardText, { color: t.accentRed }]}>Discard</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {isProcessing && (
+        <View style={styles.bottomBar}>
+          <View style={[styles.stopBtn, { backgroundColor: isDark ? '#2C2C2E' : '#FFFFFF', opacity: 0.5 }]}>
+            <Text style={[styles.stopText, { color: secondaryText }]}>Please wait…</Text>
+          </View>
+        </View>
+      )}
+
+      {status === 'error' && (
+        <View style={styles.errorWrap}>
+          <Text style={styles.errorTitle}>Something went wrong</Text>
+          <Text style={[styles.errorBody, { color: secondaryText }]}>{errorMessage}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => reset()}>
+            <Text style={{ color: t.accentBlue, fontWeight: '600' }}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f1f5f9', padding: 20 },
-  timerRow: { alignItems: 'center', marginTop: 8 },
-  timer: { fontSize: 48, fontWeight: '300', color: '#0f172a', fontVariant: ['tabular-nums'] },
-  statusLabel: { fontSize: 14, color: '#64748b', marginTop: 4 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  processing: { alignItems: 'center', padding: 24 },
-  stepText: { marginTop: 16, fontSize: 16, color: '#334155', textAlign: 'center' },
-  errorTitle: { fontSize: 18, fontWeight: '700', color: '#b91c1c', marginBottom: 8 },
-  errorBody: { fontSize: 14, color: '#475569', textAlign: 'center', marginBottom: 16 },
-  retryBtn: {
-    backgroundColor: '#0369a1',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  retryText: { color: '#fff', fontWeight: '600' },
-  controls: { flexDirection: 'row', gap: 12 },
-  stopBtn: {
-    flex: 2,
-    backgroundColor: '#0f172a',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  stopText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  cancelBtn: {
-    flex: 1,
-    backgroundColor: '#e2e8f0',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  cancelText: { color: '#334155', fontWeight: '600', fontSize: 16 },
-  hint: { color: '#64748b', fontSize: 14, textAlign: 'center', marginBottom: 12 },
-});
+function makeStyles(t: Colors, isDark: boolean) {
+  return StyleSheet.create({
+    container: { flex: 1 },
+
+    navBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 18,
+      paddingTop: 12,
+      paddingBottom: 4,
+    },
+    navBack: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    navText: { ...typography.body, color: t.accentBlue },
+    cancelBtn: {},
+
+    timerSection: { alignItems: 'center', paddingBottom: 8 },
+    timer: { fontSize: 56, fontWeight: '200', letterSpacing: -1, lineHeight: 64, fontVariant: ['tabular-nums'] },
+    statusRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 14 },
+    statusText: { ...typography.subhead },
+    recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF3B30' },
+    pauseBars: { flexDirection: 'row', gap: 2 },
+    pauseBar: { width: 2.5, height: 10, borderRadius: 1 },
+
+    btnArea: { alignItems: 'center', paddingTop: 32, paddingBottom: 8 },
+    ring: {
+      width: 164,
+      height: 164,
+      borderRadius: 82,
+      borderWidth: 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    innerShape: {},
+    btnLabel: { ...typography.subhead, marginTop: 18 },
+
+    idleHint: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 48 },
+    idleBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 48, marginBottom: 20 },
+    idleBar: { width: 3, borderRadius: 2 },
+    hintText: { ...typography.footnote, textAlign: 'center', lineHeight: 20 },
+
+    livePanels: { flex: 1, marginTop: 18, paddingHorizontal: spacing.md },
+    panel: { borderRadius: radius.card, padding: 12 },
+    panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    panelLabel: {
+      fontSize: 11,
+      fontWeight: '600',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+      marginBottom: 6,
+    },
+    panelText: { ...typography.subhead, lineHeight: 21 },
+
+    processingArea: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.lg,
+      gap: 24,
+    },
+    processingText: { alignItems: 'center', gap: 6 },
+    processingTitle: { ...typography.headline },
+    processingSubtitle: { ...typography.footnote },
+    pips: { flexDirection: 'row', gap: 6 },
+    pip: { width: 20, height: 3, borderRadius: 2 },
+
+    bottomBar: { flexDirection: 'row', gap: 10, padding: 12, paddingBottom: 16 },
+    stopBtn: {
+      flex: 2,
+      height: 52,
+      borderRadius: radius.button,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    stopText: { ...typography.headline, color: '#FFFFFF' },
+    discardBtn: {
+      flex: 1,
+      height: 52,
+      borderRadius: radius.button,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    discardText: { ...typography.headline },
+
+    errorWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: 12 },
+    errorTitle: { ...typography.headline, color: t.accentRed },
+    errorBody: { ...typography.subhead, textAlign: 'center' },
+    retryBtn: { padding: spacing.sm },
+  });
+}

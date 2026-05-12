@@ -1,16 +1,24 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Scripture } from '../types';
 
 export function ScriptureCard({ scripture }: { scripture: Scripture }) {
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
+
   return (
     <View style={styles.card}>
-      <Text style={styles.ref}>
-        {scripture.reference}
-        {scripture.translation ? ` (${scripture.translation})` : ''}
-      </Text>
+      <View style={styles.refRow}>
+        <Text style={styles.ref}>{scripture.reference}</Text>
+        {scripture.translation ? (
+          <View style={styles.translationBadge}>
+            <Text style={styles.translationText}>{scripture.translation}</Text>
+          </View>
+        ) : null}
+      </View>
       {scripture.text ? (
-        <Text style={styles.text}>{scripture.text}</Text>
+        <Text style={styles.text}>"{scripture.text}"</Text>
       ) : (
         <Text style={styles.placeholder}>Verse text unavailable.</Text>
       )}
@@ -18,16 +26,31 @@ export function ScriptureCard({ scripture }: { scripture: Scripture }) {
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#f8fafc',
-    borderLeftWidth: 4,
-    borderLeftColor: '#0369a1',
-    padding: 12,
-    marginBottom: 12,
-    borderRadius: 6,
-  },
-  ref: { fontSize: 14, fontWeight: '700', color: '#0369a1', marginBottom: 6 },
-  text: { fontSize: 15, color: '#1e293b', lineHeight: 22 },
-  placeholder: { fontSize: 13, color: '#94a3b8', fontStyle: 'italic' },
-});
+function makeStyles(t: Colors) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: t.bgSurface,
+      borderRadius: radius.card,
+      padding: 12,
+      marginBottom: spacing.sm,
+      borderWidth: 0.5,
+      borderColor: t.separator,
+    },
+    refRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      marginBottom: 6,
+    },
+    ref: { ...typography.headline, color: t.accentBlue },
+    translationBadge: {
+      backgroundColor: t.bgSurfaceRaised,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    translationText: { ...typography.caption, color: t.textSecondary, fontWeight: '500' },
+    text: { ...typography.body, color: t.textPrimary, lineHeight: 22 },
+    placeholder: { ...typography.footnote, color: t.textSecondary, fontStyle: 'italic' },
+  });
+}

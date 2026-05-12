@@ -26,6 +26,16 @@ export type Sermon = {
   scriptures: Scripture[];
   audioUris: string[]; // one or more files (size-rotated for very long sermons)
   durationMs: number;
+  folderId?: string; // undefined = All Sermons
+  pinned?: boolean;
+  deletedAt?: number;
+};
+
+export type Folder = {
+  id: string;
+  name: string;
+  color: string; // hex accent color
+  createdAt: number;
 };
 
 export type RecordingStatus =

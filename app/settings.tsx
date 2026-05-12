@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import { Stack, useRouter } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -16,18 +17,28 @@ import {
   setGroqKey,
   setTranslation,
 } from '@/storage/keys';
+import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
+import { CheckIcon, EyeIcon, EyeOffIcon } from '@/components/icons';
 
 const TRANSLATIONS = [
-  { id: 'web', label: 'World English Bible' },
-  { id: 'kjv', label: 'King James Version' },
-  { id: 'bbe', label: 'Bible in Basic English' },
-  { id: 'oeb-us', label: 'Open English Bible (US)' },
+  { id: 'web', label: 'World English Bible', abbr: 'WEB — modern, public domain' },
+  { id: 'kjv', label: 'King James Version', abbr: 'KJV — classic English' },
+  { id: 'bbe', label: 'Bible in Basic English', abbr: 'BBE — simplified vocabulary' },
+  { id: 'oeb-us', label: 'Open English Bible', abbr: 'OEB — contemporary, open' },
+  { id: 'almeida', label: 'Almeida (Portuguese)', abbr: 'Almeida — Português' },
+  { id: 'rccv', label: 'Romanian Cornilescu', abbr: 'RCCV — Română' },
+  { id: 'cherokee', label: 'Cherokee New Testament', abbr: 'Cherokee — ᏣᎳᎩ' },
+  { id: 'clementine', label: 'Clementine Vulgate (Latin)', abbr: 'Latin — classic liturgical' },
 ];
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const [groq, setGroq] = useState('');
   const [translation, setTrans] = useState('web');
   const [loaded, setLoaded] = useState(false);
+  const [showKey, setShowKey] = useState(false);
+  const t = useTheme();
+  const styles = useMemo(() => makeStyles(t), [t]);
 
   useEffect(() => {
     void (async () => {
@@ -45,82 +56,182 @@ export default function SettingsScreen() {
 
   if (!loaded) return null;
 
+  const onDone = async () => {
+    await onSave();
+    router.back();
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.label}>Groq API Key</Text>
-        <Text style={styles.help}>
-          Sermonize uses Groq's free tier for both transcription (Whisper) and outlining (Llama 3.3 70B).
-          Create a free account and key at console.groq.com — no credit card required. Stored securely on this device.
-        </Text>
-        <TextInput
-          style={styles.input}
-          value={groq}
-          onChangeText={setGroq}
-          placeholder="gsk_..."
-          autoCapitalize="none"
-          autoCorrect={false}
-          secureTextEntry
-        />
+      <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
 
-        <Text style={styles.label}>Bible Translation</Text>
-        <View style={styles.choices}>
-          {TRANSLATIONS.map((t) => (
-            <TouchableOpacity
-              key={t.id}
-              onPress={() => setTrans(t.id)}
-              style={[styles.choice, translation === t.id && styles.choiceActive]}
-            >
-              <Text
-                style={[styles.choiceText, translation === t.id && styles.choiceTextActive]}
-              >
-                {t.label}
-              </Text>
+      {/* Grab handle (modal) */}
+      <View style={styles.grabHandle} />
+
+      {/* Modal header */}
+      <View style={styles.modalHeader}>
+        <View style={{ width: 60 }} />
+        <Text style={styles.modalTitle}>Settings</Text>
+        <TouchableOpacity onPress={onDone} style={{ width: 60, alignItems: 'flex-end' }}>
+          <Text style={[styles.doneText, { color: t.accentBlue }]}>Done</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+
+        <Text style={styles.sectionLabel}>Groq API Key</Text>
+        <View style={styles.card}>
+          <Text style={styles.helpText}>
+            Sermonize uses Groq for fast transcription and outlining. Create a free key at console.groq.com — no credit card required.
+          </Text>
+          <View style={styles.divider} />
+          <View style={styles.keyRow}>
+            <TextInput
+              style={styles.keyInput}
+              value={groq}
+              onChangeText={setGroq}
+              placeholder="gsk_..."
+              placeholderTextColor={t.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry={!showKey}
+            />
+            <TouchableOpacity onPress={() => setShowKey((v) => !v)} style={styles.eyeBtn} hitSlop={8}>
+              {showKey
+                ? <EyeOffIcon size={18} color={t.textSecondary} />
+                : <EyeIcon size={18} color={t.textSecondary} />}
             </TouchableOpacity>
+          </View>
+        </View>
+
+        <Text style={styles.sectionLabel}>Bible Translation</Text>
+        <View style={styles.card}>
+          {TRANSLATIONS.map((tr, i) => (
+            <React.Fragment key={tr.id}>
+              <TouchableOpacity
+                onPress={() => setTrans(tr.id)}
+                style={styles.row}
+                activeOpacity={0.6}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowLabel}>{tr.label}</Text>
+                  <Text style={styles.rowSub}>{tr.abbr}</Text>
+                </View>
+                {translation === tr.id && <CheckIcon size={18} color={t.accentBlue} />}
+              </TouchableOpacity>
+              {i < TRANSLATIONS.length - 1 && <View style={styles.divider} />}
+            </React.Fragment>
           ))}
         </View>
 
-        <TouchableOpacity style={styles.save} onPress={onSave}>
-          <Text style={styles.saveText}>Save</Text>
+        <Text style={styles.sectionLabel}>About</Text>
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Version</Text>
+            <Text style={styles.rowValue}>1.0.0</Text>
+          </View>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.row} activeOpacity={0.6}>
+            <Text style={[styles.rowLabel, { color: t.accentBlue }]}>Privacy Policy</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={styles.saveBtn} onPress={onSave} activeOpacity={0.8}>
+          <Text style={styles.saveBtnText}>Save</Text>
         </TouchableOpacity>
+
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f1f5f9' },
-  content: { padding: 20 },
-  label: { fontSize: 15, fontWeight: '700', color: '#0f172a', marginTop: 16 },
-  help: { fontSize: 13, color: '#64748b', marginTop: 4, marginBottom: 8 },
-  input: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-  },
-  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  choice: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: '#e2e8f0',
-  },
-  choiceActive: { backgroundColor: '#0369a1' },
-  choiceText: { color: '#334155', fontWeight: '600' },
-  choiceTextActive: { color: '#fff' },
-  save: {
-    marginTop: 28,
-    backgroundColor: '#0f172a',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  saveText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-});
+function makeStyles(t: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: t.bgPrimary },
+
+    grabHandle: {
+      width: 36,
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: '#D1D1D6',
+      alignSelf: 'center',
+      marginTop: spacing.sm,
+      marginBottom: 2,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+    },
+    modalTitle: { ...typography.headline, color: t.textPrimary },
+    doneText: { ...typography.body, fontWeight: '600' },
+
+    content: { paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.xl },
+
+    sectionLabel: {
+      ...typography.sectionHeader,
+      color: t.textSecondary,
+      marginBottom: spacing.sm,
+      marginLeft: spacing.xs,
+      marginTop: 20,
+    },
+
+    card: {
+      backgroundColor: t.bgSurface,
+      borderRadius: radius.card,
+      marginBottom: spacing.sm,
+      overflow: 'hidden',
+    },
+    helpText: {
+      ...typography.footnote,
+      color: t.textSecondary,
+      padding: spacing.md,
+      lineHeight: 18,
+    },
+    divider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: t.separator,
+      marginLeft: spacing.md,
+    },
+
+    keyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
+      minHeight: spacing.rowMinHeight,
+    },
+    keyInput: {
+      ...typography.body,
+      color: t.textPrimary,
+      flex: 1,
+      paddingVertical: spacing.sm,
+    },
+    eyeBtn: { padding: spacing.xs },
+
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
+      minHeight: spacing.rowMinHeight,
+      paddingVertical: spacing.sm,
+    },
+    rowLabel: { ...typography.body, color: t.textPrimary, flex: 1 },
+    rowSub: { ...typography.footnote, color: t.textSecondary, marginTop: 2 },
+    rowValue: { ...typography.body, color: t.textSecondary },
+
+    saveBtn: {
+      backgroundColor: t.accentBlue,
+      borderRadius: radius.pill,
+      height: 50,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: spacing.sm,
+    },
+    saveBtnText: { ...typography.headline, color: '#FFFFFF' },
+  });
+}
