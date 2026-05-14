@@ -11,50 +11,16 @@ export default function RootLayout() {
       <StatusBar style="auto" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: t.bgSurface },
-          headerTintColor: t.accentBlue,
-          headerTitleStyle: { fontWeight: '600', fontSize: 17, color: t.textPrimary },
-          headerShadowVisible: false,
+          headerShown: false,
           contentStyle: { backgroundColor: t.bgPrimary },
         }}
       >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="folders"
-          options={{
-            title: 'Folders',
-            headerLargeTitle: true,
-            headerLargeTitleStyle: { fontWeight: '700', color: t.textPrimary },
-            headerStyle: { backgroundColor: t.bgSurface },
-            contentStyle: { backgroundColor: t.bgPrimary },
-          }}
-        />
-        <Stack.Screen
-          name="sermons"
-          options={{
-            headerLargeTitle: true,
-            headerStyle: { backgroundColor: t.bgSurface },
-            contentStyle: { backgroundColor: t.bgPrimary },
-          }}
-        />
-        <Stack.Screen
-          name="record"
-          options={{
-            title: 'New Recording',
-            headerStyle: { backgroundColor: t.bgSurface },
-            headerTintColor: t.accentBlue,
-            headerTitleStyle: { fontWeight: '600', fontSize: 17, color: t.textPrimary },
-            contentStyle: { backgroundColor: t.bgPrimary },
-          }}
-        />
-        <Stack.Screen
-          name="settings"
-          options={{ title: 'Settings', presentation: 'modal' }}
-        />
-        <Stack.Screen
-          name="sermon/[id]"
-          options={{ title: '' }}
-        />
+        <Stack.Screen name="index" />
+        <Stack.Screen name="folders" />
+        <Stack.Screen name="sermons" />
+        <Stack.Screen name="record" />
+        <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="sermon/[id]" />
       </Stack>
     </SafeAreaProvider>
   );
