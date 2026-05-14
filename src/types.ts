@@ -29,6 +29,7 @@ export type Sermon = {
   folderId?: string; // undefined = All Sermons
   pinned?: boolean;
   deletedAt?: number;
+  isDraft?: boolean;
 };
 
 export type Folder = {

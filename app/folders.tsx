@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { deleteFolder, listFolders, saveFolder } from '@/storage/folders';
-import { listSermons } from '@/storage/sermons';
+import { listSermons, purgeExpiredDeleted } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Folder, Sermon } from '@/types';
 import { newId } from '@/util/id';
@@ -40,6 +40,7 @@ export default function FoldersScreen() {
   const [draftColor, setDraftColor] = useState(FOLDER_COLORS[0]);
 
   const refresh = useCallback(async () => {
+    await purgeExpiredDeleted();
     const [f, s] = await Promise.all([listFolders(), listSermons()]);
     setFolders(f);
     setSermons(s);
@@ -118,7 +119,7 @@ export default function FoldersScreen() {
         <Text style={styles.largeTitle}>Folders</Text>
       </View>
       <Text style={styles.subtitle}>
-        {allCount} {allCount === 1 ? 'recording' : 'recordings'} · UI v2
+        {allCount} {allCount === 1 ? 'recording' : 'recordings'}
       </Text>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
@@ -165,7 +166,7 @@ export default function FoldersScreen() {
         <View style={[styles.card, { marginTop: spacing.md }]}>
           <TouchableOpacity
             style={styles.row}
-            onPress={() => router.push({ pathname: '/sermons', params: { folderName: 'Drafts' } })}
+            onPress={() => router.push({ pathname: '/sermons', params: { folderName: 'Drafts', isDrafts: 'true' } })}
             activeOpacity={0.7}
           >
             <FolderIcon kind="draft" size={28} />

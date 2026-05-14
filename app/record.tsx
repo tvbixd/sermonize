@@ -208,8 +208,29 @@ export default function RecordScreen() {
   };
 
   const onDiscard = () => {
-    Alert.alert('Discard recording?', 'Everything captured so far will be deleted.', [
-      { text: 'Keep', style: 'cancel' },
+    Alert.alert('Discard recording?', 'You can save it as a draft to finish later.', [
+      { text: 'Keep Recording', style: 'cancel' },
+      {
+        text: 'Save as Draft',
+        onPress: async () => {
+          stopTicker();
+          const result = await recorderRef.current?.stop().catch(() => undefined);
+          const sermon: Sermon = {
+            id: sermonIdRef.current,
+            createdAt: Date.now(),
+            title: 'Draft — ' + new Date().toLocaleDateString(),
+            transcript: transcriptRef.current,
+            outline: liveOutline ?? { title: 'Draft', theme: '', summary: '', points: [] },
+            scriptures: [],
+            audioUris: result?.uris ?? [],
+            durationMs: result?.durationMs ?? 0,
+            isDraft: true,
+          };
+          await saveSermon(sermon);
+          reset();
+          router.back();
+        },
+      },
       {
         text: 'Discard',
         style: 'destructive',

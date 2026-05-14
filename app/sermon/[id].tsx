@@ -1,7 +1,9 @@
+import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Print from 'expo-print';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -45,6 +47,13 @@ export default function SermonDetail() {
   const [draftPoints, setDraftPoints] = useState<Outline['points']>([]);
   const [newScriptureRef, setNewScriptureRef] = useState('');
   const [addingScripture, setAddingScripture] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackPos, setPlaybackPos] = useState(0);
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => {
+    return () => { void soundRef.current?.unloadAsync(); };
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -62,11 +71,43 @@ export default function SermonDetail() {
   };
 
   const goBack = () => {
+    void soundRef.current?.unloadAsync();
     if (router.canGoBack()) {
       router.back();
     } else {
       router.replace('/sermons');
     }
+  };
+
+  const togglePlayback = async () => {
+    if (!sermon?.audioUris?.length) return;
+    if (isPlaying && soundRef.current) {
+      await soundRef.current.pauseAsync();
+      setIsPlaying(false);
+      return;
+    }
+    if (soundRef.current) {
+      await soundRef.current.playAsync();
+      setIsPlaying(true);
+      return;
+    }
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+    const { sound } = await Audio.Sound.createAsync(
+      { uri: sermon.audioUris[0] },
+      { shouldPlay: true },
+      (status) => {
+        if (status.isLoaded) {
+          setPlaybackPos(status.positionMillis);
+          if (status.didJustFinish) {
+            setIsPlaying(false);
+            setPlaybackPos(0);
+            soundRef.current = null;
+          }
+        }
+      },
+    );
+    soundRef.current = sound;
+    setIsPlaying(true);
   };
 
   const onCancelEdit = () => {
@@ -171,14 +212,32 @@ export default function SermonDetail() {
     }
   };
 
-  const onExport = async () => {
+  const onExport = () => {
     if (!sermon) return;
-    const md = sermonToMarkdown(sermon);
-    const path = `${FileSystem.cacheDirectory}${sanitize(sermon.title)}.md`;
-    await FileSystem.writeAsStringAsync(path, md);
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(path, { mimeType: 'text/markdown', dialogTitle: 'Share sermon notes' });
-    }
+    Alert.alert('Export', 'Choose a format', [
+      {
+        text: 'Markdown',
+        onPress: async () => {
+          const md = sermonToMarkdown(sermon);
+          const path = `${FileSystem.cacheDirectory}${sanitize(sermon.title)}.md`;
+          await FileSystem.writeAsStringAsync(path, md);
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(path, { mimeType: 'text/markdown', dialogTitle: 'Share sermon notes' });
+          }
+        },
+      },
+      {
+        text: 'PDF',
+        onPress: async () => {
+          const html = sermonToHtml(sermon);
+          const { uri } = await Print.printToFileAsync({ html });
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Share sermon PDF' });
+          }
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   if (!sermon) {
@@ -229,9 +288,16 @@ export default function SermonDetail() {
         ) : (
           <Text style={styles.sermonTitle} numberOfLines={3}>{sermon.title}</Text>
         )}
-        <Text style={styles.sermonMeta}>
-          {formatDate(sermon.createdAt)} · {formatElapsed(sermon.durationMs)}
-        </Text>
+        <View style={styles.metaRow}>
+          <Text style={styles.sermonMeta}>
+            {formatDate(sermon.createdAt)} · {formatElapsed(sermon.durationMs)}
+          </Text>
+          {sermon.audioUris?.length > 0 && (
+            <TouchableOpacity onPress={togglePlayback} style={styles.playBtn} activeOpacity={0.7}>
+              <Text style={styles.playBtnText}>{isPlaying ? '⏸ Pause' : '▶ Play'}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Segmented tabs */}
@@ -434,6 +500,44 @@ function sanitize(name: string): string {
   return name.replace(/[^a-z0-9-_]+/gi, '_').slice(0, 60) || 'sermon';
 }
 
+function sermonToHtml(sermon: Sermon): string {
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  let html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>
+    body{font-family:-apple-system,Helvetica,Arial,sans-serif;padding:32px;color:#222;line-height:1.6}
+    h1{font-size:24px;margin-bottom:4px}h2{font-size:18px;color:#555;margin-top:24px}
+    .meta{color:#888;font-size:13px;margin-bottom:16px}
+    .theme{font-style:italic;color:#555;margin-bottom:12px}
+    .point{background:#f7f7f9;border-radius:10px;padding:14px;margin-bottom:10px}
+    .point h3{margin:0 0 6px;font-size:16px}.sub{margin:2px 0 2px 16px;font-size:14px}
+    .refs{color:#0A84FF;font-size:13px;margin-top:6px}
+    .scripture{border-left:3px solid #0A84FF;padding-left:12px;margin:8px 0}
+    .scripture .ref{font-weight:600;color:#0A84FF}.scripture .text{font-style:italic}
+  </style></head><body>`;
+  html += `<h1>${esc(sermon.outline.title)}</h1>`;
+  html += `<p class="meta">${esc(formatDate(sermon.createdAt))} · ${esc(formatElapsed(sermon.durationMs))}</p>`;
+  if (sermon.outline.theme) html += `<p class="theme">${esc(sermon.outline.theme)}</p>`;
+  if (sermon.outline.summary) html += `<p>${esc(sermon.outline.summary)}</p>`;
+  html += '<h2>Outline</h2>';
+  sermon.outline.points.forEach((p, i) => {
+    html += `<div class="point"><h3>${i + 1}. ${esc(p.heading)}</h3>`;
+    p.subPoints.forEach((sp) => { html += `<p class="sub">• ${esc(sp)}</p>`; });
+    if (p.scriptures.length) html += `<p class="refs">${p.scriptures.map(esc).join(' · ')}</p>`;
+    html += '</div>';
+  });
+  if (sermon.scriptures.length) {
+    html += '<h2>Scriptures</h2>';
+    sermon.scriptures.forEach((s) => {
+      html += `<div class="scripture"><p class="ref">${esc(s.reference)}${s.translation ? ` (${esc(s.translation)})` : ''}</p>`;
+      if (s.text) html += `<p class="text">"${esc(s.text)}"</p>`;
+      html += '</div>';
+    });
+  }
+  html += '<h2>Transcript</h2>';
+  html += `<p>${esc(sermon.transcript || '(no transcript)')}</p>`;
+  html += '</body></html>';
+  return html;
+}
+
 function makeStyles(t: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bgSurface },
@@ -467,6 +571,19 @@ function makeStyles(t: Colors) {
       marginBottom: 4,
     },
     sermonMeta: { ...typography.footnote, color: t.textSecondary },
+    metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    playBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: t.bgSurfaceRaised,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: radius.pill,
+      borderWidth: 0.5,
+      borderColor: t.separator,
+    },
+    playBtnText: { ...typography.footnote, color: t.accentBlue, fontWeight: '600' },
 
     tabs: {
       flexDirection: 'row',
