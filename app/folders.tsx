@@ -2,7 +2,11 @@ import { Link, Stack, useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -97,6 +101,11 @@ export default function FoldersScreen() {
   }));
 
   const allCount = countFor(undefined);
+
+  const dismissModal = () => {
+    Keyboard.dismiss();
+    setShowModal(false);
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -195,50 +204,52 @@ export default function FoldersScreen() {
       </View>
 
       {/* Create / Edit modal */}
-      <Modal visible={showModal} transparent animationType="slide" onRequestClose={() => setShowModal(false)}>
-        <View style={styles.overlay}>
-          <View style={styles.sheet}>
-            <View style={styles.grabHandle} />
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setShowModal(false)}>
-                <Text style={styles.modalCancel}>Cancel</Text>
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>{editingFolder ? 'Edit Folder' : 'New Folder'}</Text>
-              <TouchableOpacity onPress={onSaveFolder}>
-                <Text style={[styles.modalCancel, { color: t.accentBlue, fontWeight: '700' }]}>Save</Text>
-              </TouchableOpacity>
-            </View>
+      <Modal visible={showModal} transparent animationType="slide" onRequestClose={dismissModal}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <Pressable style={styles.overlay} onPress={dismissModal}>
+            <Pressable style={styles.sheet} onPress={() => {}}>
+              <View style={styles.grabHandle} />
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={dismissModal}>
+                  <Text style={styles.modalCancel}>Cancel</Text>
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>{editingFolder ? 'Edit Folder' : 'New Folder'}</Text>
+                <TouchableOpacity onPress={onSaveFolder}>
+                  <Text style={[styles.modalCancel, { color: t.accentBlue, fontWeight: '700' }]}>Save</Text>
+                </TouchableOpacity>
+              </View>
 
-            <TextInput
-              style={styles.modalInput}
-              value={draftName}
-              onChangeText={setDraftName}
-              placeholder="Folder name"
-              placeholderTextColor={t.textTertiary}
-              autoFocus
-            />
+              <TextInput
+                style={styles.modalInput}
+                value={draftName}
+                onChangeText={setDraftName}
+                placeholder="Folder name"
+                placeholderTextColor={t.textTertiary}
+                autoFocus
+              />
 
-            <Text style={styles.colorLabel}>COLOR</Text>
-            <View style={styles.colorRow}>
-              {FOLDER_COLORS.map((c) => (
+              <Text style={styles.colorLabel}>COLOR</Text>
+              <View style={styles.colorRow}>
+                {FOLDER_COLORS.map((c) => (
+                  <TouchableOpacity
+                    key={c}
+                    style={[styles.swatch, { backgroundColor: c }, draftColor === c && styles.swatchActive]}
+                    onPress={() => setDraftColor(c)}
+                  />
+                ))}
+              </View>
+
+              {editingFolder && (
                 <TouchableOpacity
-                  key={c}
-                  style={[styles.swatch, { backgroundColor: c }, draftColor === c && styles.swatchActive]}
-                  onPress={() => setDraftColor(c)}
-                />
-              ))}
-            </View>
-
-            {editingFolder && (
-              <TouchableOpacity
-                style={styles.deleteBtn}
-                onPress={() => { setShowModal(false); onDeleteFolder(editingFolder); }}
-              >
-                <Text style={styles.deleteText}>Delete Folder</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
+                  style={styles.deleteBtn}
+                  onPress={() => { dismissModal(); onDeleteFolder(editingFolder); }}
+                >
+                  <Text style={styles.deleteText}>Delete Folder</Text>
+                </TouchableOpacity>
+              )}
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
