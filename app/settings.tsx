@@ -156,7 +156,7 @@ function makeStyles(t: Colors) {
       width: 36,
       height: 5,
       borderRadius: 3,
-      backgroundColor: '#D1D1D6',
+      backgroundColor: t.textTertiary,
       alignSelf: 'center',
       marginTop: spacing.sm,
       marginBottom: 2,

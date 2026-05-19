@@ -101,6 +101,7 @@ export default function SermonDetail() {
           if (status.didJustFinish) {
             setIsPlaying(false);
             setPlaybackPos(0);
+            void soundRef.current?.unloadAsync();
             soundRef.current = null;
           }
         }
@@ -540,7 +541,7 @@ function sermonToHtml(sermon: Sermon): string {
 
 function makeStyles(t: Colors) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: t.bgSurface },
+    container: { flex: 1, backgroundColor: t.bgPrimary },
 
     navBar: {
       flexDirection: 'row',

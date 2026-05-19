@@ -39,7 +39,7 @@ function formatTimer(ms: number): string {
   return `${mm}:${ss}.${cs}`;
 }
 
-function SpinnerSvg({ isDark }: { isDark: boolean }) {
+function SpinnerSvg({ trackColor, arcColor }: { trackColor: string; arcColor: string }) {
   const rotation = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -50,8 +50,6 @@ function SpinnerSvg({ isDark }: { isDark: boolean }) {
   }, [rotation]);
 
   const spin = rotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-  const trackColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)';
-  const arcColor = isDark ? '#ffffff' : '#0A84FF';
 
   return (
     <Animated.View style={{ transform: [{ rotate: spin }] }}>
@@ -68,7 +66,7 @@ export default function RecordScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const t = useTheme();
-  const styles = useMemo(() => makeStyles(t, isDark), [t, isDark]);
+  const styles = useMemo(() => makeStyles(t), [t]);
 
   const status         = useSessionStore((s) => s.status);
   const step           = useSessionStore((s) => s.step);
@@ -247,22 +245,18 @@ export default function RecordScreen() {
   const isActive = status === 'recording' || status === 'paused';
   const isProcessing = status === 'processing';
 
-  const stepLabel = { outlining: 'Building outline…', scriptures: 'Looking up scriptures…', saving: 'Saving…' };
-  const stepIndex = { outlining: 1, scriptures: 2, saving: 3 };
-  const stepNext = { outlining: 'Looking up scriptures next', scriptures: 'Saving next', saving: '' };
-  const currentStep = step as keyof typeof stepLabel;
+  const stepLabel: Record<string, string> = { outlining: 'Building outline…', scriptures: 'Looking up scriptures…', saving: 'Saving…' };
+  const stepIndex: Record<string, number> = { outlining: 1, scriptures: 2, saving: 3 };
+  const stepNext: Record<string, string> = { outlining: 'Looking up scriptures next', scriptures: 'Saving next', saving: '' };
 
-  const primaryText = isDark ? '#FFFFFF' : '#000000';
-  const secondaryText = isDark ? 'rgba(235,235,245,0.6)' : '#8E8E93';
-  const ringIdle = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.18)';
-  const ringColor = isActive ? t.accentRed : ringIdle;
+  const ringColor = isActive ? t.accentRed : t.textTertiary;
 
   // Record button inner shape
   const innerSize = status === 'recording' ? 64 : 112;
   const innerRadius = status === 'recording' ? 12 : status === 'paused' ? 22 : 56;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#000' : t.bgPrimary }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: t.bgPrimary }]} edges={['top', 'bottom']}>
       <StatusBar style={isDark ? 'light' : 'auto'} />
       <Stack.Screen options={{ headerShown: false }} />
 
@@ -283,16 +277,16 @@ export default function RecordScreen() {
 
       {/* Timer */}
       <View style={[styles.timerSection, { paddingTop: status === 'idle' ? 80 : 28 }]}>
-        <Text style={[styles.timer, { color: primaryText }]}>{formatTimer(elapsedMs)}</Text>
+        <Text style={[styles.timer, { color: t.textPrimary }]}>{formatTimer(elapsedMs)}</Text>
         <View style={styles.statusRow}>
           {status === 'recording' && <View style={styles.recDot} />}
           {status === 'paused' && (
             <View style={styles.pauseBars}>
-              <View style={[styles.pauseBar, { backgroundColor: secondaryText }]} />
-              <View style={[styles.pauseBar, { backgroundColor: secondaryText }]} />
+              <View style={[styles.pauseBar, { backgroundColor: t.textSecondary }]} />
+              <View style={[styles.pauseBar, { backgroundColor: t.textSecondary }]} />
             </View>
           )}
-          <Text style={[styles.statusText, { color: secondaryText }]}>
+          <Text style={[styles.statusText, { color: t.textSecondary }]}>
             {status === 'idle' ? 'Ready to Record'
               : status === 'recording' ? 'Recording'
               : status === 'paused' ? 'Paused'
@@ -303,13 +297,13 @@ export default function RecordScreen() {
 
       {isProcessing ? (
         <View style={styles.processingArea}>
-          <SpinnerSvg isDark={isDark} />
+          <SpinnerSvg trackColor={t.spinnerTrack} arcColor={t.spinnerArc} />
           <View style={styles.processingText}>
-            <Text style={[styles.processingTitle, { color: primaryText }]}>
-              {stepLabel[currentStep] ?? 'Processing…'}
+            <Text style={[styles.processingTitle, { color: t.textPrimary }]}>
+              {stepLabel[step] ?? 'Processing…'}
             </Text>
-            <Text style={[styles.processingSubtitle, { color: secondaryText }]}>
-              Step {stepIndex[currentStep] ?? 1} of 3 · {stepNext[currentStep] ?? ''}
+            <Text style={[styles.processingSubtitle, { color: t.textSecondary }]}>
+              Step {stepIndex[step] ?? 1} of 3 · {stepNext[step] ?? ''}
             </Text>
           </View>
           <View style={styles.pips}>
@@ -318,7 +312,7 @@ export default function RecordScreen() {
                 key={i}
                 style={[
                   styles.pip,
-                  { backgroundColor: i <= (stepIndex[currentStep] ?? 0) ? t.accentBlue : (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)') },
+                  { backgroundColor: i <= (stepIndex[step] ?? 0) ? t.accentBlue : t.stepPipInactive },
                 ]}
               />
             ))}
@@ -340,7 +334,7 @@ export default function RecordScreen() {
                 backgroundColor: t.accentRed,
               }]} />
             </TouchableOpacity>
-            <Text style={[styles.btnLabel, { color: secondaryText }]}>
+            <Text style={[styles.btnLabel, { color: t.textSecondary }]}>
               {status === 'idle' ? 'Tap to Record'
                 : status === 'recording' ? 'Tap to Pause'
                 : 'Tap to Resume'}
@@ -355,12 +349,12 @@ export default function RecordScreen() {
                     key={i}
                     style={[styles.idleBar, {
                       height: h,
-                      backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.35)',
+                      backgroundColor: t.textTertiary,
                     }]}
                   />
                 ))}
               </View>
-              <Text style={[styles.hintText, { color: secondaryText }]}>
+              <Text style={[styles.hintText, { color: t.textSecondary }]}>
                 {'Recording will transcribe and outline\nyour sermon automatically.'}
               </Text>
             </View>
@@ -369,22 +363,22 @@ export default function RecordScreen() {
           {isActive && (
             <ScrollView style={styles.livePanels} contentContainerStyle={{ gap: 10, paddingBottom: 16 }}>
               {liveTranscript.length > 0 && (
-                <View style={[styles.panel, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
-                  <Text style={[styles.panelLabel, { color: secondaryText }]}>LIVE TRANSCRIPT</Text>
-                  <Text style={[styles.panelText, { color: primaryText }]}>{liveTranscript}</Text>
+                <View style={[styles.panel, { backgroundColor: t.bgSurface }]}>
+                  <Text style={[styles.panelLabel, { color: t.textSecondary }]}>LIVE TRANSCRIPT</Text>
+                  <Text style={[styles.panelText, { color: t.textPrimary }]}>{liveTranscript}</Text>
                 </View>
               )}
               {liveOutline && liveOutline.points.length > 0 && (
-                <View style={[styles.panel, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
+                <View style={[styles.panel, { backgroundColor: t.bgSurface }]}>
                   <TouchableOpacity
                     style={styles.panelHeader}
                     onPress={() => setShowOutline((v) => !v)}
                   >
-                    <Text style={[styles.panelLabel, { color: secondaryText }]}>LIVE OUTLINE</Text>
-                    <ChevronIcon dir={showOutline ? 'up' : 'down'} size={10} color={isDark ? 'rgba(235,235,245,0.45)' : '#C7C7CC'} />
+                    <Text style={[styles.panelLabel, { color: t.textSecondary }]}>LIVE OUTLINE</Text>
+                    <ChevronIcon dir={showOutline ? 'up' : 'down'} size={10} color={t.textTertiary} />
                   </TouchableOpacity>
                   {showOutline && liveOutline.points.map((p, i) => (
-                    <Text key={i} style={[styles.panelText, { color: primaryText, marginTop: 2 }]}>
+                    <Text key={i} style={[styles.panelText, { color: t.textPrimary, marginTop: 2 }]}>
                       {i + 1}. {p.heading}
                     </Text>
                   ))}
@@ -399,14 +393,14 @@ export default function RecordScreen() {
       {isActive && (
         <View style={styles.bottomBar}>
           <TouchableOpacity
-            style={[styles.stopBtn, { backgroundColor: isDark ? '#2C2C2E' : '#000000' }]}
+            style={[styles.stopBtn, { backgroundColor: t.textPrimary }]}
             onPress={onStop}
             activeOpacity={0.8}
           >
             <Text style={styles.stopText}>Stop & Save</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.discardBtn, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderWidth: isDark ? 0 : 0.5, borderColor: 'rgba(60,60,67,0.12)' }]}
+            style={[styles.discardBtn, { backgroundColor: t.bgSurface, borderWidth: 0.5, borderColor: t.separator }]}
             onPress={onDiscard}
             activeOpacity={0.8}
           >
@@ -417,8 +411,8 @@ export default function RecordScreen() {
 
       {isProcessing && (
         <View style={styles.bottomBar}>
-          <View style={[styles.stopBtn, { backgroundColor: isDark ? '#2C2C2E' : '#FFFFFF', opacity: 0.5 }]}>
-            <Text style={[styles.stopText, { color: secondaryText }]}>Please wait…</Text>
+          <View style={[styles.stopBtn, { backgroundColor: t.bgSurface, opacity: 0.5 }]}>
+            <Text style={[styles.stopText, { color: t.textSecondary }]}>Please wait…</Text>
           </View>
         </View>
       )}
@@ -426,7 +420,7 @@ export default function RecordScreen() {
       {status === 'error' && (
         <View style={styles.errorWrap}>
           <Text style={styles.errorTitle}>Something went wrong</Text>
-          <Text style={[styles.errorBody, { color: secondaryText }]}>{errorMessage}</Text>
+          <Text style={[styles.errorBody, { color: t.textSecondary }]}>{errorMessage}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={() => reset()}>
             <Text style={{ color: t.accentBlue, fontWeight: '600' }}>Try Again</Text>
           </TouchableOpacity>
@@ -436,7 +430,7 @@ export default function RecordScreen() {
   );
 }
 
-function makeStyles(t: Colors, isDark: boolean) {
+function makeStyles(t: Colors) {
   return StyleSheet.create({
     container: { flex: 1 },
 

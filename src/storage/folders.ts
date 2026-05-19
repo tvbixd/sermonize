@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import type { Folder } from '../types';
 
-const FOLDERS_PATH = `${FileSystem.documentDirectory}folders.json`;
+const FOLDERS_PATH = `${FileSystem.documentDirectory ?? ''}folders.json`;
 
 export async function listFolders(): Promise<Folder[]> {
   try {
