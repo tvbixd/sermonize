@@ -777,12 +777,12 @@ function makeStyles(t: Colors) {
       flex: 1,
       height: 46,
       borderRadius: radius.pill,
-      backgroundColor: t.textPrimary,
+      backgroundColor: t.accentRed,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 8,
     },
-    exportText: { ...typography.headline, color: t.bgSurface },
+    exportText: { ...typography.headline, color: '#fff' },
   });
 }

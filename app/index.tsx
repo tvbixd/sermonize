@@ -2,7 +2,7 @@ import { Redirect, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MicIcon, WaveformIcon } from '@/components/icons';
+import { MicIcon } from '@/components/icons';
 import { getGroqKey } from '@/storage/keys';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 
@@ -28,30 +28,36 @@ export default function Root() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.iconWrap}>
-          <MicIcon size={48} color={t.accentRed} />
+          <MicIcon size={44} color="#fff" />
         </View>
-        <Text style={styles.title}>Welcome to Sermonize</Text>
+        <Text style={styles.title}>Sermonize</Text>
         <Text style={styles.subtitle}>
-          Record sermons and get AI-powered outlines{'\n'}with Bible scriptures — completely free.
+          Record sermons and get AI-powered{'\n'}outlines with Bible scriptures.
         </Text>
 
         <View style={styles.steps}>
           <View style={styles.step}>
-            <Text style={styles.stepNum}>1</Text>
+            <View style={styles.stepNumWrap}>
+              <Text style={styles.stepNum}>1</Text>
+            </View>
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>Get a free Groq API key</Text>
               <Text style={styles.stepDesc}>Visit console.groq.com — no credit card needed.</Text>
             </View>
           </View>
           <View style={styles.step}>
-            <Text style={styles.stepNum}>2</Text>
+            <View style={styles.stepNumWrap}>
+              <Text style={styles.stepNum}>2</Text>
+            </View>
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>Paste it in Settings</Text>
-              <Text style={styles.stepDesc}>Your key is stored securely on this device only.</Text>
+              <Text style={styles.stepDesc}>Your key stays securely on this device only.</Text>
             </View>
           </View>
           <View style={styles.step}>
-            <Text style={styles.stepNum}>3</Text>
+            <View style={styles.stepNumWrap}>
+              <Text style={styles.stepNum}>3</Text>
+            </View>
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>Start recording</Text>
               <Text style={styles.stepDesc}>Tap the mic and let AI do the note-taking.</Text>
@@ -66,7 +72,7 @@ export default function Root() {
           activeOpacity={0.85}
           onPress={() => router.push('/settings')}
         >
-          <Text style={styles.primaryBtnText}>Set Up API Key</Text>
+          <Text style={styles.primaryBtnText}>Get Started</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.skipBtn}
@@ -86,15 +92,20 @@ function makeStyles(t: Colors) {
     content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
 
     iconWrap: {
-      width: 96, height: 96, borderRadius: 48,
-      backgroundColor: t.emptyBg,
+      width: 88, height: 88, borderRadius: 44,
+      backgroundColor: t.accentRed,
       alignItems: 'center', justifyContent: 'center',
       marginBottom: spacing.lg,
+      shadowColor: t.fabShadow,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 1,
+      shadowRadius: 20,
+      elevation: 8,
     },
-    title: { ...typography.title2, color: t.textPrimary, marginBottom: spacing.sm, textAlign: 'center' },
-    subtitle: { ...typography.subhead, color: t.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 36 },
+    title: { fontSize: 36, fontWeight: '700', color: t.textPrimary, marginBottom: spacing.sm, textAlign: 'center', letterSpacing: -0.5 },
+    subtitle: { ...typography.body, color: t.textSecondary, textAlign: 'center', lineHeight: 24, marginBottom: 40 },
 
-    steps: { width: '100%', gap: 16 },
+    steps: { width: '100%', gap: 12 },
     step: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -102,30 +113,40 @@ function makeStyles(t: Colors) {
       backgroundColor: t.bgSurface,
       borderRadius: radius.card,
       padding: 16,
+      shadowColor: t.cardShadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 1,
+      shadowRadius: 6,
+      elevation: 1,
+    },
+    stepNumWrap: {
+      width: 30, height: 30, borderRadius: 15,
+      backgroundColor: t.accentRed,
+      alignItems: 'center', justifyContent: 'center',
     },
     stepNum: {
-      width: 28, height: 28, borderRadius: 14,
-      backgroundColor: t.accentBlue,
       color: '#fff',
       fontWeight: '700',
       fontSize: 14,
-      textAlign: 'center',
-      lineHeight: 28,
-      overflow: 'hidden',
     },
     stepContent: { flex: 1 },
     stepTitle: { ...typography.headline, color: t.textPrimary, marginBottom: 2 },
     stepDesc: { ...typography.footnote, color: t.textSecondary, lineHeight: 18 },
 
-    bottom: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: 10 },
+    bottom: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: 12 },
     primaryBtn: {
-      backgroundColor: t.accentBlue,
-      height: 52,
-      borderRadius: radius.button,
+      backgroundColor: t.accentRed,
+      height: 54,
+      borderRadius: radius.pill,
       alignItems: 'center',
       justifyContent: 'center',
+      shadowColor: t.fabShadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 1,
+      shadowRadius: 12,
+      elevation: 4,
     },
-    primaryBtnText: { ...typography.headline, color: '#fff' },
+    primaryBtnText: { ...typography.headline, color: '#fff', fontSize: 18 },
     skipBtn: { alignItems: 'center', paddingVertical: spacing.sm },
     skipBtnText: { ...typography.subhead, color: t.textSecondary },
   });

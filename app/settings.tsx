@@ -271,7 +271,7 @@ function makeStyles(t: Colors) {
     rowValue: { ...typography.body, color: t.textSecondary },
 
     saveBtn: {
-      backgroundColor: t.accentBlue,
+      backgroundColor: t.accentRed,
       borderRadius: radius.pill,
       height: 50,
       alignItems: 'center',

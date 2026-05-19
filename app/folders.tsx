@@ -28,7 +28,7 @@ import {
   NewFolderIcon,
 } from '@/components/icons';
 
-const FOLDER_COLORS = ['#0A84FF', '#FF9F0A', '#30B65B', '#FF453A', '#5E5CE6', '#FF375F'];
+const FOLDER_COLORS = ['#FF3D4D', '#F08C3A', '#34A853', '#4DA3FF', '#7A5AF8', '#E8A838'];
 
 type FolderRow = { id: string; name: string; color: string; count: number };
 
@@ -119,7 +119,7 @@ export default function FoldersScreen() {
         </TouchableOpacity>
         <Link href="/settings" asChild>
           <TouchableOpacity hitSlop={8}>
-            <GearIcon size={22} color={t.accentBlue} />
+            <GearIcon size={22} color={t.textSecondary} />
           </TouchableOpacity>
         </Link>
       </View>
@@ -312,14 +312,23 @@ function makeStyles(t: Colors) {
       marginLeft: spacing.xs,
     },
 
-    card: { backgroundColor: t.bgSurface, borderRadius: radius.card, overflow: 'hidden' },
+    card: {
+      backgroundColor: t.bgSurface,
+      borderRadius: radius.card,
+      overflow: 'hidden',
+      shadowColor: t.cardShadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 1,
+      shadowRadius: 8,
+      elevation: 2,
+    },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: spacing.md,
-      paddingVertical: 10,
-      minHeight: 52,
-      gap: spacing.sm,
+      paddingVertical: 12,
+      minHeight: 56,
+      gap: 12,
     },
     divider: { height: StyleSheet.hairlineWidth, backgroundColor: t.separator, marginLeft: 56 },
 
@@ -342,37 +351,35 @@ function makeStyles(t: Colors) {
 
     fab: {
       position: 'absolute',
-      bottom: 80,
+      bottom: 84,
       right: 20,
-      width: 56,
-      height: 56,
-      borderRadius: 28,
+      width: 60,
+      height: 60,
+      borderRadius: 30,
       backgroundColor: t.accentRed,
       alignItems: 'center',
       justifyContent: 'center',
       shadowColor: t.fabShadow,
-      shadowOffset: { width: 0, height: 4 },
+      shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 1,
-      shadowRadius: 12,
-      elevation: 8,
+      shadowRadius: 16,
+      elevation: 10,
     },
 
     welcomeCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: t.bgSurface,
+      backgroundColor: t.bgWarm,
       borderRadius: radius.card,
-      padding: spacing.md,
+      padding: 18,
       gap: 14,
       marginBottom: spacing.md,
-      borderWidth: 1,
-      borderColor: t.accentRed + '22',
     },
     welcomeIcon: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: t.accentRed + '15',
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      backgroundColor: t.accentRed + '18',
       alignItems: 'center',
       justifyContent: 'center',
     },
