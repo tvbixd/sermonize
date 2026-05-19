@@ -24,6 +24,7 @@ import {
   ChevronIcon,
   FolderIcon,
   GearIcon,
+  MicIcon,
   NewFolderIcon,
 } from '@/components/icons';
 
@@ -132,6 +133,24 @@ export default function FoldersScreen() {
       </Text>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        {/* Welcome card (empty state) */}
+        {allCount === 0 && (
+          <TouchableOpacity
+            style={styles.welcomeCard}
+            onPress={() => router.push('/record')}
+            activeOpacity={0.85}
+          >
+            <View style={styles.welcomeIcon}>
+              <MicIcon size={28} color={t.accentRed} />
+            </View>
+            <View style={styles.welcomeText}>
+              <Text style={styles.welcomeTitle}>Record your first sermon</Text>
+              <Text style={styles.welcomeDesc}>Tap to start recording and get an AI-powered outline with scriptures.</Text>
+            </View>
+            <ChevronIcon color={t.textTertiary} size={12} />
+          </TouchableOpacity>
+        )}
+
         {/* All Sermons */}
         <View style={styles.card}>
           <TouchableOpacity
@@ -202,6 +221,15 @@ export default function FoldersScreen() {
           <Text style={styles.newFolderText}>New Folder</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Record FAB */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => router.push('/record')}
+        activeOpacity={0.85}
+      >
+        <MicIcon size={26} color="#fff" />
+      </TouchableOpacity>
 
       {/* Create / Edit modal */}
       <Modal visible={showModal} transparent animationType="slide" onRequestClose={dismissModal}>
@@ -311,6 +339,46 @@ function makeStyles(t: Colors) {
       alignSelf: 'flex-start',
     },
     newFolderText: { ...typography.body, color: t.accentBlue },
+
+    fab: {
+      position: 'absolute',
+      bottom: 80,
+      right: 20,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: t.accentRed,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: t.fabShadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 1,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+
+    welcomeCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: t.bgSurface,
+      borderRadius: radius.card,
+      padding: spacing.md,
+      gap: 14,
+      marginBottom: spacing.md,
+      borderWidth: 1,
+      borderColor: t.accentRed + '22',
+    },
+    welcomeIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: t.accentRed + '15',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    welcomeText: { flex: 1 },
+    welcomeTitle: { ...typography.headline, color: t.textPrimary, marginBottom: 2 },
+    welcomeDesc: { ...typography.footnote, color: t.textSecondary, lineHeight: 18 },
 
     overlay: { flex: 1, backgroundColor: t.dimOverlay, justifyContent: 'flex-end' },
     sheet: {

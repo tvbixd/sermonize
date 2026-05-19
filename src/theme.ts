@@ -22,6 +22,9 @@ export const lightColors = {
   spinnerTrack: 'rgba(0,0,0,0.08)',
   spinnerArc: '#0A84FF',
   stepPipInactive: 'rgba(0,0,0,0.1)',
+  statusSuccess: '#34C759',
+  statusError: '#FF3B30',
+  fabShadow: 'rgba(255,59,48,0.35)',
 } as const;
 
 export const darkColors = {
@@ -45,6 +48,9 @@ export const darkColors = {
   spinnerTrack: 'rgba(255,255,255,0.15)',
   spinnerArc: '#FFFFFF',
   stepPipInactive: 'rgba(255,255,255,0.2)',
+  statusSuccess: '#30D158',
+  statusError: '#FF453A',
+  fabShadow: 'rgba(255,69,58,0.4)',
 } as const;
 
 export type Colors = typeof lightColors;
@@ -84,4 +90,10 @@ export const radius = {
   button: 14,
   pill: 999,
   fab: 32,
+} as const;
+
+export const motion = {
+  fast: 150,
+  normal: 250,
+  slow: 400,
 } as const;

@@ -301,6 +301,28 @@ export default function SermonDetail() {
         </View>
       </View>
 
+      {/* Summary card */}
+      {!editing && (sermon.outline.theme || sermon.outline.summary) && (
+        <View style={styles.summaryCard}>
+          {sermon.outline.theme ? (
+            <Text style={styles.summaryTheme}>{sermon.outline.theme}</Text>
+          ) : null}
+          {sermon.outline.summary ? (
+            <Text style={styles.summaryCopy} numberOfLines={3}>{sermon.outline.summary}</Text>
+          ) : null}
+          {sermon.scriptures.length > 0 && (
+            <View style={styles.summaryRefs}>
+              {sermon.scriptures.slice(0, 3).map((s, i) => (
+                <Text key={i} style={styles.summaryRefPill}>{s.reference}</Text>
+              ))}
+              {sermon.scriptures.length > 3 && (
+                <Text style={styles.summaryRefMore}>+{sermon.scriptures.length - 3} more</Text>
+              )}
+            </View>
+          )}
+        </View>
+      )}
+
       {/* Segmented tabs */}
       <View style={styles.tabs}>
         {(['outline', 'scriptures', 'transcript'] as Tab[]).map((tb) => (
@@ -585,6 +607,48 @@ function makeStyles(t: Colors) {
       borderColor: t.separator,
     },
     playBtnText: { ...typography.footnote, color: t.accentBlue, fontWeight: '600' },
+
+    summaryCard: {
+      marginHorizontal: spacing.md,
+      marginBottom: spacing.sm,
+      backgroundColor: t.bgSurface,
+      borderRadius: radius.card,
+      padding: 14,
+      borderWidth: 0.5,
+      borderColor: t.separator,
+    },
+    summaryTheme: {
+      ...typography.subhead,
+      fontStyle: 'italic',
+      color: t.accentBlue,
+      marginBottom: 4,
+    },
+    summaryCopy: {
+      ...typography.subhead,
+      color: t.textPrimary,
+      lineHeight: 21,
+    },
+    summaryRefs: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginTop: 8,
+    },
+    summaryRefPill: {
+      ...typography.caption,
+      color: t.accentBlue,
+      fontWeight: '600',
+      backgroundColor: t.accentBlue + '15',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: radius.pill,
+      overflow: 'hidden',
+    },
+    summaryRefMore: {
+      ...typography.caption,
+      color: t.textSecondary,
+      paddingVertical: 3,
+    },
 
     tabs: {
       flexDirection: 'row',

@@ -1,6 +1,7 @@
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -37,6 +38,7 @@ export default function SettingsScreen() {
   const [translation, setTrans] = useState('web');
   const [loaded, setLoaded] = useState(false);
   const [showKey, setShowKey] = useState(false);
+  const [keyStatus, setKeyStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const t = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 
@@ -48,9 +50,26 @@ export default function SettingsScreen() {
     })();
   }, []);
 
+  const validateKey = async (key: string): Promise<boolean> => {
+    if (!key.trim()) return true;
+    try {
+      const resp = await fetch('https://api.groq.com/openai/v1/models', {
+        headers: { Authorization: `Bearer ${key.trim()}` },
+      });
+      return resp.ok;
+    } catch {
+      return true;
+    }
+  };
+
   const onSave = async () => {
     await setGroqKey(groq.trim());
     await setTranslation(translation);
+    if (groq.trim()) {
+      setKeyStatus('checking');
+      const valid = await validateKey(groq);
+      setKeyStatus(valid ? 'valid' : 'invalid');
+    }
     Alert.alert('Saved', 'Your settings have been stored securely on this device.');
   };
 
@@ -92,7 +111,7 @@ export default function SettingsScreen() {
             <TextInput
               style={styles.keyInput}
               value={groq}
-              onChangeText={setGroq}
+              onChangeText={(v) => { setGroq(v); setKeyStatus('idle'); }}
               placeholder="gsk_..."
               placeholderTextColor={t.textTertiary}
               autoCapitalize="none"
@@ -105,6 +124,25 @@ export default function SettingsScreen() {
                 : <EyeIcon size={18} color={t.textSecondary} />}
             </TouchableOpacity>
           </View>
+          {keyStatus !== 'idle' && (
+            <View style={styles.keyStatusRow}>
+              {keyStatus === 'checking' && (
+                <>
+                  <ActivityIndicator size="small" color={t.textSecondary} />
+                  <Text style={[styles.keyStatusText, { color: t.textSecondary }]}>Validating key...</Text>
+                </>
+              )}
+              {keyStatus === 'valid' && (
+                <>
+                  <CheckIcon size={14} color={t.statusSuccess} />
+                  <Text style={[styles.keyStatusText, { color: t.statusSuccess }]}>Key is valid</Text>
+                </>
+              )}
+              {keyStatus === 'invalid' && (
+                <Text style={[styles.keyStatusText, { color: t.statusError }]}>Invalid key — check and try again</Text>
+              )}
+            </View>
+          )}
         </View>
 
         <Text style={styles.sectionLabel}>Bible Translation</Text>
@@ -212,6 +250,14 @@ function makeStyles(t: Colors) {
       paddingVertical: spacing.sm,
     },
     eyeBtn: { padding: spacing.xs },
+    keyStatusRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    keyStatusText: { ...typography.footnote },
 
     row: {
       flexDirection: 'row',
