@@ -30,10 +30,10 @@ export const lightColors = {
 } as const;
 
 export const darkColors = {
-  bgPrimary: '#000000',
-  bgSurface: '#1A1A1C',
-  bgSurfaceRaised: '#2A2A2E',
-  bgWarm: '#1E1614',
+  bgPrimary: '#0C0A09',
+  bgSurface: '#1C1917',
+  bgSurfaceRaised: '#292524',
+  bgWarm: '#1E1410',
   textPrimary: '#F5F0EB',
   textSecondary: 'rgba(245,240,235,0.55)',
   textTertiary: 'rgba(245,240,235,0.28)',
