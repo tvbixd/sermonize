@@ -6,6 +6,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  Image,
   Linking,
   Platform,
   ScrollView,
@@ -144,7 +145,7 @@ function WelcomeStep({ t, styles, onNext, onSkip }: { t: Colors; styles: any; on
     <View style={styles.stepFull}>
       <View style={styles.welcomeCenter}>
         <Animated.View style={{ transform: [{ scale }] }}>
-          <BigLogomark color={t.accentBlue} />
+          <BigLogomark />
         </Animated.View>
         <Text style={styles.welcomeTitle}>Welcome to Scribe.</Text>
         <Text style={styles.welcomeSub}>
@@ -357,7 +358,7 @@ function MicPermissionStep({ t, styles, onNext }: { t: Colors; styles: any; onNe
           </View>
         ) : (
           <Animated.View style={{ transform: [{ scale }] }}>
-            <BigLogomark color={t.accentBlue} icon="mic" />
+            <BigLogomark />
           </Animated.View>
         )}
         <Text style={styles.welcomeTitle}>
@@ -593,7 +594,7 @@ function AllSetStep({ t, styles, onFinish }: { t: Colors; styles: any; onFinish:
   return (
     <View style={styles.stepFull}>
       <View style={styles.welcomeCenter}>
-        <BigLogomark color={t.accentBlue} />
+        <BigLogomark />
         <Text style={styles.welcomeTitle}>You're ready to preach.</Text>
         <Text style={styles.welcomeSub}>
           Tap the red mic on the home screen the next time you step into the pulpit. Scribe takes care of the rest.
@@ -626,19 +627,13 @@ function AllSetStep({ t, styles, onFinish }: { t: Colors; styles: any; onFinish:
 
 // ─── Shared Components ───────────────────────────────────────────────────────
 
-function BigLogomark({ color, icon = 'waveform' }: { color: string; icon?: 'waveform' | 'mic' }) {
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const APP_ICON = require('../assets/icon.png');
+
+function BigLogomark() {
   return (
-    <View style={[logoStyles.wrap, { backgroundColor: color }]}>
-      {icon === 'mic' ? (
-        <Svg width={56} height={56} viewBox="0 0 24 24" fill="none">
-          <Rect x="9" y="3" width="6" height="12" rx="3" fill="#fff" />
-          <Path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-        </Svg>
-      ) : (
-        <Svg width={56} height={56} viewBox="0 0 64 64" fill="none">
-          <Path d="M8 32v0M18 24v16M28 14v36M38 20v24M48 28v8" stroke="#fff" strokeWidth="4.5" strokeLinecap="round" />
-        </Svg>
-      )}
+    <View style={logoStyles.wrap}>
+      <Image source={APP_ICON} style={logoStyles.image} />
     </View>
   );
 }
@@ -648,12 +643,16 @@ const logoStyles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.25, shadowRadius: 24 },
       android: { elevation: 12 },
     }),
+  },
+  image: {
+    width: 120,
+    height: 120,
+    borderRadius: 30,
   },
 });
 
