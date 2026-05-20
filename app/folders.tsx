@@ -1,6 +1,7 @@
 import { Link, Stack, useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
+  ActionSheetIOS,
   Alert,
   Keyboard,
   KeyboardAvoidingView,
@@ -15,7 +16,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { deleteFolder, listFolders, saveFolder } from '@/storage/folders';
+import { deleteFolder, listFolders, saveFolder, togglePinFolder } from '@/storage/folders';
 import { listSermons, purgeExpiredDeleted } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Folder, Sermon } from '@/types';
@@ -30,7 +31,7 @@ import {
 
 const FOLDER_COLORS = ['#FF3D4D', '#F08C3A', '#34A853', '#4DA3FF', '#7A5AF8', '#E8A838'];
 
-type FolderRow = { id: string; name: string; color: string; count: number };
+type FolderRow = { id: string; name: string; color: string; count: number; pinned: boolean };
 
 export default function FoldersScreen() {
   const router = useRouter();
@@ -97,11 +98,40 @@ export default function FoldersScreen() {
     ]);
   };
 
-  const myFolders: FolderRow[] = folders.map((f) => ({
-    id: f.id, name: f.name, color: f.color, count: countFor(f.id),
-  }));
+  const myFolders: FolderRow[] = folders
+    .map((f) => ({
+      id: f.id, name: f.name, color: f.color, count: countFor(f.id), pinned: !!f.pinned,
+    }))
+    .sort((a, b) => (a.pinned === b.pinned ? 0 : a.pinned ? -1 : 1));
 
   const allCount = countFor(undefined);
+
+  const onLongPressFolder = (f: Folder) => {
+    const isPinned = !!f.pinned;
+    const pinLabel = isPinned ? 'Unpin' : 'Pin';
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', pinLabel, 'Edit', 'Delete'],
+          destructiveButtonIndex: 3,
+          cancelButtonIndex: 0,
+        },
+        async (idx) => {
+          if (idx === 1) { await togglePinFolder(f.id); await refresh(); }
+          if (idx === 2) openEditModal(f);
+          if (idx === 3) onDeleteFolder(f);
+        },
+      );
+    } else {
+      Alert.alert(f.name, '', [
+        { text: pinLabel, onPress: async () => { await togglePinFolder(f.id); await refresh(); } },
+        { text: 'Edit', onPress: () => openEditModal(f) },
+        { text: 'Delete', style: 'destructive', onPress: () => onDeleteFolder(f) },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    }
+  };
 
   const dismissModal = () => {
     Keyboard.dismiss();
@@ -112,21 +142,14 @@ export default function FoldersScreen() {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Nav bar */}
-      <View style={styles.navBar}>
-        <TouchableOpacity onPress={openCreateModal} hitSlop={8}>
-          <Text style={styles.navBtn}>Edit</Text>
-        </TouchableOpacity>
+      {/* Title row with settings gear */}
+      <View style={styles.titleRow}>
+        <Text style={styles.largeTitle}>Folders</Text>
         <Link href="/settings" asChild>
           <TouchableOpacity hitSlop={8}>
             <GearIcon size={22} color={t.textSecondary} />
           </TouchableOpacity>
         </Link>
-      </View>
-
-      {/* Large title */}
-      <View style={styles.titleRow}>
-        <Text style={styles.largeTitle}>Folders</Text>
       </View>
       <Text style={styles.subtitle}>
         {allCount} {allCount === 1 ? 'recording' : 'recordings'}
@@ -175,7 +198,7 @@ export default function FoldersScreen() {
                   <TouchableOpacity
                     style={styles.row}
                     onPress={() => router.push({ pathname: '/sermons', params: { folderId: f.id, folderName: f.name } })}
-                    onLongPress={() => openEditModal(folders.find((x) => x.id === f.id)!)}
+                    onLongPress={() => onLongPressFolder(folders.find((x) => x.id === f.id)!)}
                     activeOpacity={0.7}
                   >
                     <FolderIcon kind="folder" color={f.color} size={28} />
@@ -287,17 +310,14 @@ function makeStyles(t: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bgPrimary },
 
-    navBar: {
+    titleRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: spacing.md,
+      paddingHorizontal: 20,
       paddingTop: spacing.md,
-      paddingBottom: spacing.xs,
+      paddingBottom: 2,
     },
-    navBtn: { ...typography.body, color: t.accentBlue },
-
-    titleRow: { paddingHorizontal: 20, paddingTop: spacing.sm, paddingBottom: 2 },
     largeTitle: { ...typography.largeTitle, color: t.textPrimary },
     subtitle: { ...typography.subhead, color: t.textSecondary, paddingHorizontal: 20, paddingBottom: spacing.md },
 

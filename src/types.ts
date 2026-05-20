@@ -37,6 +37,7 @@ export type Folder = {
   name: string;
   color: string; // hex accent color
   createdAt: number;
+  pinned?: boolean;
 };
 
 export type RecordingStatus =

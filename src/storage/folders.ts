@@ -22,6 +22,14 @@ export async function saveFolder(folder: Folder): Promise<void> {
   await FileSystem.writeAsStringAsync(FOLDERS_PATH, JSON.stringify(all, null, 2));
 }
 
+export async function togglePinFolder(id: string): Promise<void> {
+  const all = await listFolders();
+  const folder = all.find((f) => f.id === id);
+  if (!folder) return;
+  folder.pinned = !folder.pinned;
+  await FileSystem.writeAsStringAsync(FOLDERS_PATH, JSON.stringify(all, null, 2));
+}
+
 export async function deleteFolder(id: string): Promise<void> {
   const all = await listFolders();
   await FileSystem.writeAsStringAsync(
