@@ -29,6 +29,7 @@ export type Sermon = {
   folderId?: string; // undefined = All Sermons
   pinned?: boolean;
   deletedAt?: number;
+  isDraft?: boolean;
 };
 
 export type Folder = {
@@ -36,6 +37,7 @@ export type Folder = {
   name: string;
   color: string; // hex accent color
   createdAt: number;
+  pinned?: boolean;
 };
 
 export type RecordingStatus =

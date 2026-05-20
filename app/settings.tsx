@@ -1,8 +1,10 @@
+import Constants from 'expo-constants';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -17,41 +19,90 @@ import {
   setGroqKey,
   setTranslation,
 } from '@/storage/keys';
+import {
+  type TranslationEntry,
+  LEGACY_TRANSLATIONS,
+  clearApiBibleCache,
+  fetchApiBibleTranslations,
+} from '@/services/bible';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import { CheckIcon, EyeIcon, EyeOffIcon } from '@/components/icons';
 
-const TRANSLATIONS = [
-  { id: 'web', label: 'World English Bible', abbr: 'WEB — modern, public domain' },
-  { id: 'kjv', label: 'King James Version', abbr: 'KJV — classic English' },
-  { id: 'bbe', label: 'Bible in Basic English', abbr: 'BBE — simplified vocabulary' },
-  { id: 'oeb-us', label: 'Open English Bible', abbr: 'OEB — contemporary, open' },
-  { id: 'almeida', label: 'Almeida (Portuguese)', abbr: 'Almeida — Português' },
-  { id: 'rccv', label: 'Romanian Cornilescu', abbr: 'RCCV — Română' },
-  { id: 'cherokee', label: 'Cherokee New Testament', abbr: 'Cherokee — ᏣᎳᎩ' },
-  { id: 'clementine', label: 'Clementine Vulgate (Latin)', abbr: 'Latin — classic liturgical' },
-];
+type LangGroup = { language: string; entries: TranslationEntry[] };
+
+function groupByLanguage(entries: TranslationEntry[]): LangGroup[] {
+  const map = new Map<string, TranslationEntry[]>();
+  for (const e of entries) {
+    const lang = e.language || 'Other';
+    if (!map.has(lang)) map.set(lang, []);
+    map.get(lang)!.push(e);
+  }
+  const groups = [...map.entries()].map(([language, entries]) => ({ language, entries }));
+  groups.sort((a, b) => {
+    if (a.language === 'English') return -1;
+    if (b.language === 'English') return 1;
+    return a.language.localeCompare(b.language);
+  });
+  return groups;
+}
 
 export default function SettingsScreen() {
   const router = useRouter();
   const [groq, setGroq] = useState('');
   const [translation, setTrans] = useState('web');
   const [loaded, setLoaded] = useState(false);
-  const [showKey, setShowKey] = useState(false);
+  const [showGroqKey, setShowGroqKey] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [keyStatus, setKeyStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
+  const [apiBibles, setApiBibles] = useState<TranslationEntry[]>([]);
+  const [loadingBibles, setLoadingBibles] = useState(false);
+  const [bibleSearch, setBibleSearch] = useState('');
   const t = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 
   useEffect(() => {
     void (async () => {
-      setGroq((await getGroqKey()) ?? '');
-      setTrans(await getTranslation());
+      const [gk, tr] = await Promise.all([getGroqKey(), getTranslation()]);
+      setGroq(gk ?? '');
+      setTrans(tr);
       setLoaded(true);
+      void loadApiBibles();
     })();
   }, []);
+
+  const loadApiBibles = async () => {
+    setLoadingBibles(true);
+    try {
+      const bibles = await fetchApiBibleTranslations();
+      setApiBibles(bibles);
+    } catch {
+      // Silently fall back to built-in translations
+    }
+    setLoadingBibles(false);
+  };
+
+  const validateKey = async (key: string): Promise<boolean> => {
+    if (!key.trim()) return true;
+    try {
+      const resp = await fetch('https://api.groq.com/openai/v1/models', {
+        headers: { Authorization: `Bearer ${key.trim()}` },
+      });
+      return resp.ok;
+    } catch {
+      return true;
+    }
+  };
 
   const onSave = async () => {
     await setGroqKey(groq.trim());
     await setTranslation(translation);
-    Alert.alert('Saved', 'Your settings have been stored securely on this device.');
+    if (groq.trim()) {
+      setKeyStatus('checking');
+      const valid = await validateKey(groq);
+      setKeyStatus(valid ? 'valid' : 'invalid');
+    }
+    setSaved(true);
+    setTimeout(() => { setSaved(false); router.back(); }, 800);
   };
 
   if (!loaded) return null;
@@ -61,6 +112,15 @@ export default function SettingsScreen() {
     router.back();
   };
 
+  const filteredApiBibles = bibleSearch.trim()
+    ? apiBibles.filter((b) =>
+        b.label.toLowerCase().includes(bibleSearch.toLowerCase()) ||
+        b.abbr.toLowerCase().includes(bibleSearch.toLowerCase()) ||
+        b.language.toLowerCase().includes(bibleSearch.toLowerCase()))
+    : apiBibles;
+
+  const apiGroups = groupByLanguage(filteredApiBibles);
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -68,10 +128,8 @@ export default function SettingsScreen() {
     >
       <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
 
-      {/* Grab handle (modal) */}
       <View style={styles.grabHandle} />
 
-      {/* Modal header */}
       <View style={styles.modalHeader}>
         <View style={{ width: 60 }} />
         <Text style={styles.modalTitle}>Settings</Text>
@@ -85,31 +143,59 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>Groq API Key</Text>
         <View style={styles.card}>
           <Text style={styles.helpText}>
-            Sermonize uses Groq for fast transcription and outlining. Create a free key at console.groq.com — no credit card required.
+            Scribe uses Groq for fast transcription and outlining. Create a free key at console.groq.com — no credit card required.
           </Text>
           <View style={styles.divider} />
           <View style={styles.keyRow}>
             <TextInput
               style={styles.keyInput}
               value={groq}
-              onChangeText={setGroq}
+              onChangeText={(v) => { setGroq(v); setKeyStatus('idle'); }}
               placeholder="gsk_..."
               placeholderTextColor={t.textTertiary}
               autoCapitalize="none"
               autoCorrect={false}
-              secureTextEntry={!showKey}
+              secureTextEntry={!showGroqKey}
             />
-            <TouchableOpacity onPress={() => setShowKey((v) => !v)} style={styles.eyeBtn} hitSlop={8}>
-              {showKey
+            <TouchableOpacity onPress={() => setShowGroqKey((v) => !v)} style={styles.eyeBtn} hitSlop={8}>
+              {showGroqKey
                 ? <EyeOffIcon size={18} color={t.textSecondary} />
                 : <EyeIcon size={18} color={t.textSecondary} />}
             </TouchableOpacity>
           </View>
+          {keyStatus !== 'idle' && (
+            <View style={styles.keyStatusRow}>
+              {keyStatus === 'checking' && (
+                <>
+                  <ActivityIndicator size="small" color={t.textSecondary} />
+                  <Text style={[styles.keyStatusText, { color: t.textSecondary }]}>Validating key...</Text>
+                </>
+              )}
+              {keyStatus === 'valid' && (
+                <>
+                  <CheckIcon size={14} color={t.statusSuccess} />
+                  <Text style={[styles.keyStatusText, { color: t.statusSuccess }]}>Key is valid</Text>
+                </>
+              )}
+              {keyStatus === 'invalid' && (
+                <Text style={[styles.keyStatusText, { color: t.statusError }]}>Invalid key — check and try again</Text>
+              )}
+            </View>
+          )}
         </View>
 
         <Text style={styles.sectionLabel}>Bible Translation</Text>
+
+        {loadingBibles && (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator size="small" color={t.textSecondary} />
+            <Text style={[styles.keyStatusText, { color: t.textSecondary }]}>Loading translations...</Text>
+          </View>
+        )}
+
+        <Text style={styles.groupLabel}>Built-in</Text>
         <View style={styles.card}>
-          {TRANSLATIONS.map((tr, i) => (
+          {LEGACY_TRANSLATIONS.map((tr, i) => (
             <React.Fragment key={tr.id}>
               <TouchableOpacity
                 onPress={() => setTrans(tr.id)}
@@ -118,29 +204,86 @@ export default function SettingsScreen() {
               >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowLabel}>{tr.label}</Text>
-                  <Text style={styles.rowSub}>{tr.abbr}</Text>
+                  <Text style={styles.rowSub}>{tr.abbr} — {tr.language}</Text>
                 </View>
                 {translation === tr.id && <CheckIcon size={18} color={t.accentBlue} />}
               </TouchableOpacity>
-              {i < TRANSLATIONS.length - 1 && <View style={styles.divider} />}
+              {i < LEGACY_TRANSLATIONS.length - 1 && <View style={styles.divider} />}
             </React.Fragment>
           ))}
         </View>
+
+        {apiBibles.length > 0 && (
+          <>
+            <Text style={styles.groupLabel}>All Translations ({apiBibles.length})</Text>
+            <View style={styles.searchWrap}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by name, language..."
+                placeholderTextColor={t.textTertiary}
+                value={bibleSearch}
+                onChangeText={setBibleSearch}
+                clearButtonMode="while-editing"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            {apiGroups.map((group) => (
+              <React.Fragment key={group.language}>
+                <Text style={styles.langLabel}>{group.language}</Text>
+                <View style={styles.card}>
+                  {group.entries.map((tr, i) => (
+                    <React.Fragment key={tr.id}>
+                      <TouchableOpacity
+                        onPress={() => setTrans(tr.id)}
+                        style={styles.row}
+                        activeOpacity={0.6}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.rowLabel} numberOfLines={1}>{tr.label}</Text>
+                          <Text style={styles.rowSub}>{tr.abbr}</Text>
+                        </View>
+                        {translation === tr.id && <CheckIcon size={18} color={t.accentBlue} />}
+                      </TouchableOpacity>
+                      {i < group.entries.length - 1 && <View style={styles.divider} />}
+                    </React.Fragment>
+                  ))}
+                </View>
+              </React.Fragment>
+            ))}
+          </>
+        )}
 
         <Text style={styles.sectionLabel}>About</Text>
         <View style={styles.card}>
           <View style={styles.row}>
             <Text style={styles.rowLabel}>Version</Text>
-            <Text style={styles.rowValue}>1.0.0</Text>
+            <Text style={styles.rowValue}>{Constants.expoConfig?.version ?? '1.0.0'}</Text>
           </View>
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.row} activeOpacity={0.6}>
+          <TouchableOpacity
+            style={styles.row}
+            activeOpacity={0.6}
+            onPress={() => void Linking.openURL('https://scribe.app/privacy')}
+          >
             <Text style={[styles.rowLabel, { color: t.accentBlue }]}>Privacy Policy</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.saveBtn} onPress={onSave} activeOpacity={0.8}>
-          <Text style={styles.saveBtnText}>Save</Text>
+        <TouchableOpacity
+          style={[styles.saveBtn, saved && { backgroundColor: t.statusSuccess }]}
+          onPress={onSave}
+          activeOpacity={0.8}
+        >
+          {saved ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <CheckIcon size={18} color="#fff" />
+              <Text style={styles.saveBtnText}>Saved</Text>
+            </View>
+          ) : (
+            <Text style={styles.saveBtnText}>Save</Text>
+          )}
         </TouchableOpacity>
 
       </ScrollView>
@@ -156,7 +299,7 @@ function makeStyles(t: Colors) {
       width: 36,
       height: 5,
       borderRadius: 3,
-      backgroundColor: '#D1D1D6',
+      backgroundColor: t.textTertiary,
       alignSelf: 'center',
       marginTop: spacing.sm,
       marginBottom: 2,
@@ -179,6 +322,22 @@ function makeStyles(t: Colors) {
       marginBottom: spacing.sm,
       marginLeft: spacing.xs,
       marginTop: 20,
+    },
+    groupLabel: {
+      ...typography.footnote,
+      color: t.textSecondary,
+      fontWeight: '600',
+      marginBottom: spacing.sm,
+      marginLeft: spacing.xs,
+      marginTop: spacing.xs,
+    },
+    langLabel: {
+      ...typography.caption,
+      color: t.accentBlue,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+      marginLeft: spacing.xs,
+      marginTop: spacing.md,
     },
 
     card: {
@@ -212,6 +371,34 @@ function makeStyles(t: Colors) {
       paddingVertical: spacing.sm,
     },
     eyeBtn: { padding: spacing.xs },
+    keyStatusRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    keyStatusText: { ...typography.footnote },
+
+    loadingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: spacing.sm,
+      marginLeft: spacing.xs,
+    },
+
+    searchWrap: { marginBottom: spacing.sm },
+    searchInput: {
+      backgroundColor: t.bgSurface,
+      borderRadius: radius.small,
+      paddingHorizontal: 14,
+      height: 40,
+      fontSize: 15,
+      color: t.textPrimary,
+      borderWidth: 0.5,
+      borderColor: t.separator,
+    },
 
     row: {
       flexDirection: 'row',

@@ -1,4 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Print from 'expo-print';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -16,6 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScriptureCard } from '@/components/ScriptureCard';
+import { Skeleton } from '@/components/Skeleton';
 import { BackChevronIcon, CloseIcon, ExportIcon, PlusIcon, RegenIcon } from '@/components/icons';
 import { lookupVerse, lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
@@ -137,6 +139,8 @@ export default function SermonDetail() {
       await saveSermon(updated);
       setSermon(updated);
       setNewScriptureRef('');
+    } catch {
+      Alert.alert('Lookup failed', `Could not find "${ref}". Check the reference and try again.`);
     } finally {
       setAddingScripture(false);
     }
@@ -171,21 +175,47 @@ export default function SermonDetail() {
     }
   };
 
-  const onExport = async () => {
+  const onExport = () => {
     if (!sermon) return;
-    const md = sermonToMarkdown(sermon);
-    const path = `${FileSystem.cacheDirectory}${sanitize(sermon.title)}.md`;
-    await FileSystem.writeAsStringAsync(path, md);
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(path, { mimeType: 'text/markdown', dialogTitle: 'Share sermon notes' });
-    }
+    Alert.alert('Export', 'Choose a format', [
+      {
+        text: 'Markdown',
+        onPress: async () => {
+          const md = sermonToMarkdown(sermon);
+          const path = `${FileSystem.cacheDirectory}${sanitize(sermon.title)}.md`;
+          await FileSystem.writeAsStringAsync(path, md);
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(path, { mimeType: 'text/markdown', dialogTitle: 'Share sermon notes' });
+          }
+        },
+      },
+      {
+        text: 'PDF',
+        onPress: async () => {
+          const html = sermonToHtml(sermon);
+          const { uri } = await Print.printToFileAsync({ html });
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Share sermon PDF' });
+          }
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   if (!sermon) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ActivityIndicator style={{ marginTop: 40 }} color={t.textSecondary} />
+        <View style={{ padding: spacing.md, paddingTop: 60, gap: 16 }}>
+          <Skeleton width="60%" height={28} />
+          <Skeleton width="40%" height={14} />
+          <View style={{ marginTop: 24, gap: 12 }}>
+            <Skeleton height={20} />
+            <Skeleton width="90%" height={20} />
+            <Skeleton width="75%" height={20} />
+          </View>
+        </View>
       </SafeAreaView>
     );
   }
@@ -239,7 +269,7 @@ export default function SermonDetail() {
         {(['outline', 'scriptures', 'transcript'] as Tab[]).map((tb) => (
           <TouchableOpacity
             key={tb}
-            onPress={() => { if (!editing) setTab(tb); }}
+            onPress={() => setTab(tb)}
             style={[styles.tab, tab === tb && styles.tabActive]}
           >
             <Text style={[styles.tabText, tab === tb && styles.tabTextActive]}>
@@ -434,9 +464,47 @@ function sanitize(name: string): string {
   return name.replace(/[^a-z0-9-_]+/gi, '_').slice(0, 60) || 'sermon';
 }
 
+function sermonToHtml(sermon: Sermon): string {
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  let html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>
+    body{font-family:-apple-system,Helvetica,Arial,sans-serif;padding:32px;color:#222;line-height:1.6}
+    h1{font-size:24px;margin-bottom:4px}h2{font-size:18px;color:#555;margin-top:24px}
+    .meta{color:#888;font-size:13px;margin-bottom:16px}
+    .theme{font-style:italic;color:#555;margin-bottom:12px}
+    .point{background:#f7f7f9;border-radius:10px;padding:14px;margin-bottom:10px}
+    .point h3{margin:0 0 6px;font-size:16px}.sub{margin:2px 0 2px 16px;font-size:14px}
+    .refs{color:#0A84FF;font-size:13px;margin-top:6px}
+    .scripture{border-left:3px solid #0A84FF;padding-left:12px;margin:8px 0}
+    .scripture .ref{font-weight:600;color:#0A84FF}.scripture .text{font-style:italic}
+  </style></head><body>`;
+  html += `<h1>${esc(sermon.outline.title)}</h1>`;
+  html += `<p class="meta">${esc(formatDate(sermon.createdAt))} · ${esc(formatElapsed(sermon.durationMs))}</p>`;
+  if (sermon.outline.theme) html += `<p class="theme">${esc(sermon.outline.theme)}</p>`;
+  if (sermon.outline.summary) html += `<p>${esc(sermon.outline.summary)}</p>`;
+  html += '<h2>Outline</h2>';
+  sermon.outline.points.forEach((p, i) => {
+    html += `<div class="point"><h3>${i + 1}. ${esc(p.heading)}</h3>`;
+    p.subPoints.forEach((sp) => { html += `<p class="sub">• ${esc(sp)}</p>`; });
+    if (p.scriptures.length) html += `<p class="refs">${p.scriptures.map(esc).join(' · ')}</p>`;
+    html += '</div>';
+  });
+  if (sermon.scriptures.length) {
+    html += '<h2>Scriptures</h2>';
+    sermon.scriptures.forEach((s) => {
+      html += `<div class="scripture"><p class="ref">${esc(s.reference)}${s.translation ? ` (${esc(s.translation)})` : ''}</p>`;
+      if (s.text) html += `<p class="text">"${esc(s.text)}"</p>`;
+      html += '</div>';
+    });
+  }
+  html += '<h2>Transcript</h2>';
+  html += `<p>${esc(sermon.transcript || '(no transcript)')}</p>`;
+  html += '</body></html>';
+  return html;
+}
+
 function makeStyles(t: Colors) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: t.bgSurface },
+    container: { flex: 1, backgroundColor: t.bgPrimary },
 
     navBar: {
       flexDirection: 'row',
@@ -595,12 +663,12 @@ function makeStyles(t: Colors) {
       flex: 1,
       height: 46,
       borderRadius: radius.pill,
-      backgroundColor: t.textPrimary,
+      backgroundColor: t.accentBlue,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 8,
     },
-    exportText: { ...typography.headline, color: t.bgSurface },
+    exportText: { ...typography.headline, color: '#fff' },
   });
 }

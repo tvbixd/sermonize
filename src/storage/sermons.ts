@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import type { Sermon } from '../types';
 
-const SERMONS_DIR = `${FileSystem.documentDirectory}sermons/`;
+const SERMONS_DIR = `${FileSystem.documentDirectory ?? ''}sermons/`;
 
 async function ensureDir() {
   const info = await FileSystem.getInfoAsync(SERMONS_DIR);
@@ -46,12 +46,29 @@ async function loadAll(): Promise<Sermon[]> {
 
 export async function listSermons(): Promise<Sermon[]> {
   const all = await loadAll();
-  return all.filter((s) => !s.deletedAt);
+  return all.filter((s) => !s.deletedAt && !s.isDraft);
+}
+
+export async function listDraftSermons(): Promise<Sermon[]> {
+  const all = await loadAll();
+  return all.filter((s) => !!s.isDraft && !s.deletedAt);
 }
 
 export async function listDeletedSermons(): Promise<Sermon[]> {
   const all = await loadAll();
   return all.filter((s) => !!s.deletedAt);
+}
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+export async function purgeExpiredDeleted(): Promise<void> {
+  const deleted = await listDeletedSermons();
+  const now = Date.now();
+  for (const s of deleted) {
+    if (s.deletedAt && now - s.deletedAt > THIRTY_DAYS_MS) {
+      await deleteSermon(s.id);
+    }
+  }
 }
 
 export async function getSermon(id: string): Promise<Sermon | null> {
