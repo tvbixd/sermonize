@@ -87,6 +87,22 @@ function mimeTypeFor(uri: string): string {
   }
 }
 
+export class RateLimitError extends Error {
+  retryAfterMs: number;
+  constructor(retryAfter: number) {
+    super(`Rate limit reached. Try again in ${Math.ceil(retryAfter / 1000)} seconds.`);
+    this.name = 'RateLimitError';
+    this.retryAfterMs = retryAfter;
+  }
+}
+
+export class NetworkError extends Error {
+  constructor() {
+    super('No internet connection. Check your network and try again.');
+    this.name = 'NetworkError';
+  }
+}
+
 async function retryWithBackoff<T>(fn: () => Promise<T>, attempts = 4): Promise<T> {
   let lastErr: unknown;
   for (let i = 0; i < attempts; i++) {
@@ -94,6 +110,13 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, attempts = 4): Promise<
       return await fn();
     } catch (e) {
       lastErr = e;
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('Network request failed') || msg.includes('fetch failed')) {
+        throw new NetworkError();
+      }
+      if (msg.includes('(429)')) {
+        throw new RateLimitError(60_000);
+      }
       if (i === attempts - 1) break;
       await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, i)));
     }
