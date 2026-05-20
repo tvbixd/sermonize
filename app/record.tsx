@@ -150,6 +150,7 @@ export default function RecordScreen() {
         startTicker();
       } else if (status === 'recording') {
         await recorderRef.current?.pause();
+        stopTicker();
         setStatus('paused');
       } else if (status === 'paused') {
         await recorderRef.current?.resume();
