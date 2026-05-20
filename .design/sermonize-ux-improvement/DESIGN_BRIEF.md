@@ -1,4 +1,4 @@
-# Design Brief: Sermonize UX Improvement
+# Design Brief: Scribe UX Improvement
 
 ## Problem
 

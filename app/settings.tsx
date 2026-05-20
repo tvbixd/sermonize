@@ -143,7 +143,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>Groq API Key</Text>
         <View style={styles.card}>
           <Text style={styles.helpText}>
-            Sermonize uses Groq for fast transcription and outlining. Create a free key at console.groq.com — no credit card required.
+            Scribe uses Groq for fast transcription and outlining. Create a free key at console.groq.com — no credit card required.
           </Text>
           <View style={styles.divider} />
           <View style={styles.keyRow}>
@@ -265,7 +265,7 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={styles.row}
             activeOpacity={0.6}
-            onPress={() => void Linking.openURL('https://sermonize.app/privacy')}
+            onPress={() => void Linking.openURL('https://scribe.app/privacy')}
           >
             <Text style={[styles.rowLabel, { color: t.accentBlue }]}>Privacy Policy</Text>
           </TouchableOpacity>

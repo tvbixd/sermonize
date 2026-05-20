@@ -1,5 +1,5 @@
-// Local Metro config so that when Sermonize lives inside a parent monorepo
-// (e.g. Budgetplanner/apps/mobile/sermonize), Metro does NOT walk up and
+// Local Metro config so that when Scribe lives inside a parent monorepo
+// (e.g. Budgetplanner/apps/mobile/scribe), Metro does NOT walk up and
 // pick up the parent's metro.config.js.
 const { getDefaultConfig } = require('expo/metro-config');
 

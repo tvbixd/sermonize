@@ -1,4 +1,4 @@
-# Information Architecture: Sermonize
+# Information Architecture: Scribe
 
 ## Site Map
 

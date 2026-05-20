@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 
-const GROQ_KEY = 'sermonize.groqApiKey';
-const TRANSLATION_KEY = 'sermonize.bibleTranslation';
+const GROQ_KEY = 'scribe.groqApiKey';
+const TRANSLATION_KEY = 'scribe.bibleTranslation';
 
 export async function getGroqKey(): Promise<string | null> {
   return SecureStore.getItemAsync(GROQ_KEY);

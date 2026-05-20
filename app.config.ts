@@ -2,12 +2,12 @@ import { ExpoConfig, ConfigContext } from 'expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: 'Sermonize',
-  slug: 'sermonize',
+  name: 'Scribe',
+  slug: 'scribe',
   version: '1.0.0',
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
-  scheme: 'sermonize',
+  scheme: 'scribe',
   newArchEnabled: true,
   icon: './assets/icon.png',
   splash: {
@@ -17,16 +17,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   ios: {
     supportsTablet: true,
-    bundleIdentifier: 'com.sermonize.app',
+    bundleIdentifier: 'com.scribe.app',
     buildNumber: '1',
     infoPlist: {
       NSMicrophoneUsageDescription:
-        'Sermonize needs microphone access to record sermons for transcription and outlining.',
+        'Scribe needs microphone access to record sermons for transcription and outlining.',
       UIBackgroundModes: ['audio'],
     },
   },
   android: {
-    package: 'com.sermonize.app',
+    package: 'com.scribe.app',
     versionCode: 1,
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
@@ -46,7 +46,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'expo-av',
       {
         microphonePermission:
-          'Sermonize needs microphone access to record sermons for transcription and outlining.',
+          'Scribe needs microphone access to record sermons for transcription and outlining.',
       },
     ],
     'expo-secure-store',

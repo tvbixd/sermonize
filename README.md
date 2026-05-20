@@ -1,4 +1,4 @@
-# sermonize
+# scribe
 
 Voice-driven sermon note taker — record the preacher, get a clean outline with scriptures.
 

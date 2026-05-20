@@ -1,4 +1,4 @@
-# Design Tokens: Sermonize
+# Design Tokens: Scribe
 
 **Philosophy**: Warm minimalism. iOS-native foundations with faith-oriented warmth.
 **File**: `src/theme.ts` (React Native StyleSheet tokens, not CSS)

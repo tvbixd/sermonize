@@ -146,7 +146,7 @@ function WelcomeStep({ t, styles, onNext, onSkip }: { t: Colors; styles: any; on
         <Animated.View style={{ transform: [{ scale }] }}>
           <BigLogomark color={t.accentBlue} />
         </Animated.View>
-        <Text style={styles.welcomeTitle}>Welcome to Sermonize.</Text>
+        <Text style={styles.welcomeTitle}>Welcome to Scribe.</Text>
         <Text style={styles.welcomeSub}>
           The pulpit-ready notebook that listens while you preach.
         </Text>
@@ -166,7 +166,7 @@ function WelcomeStep({ t, styles, onNext, onSkip }: { t: Colors; styles: any; on
 const VALUE_PROPS = [
   {
     title: 'It listens while you preach.',
-    body: 'Tap the mic. Sermonize captures every word and stays out of your way.',
+    body: 'Tap the mic. Scribe captures every word and stays out of your way.',
     visual: 'transcribe' as const,
   },
   {
@@ -176,7 +176,7 @@ const VALUE_PROPS = [
   },
   {
     title: 'Every scripture, automatically cited.',
-    body: 'Cite a verse, Sermonize finds it. WEB, KJV, BBE, or OEB — your choice.',
+    body: 'Cite a verse, Scribe finds it. WEB, KJV, BBE, or OEB — your choice.',
     visual: 'scripture' as const,
   },
 ];
@@ -361,12 +361,12 @@ function MicPermissionStep({ t, styles, onNext }: { t: Colors; styles: any; onNe
           </Animated.View>
         )}
         <Text style={styles.welcomeTitle}>
-          {granted ? 'You’re all set.' : 'Let Sermonize hear you.'}
+          {granted ? 'You’re all set.' : 'Let Scribe hear you.'}
         </Text>
         <Text style={styles.welcomeSub}>
           {granted
-            ? 'Microphone access granted. Sermonize is ready to listen whenever you tap the mic.'
-            : 'Sermonize needs microphone access to record your sermons. Audio stays on your phone — only the transcript is sent to Groq.'}
+            ? 'Microphone access granted. Scribe is ready to listen whenever you tap the mic.'
+            : 'Scribe needs microphone access to record your sermons. Audio stays on your phone — only the transcript is sent to Groq.'}
         </Text>
       </View>
       <View style={styles.bottomActions}>
@@ -430,7 +430,7 @@ function GroqKeyStep({ t, styles, onNext }: { t: Colors; styles: any; onNext: ()
         </View>
         <Text style={styles.groqTitle}>Add your Groq key.</Text>
         <Text style={styles.groqBody}>
-          Sermonize uses Groq for fast, private transcription. The free tier is generous and covers most preachers without ever paying a cent.
+          Scribe uses Groq for fast, private transcription. The free tier is generous and covers most preachers without ever paying a cent.
         </Text>
 
         {/* Key input card */}
@@ -534,7 +534,7 @@ function TranslationStep({ t, styles, onNext }: { t: Colors; styles: any; onNext
         </View>
         <Text style={styles.groqTitle}>Pick a translation.</Text>
         <Text style={styles.groqBody}>
-          Sermonize will look up every verse you cite in this translation. You can switch any time in Settings.
+          Scribe will look up every verse you cite in this translation. You can switch any time in Settings.
         </Text>
 
         <View style={[styles.translationCard, { backgroundColor: t.bgSurface }]}>
@@ -596,7 +596,7 @@ function AllSetStep({ t, styles, onFinish }: { t: Colors; styles: any; onFinish:
         <BigLogomark color={t.accentBlue} />
         <Text style={styles.welcomeTitle}>You're ready to preach.</Text>
         <Text style={styles.welcomeSub}>
-          Tap the red mic on the home screen the next time you step into the pulpit. Sermonize takes care of the rest.
+          Tap the red mic on the home screen the next time you step into the pulpit. Scribe takes care of the rest.
         </Text>
 
         <View style={[styles.checklistCard, { backgroundColor: t.bgSurface }]}>
@@ -618,7 +618,7 @@ function AllSetStep({ t, styles, onFinish }: { t: Colors; styles: any; onFinish:
         </View>
       </View>
       <View style={styles.bottomActions}>
-        <PrimaryButton label="Open Sermonize" onPress={onFinish} color={t.accentBlue} />
+        <PrimaryButton label="Open Scribe" onPress={onFinish} color={t.accentBlue} />
       </View>
     </View>
   );

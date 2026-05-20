@@ -1,4 +1,4 @@
-# Build Tasks: Sermonize UX Improvement
+# Build Tasks: Scribe UX Improvement
 
 Generated from: .design/sermonize-ux-improvement/DESIGN_BRIEF.md
 Date: 2026-05-19
