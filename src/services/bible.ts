@@ -1,11 +1,12 @@
 import type { Scripture } from '../types';
-import { getBibleApiKey, getTranslation } from '../storage/keys';
+import { getTranslation } from '../storage/keys';
 
 const LEGACY_BASE = 'https://bible-api.com';
 const APIBIBLE_ENDPOINTS = [
   'https://rest.api.bible/v1',
   'https://api.scripture.api.bible/v1',
 ];
+const BUNDLED_BIBLE_KEY = 'G3soqKoVXwubGLo0odCn1';
 
 const memoryCache = new Map<string, Scripture>();
 let activeApiBibleBase: string | null = null;
@@ -46,15 +47,20 @@ export type ApiBibleVersion = {
 
 let cachedApiBibles: TranslationEntry[] | null = null;
 
-export async function fetchApiBibleTranslations(apiKey: string): Promise<TranslationEntry[]> {
+export function getApiBibleKey(): string {
+  return BUNDLED_BIBLE_KEY;
+}
+
+export async function fetchApiBibleTranslations(apiKey?: string): Promise<TranslationEntry[]> {
   if (cachedApiBibles) return cachedApiBibles;
 
+  const key = apiKey || BUNDLED_BIBLE_KEY;
   let lastError = '';
 
   for (const base of APIBIBLE_ENDPOINTS) {
     try {
       const r = await fetch(`${base}/bibles`, {
-        headers: { 'api-key': apiKey },
+        headers: { 'api-key': key },
       });
 
       if (r.status === 401 || r.status === 403) {
@@ -156,21 +162,11 @@ export async function lookupVerse(
     let result: Scripture;
 
     if (entry?.source === 'apibible' && entry.bibleId) {
-      const apiKey = await getBibleApiKey();
-      if (apiKey) {
-        result = await lookupViaApiBible(reference, entry.bibleId, apiKey);
-        result.translation = entry.abbr || entry.label;
-      } else {
-        result = await lookupViaLegacy(reference, 'web');
-      }
+      result = await lookupViaApiBible(reference, entry.bibleId, BUNDLED_BIBLE_KEY);
+      result.translation = entry.abbr || entry.label;
     } else if (tid.startsWith('apib-')) {
       const bibleId = tid.replace('apib-', '');
-      const apiKey = await getBibleApiKey();
-      if (apiKey) {
-        result = await lookupViaApiBible(reference, bibleId, apiKey);
-      } else {
-        result = await lookupViaLegacy(reference, 'web');
-      }
+      result = await lookupViaApiBible(reference, bibleId, BUNDLED_BIBLE_KEY);
     } else {
       result = await lookupViaLegacy(reference, tid);
     }
