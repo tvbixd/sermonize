@@ -421,12 +421,13 @@ function makeStyles(t: Colors) {
     rowMeta: { ...typography.footnote, color: t.textSecondary },
     restoreBtn: { ...typography.subhead, color: t.accentBlue, fontWeight: '600', marginRight: spacing.sm },
 
-    empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: 20 },
+    empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
     emptyIcon: {
       width: 104, height: 104, borderRadius: 52,
       backgroundColor: t.emptyBg, alignItems: 'center', justifyContent: 'center',
+      marginBottom: 16,
     },
-    emptyTitle: { ...typography.title2, color: t.textPrimary },
+    emptyTitle: { ...typography.title2, color: t.textPrimary, marginBottom: 4 },
     emptySub: { ...typography.subhead, color: t.textSecondary, textAlign: 'center', lineHeight: 22 },
 
     fab: {
