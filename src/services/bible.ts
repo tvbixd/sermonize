@@ -174,9 +174,7 @@ export async function lookupVerse(
     memoryCache.set(cacheKey, result);
     return result;
   } catch {
-    const fallback: Scripture = { reference, translation: tid.toUpperCase() };
-    memoryCache.set(cacheKey, fallback);
-    return fallback;
+    return { reference, translation: tid.toUpperCase() };
   }
 }
 
