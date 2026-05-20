@@ -1,12 +1,17 @@
 {
   "name": "sermonize",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:dev": "eas build --profile development --platform all",
+    "build:preview": "eas build --profile preview --platform all",
+    "build:prod": "eas build --profile production --platform all",
+    "submit:ios": "eas submit --platform ios --profile production",
+    "submit:android": "eas submit --platform android --profile production"
   },
   "dependencies": {
     "expo": "~54.0.0",
