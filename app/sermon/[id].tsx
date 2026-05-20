@@ -1,9 +1,8 @@
-import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -47,13 +46,6 @@ export default function SermonDetail() {
   const [draftPoints, setDraftPoints] = useState<Outline['points']>([]);
   const [newScriptureRef, setNewScriptureRef] = useState('');
   const [addingScripture, setAddingScripture] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackPos, setPlaybackPos] = useState(0);
-  const soundRef = useRef<Audio.Sound | null>(null);
-
-  useEffect(() => {
-    return () => { void soundRef.current?.unloadAsync(); };
-  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -71,44 +63,11 @@ export default function SermonDetail() {
   };
 
   const goBack = () => {
-    void soundRef.current?.unloadAsync();
     if (router.canGoBack()) {
       router.back();
     } else {
       router.replace('/sermons');
     }
-  };
-
-  const togglePlayback = async () => {
-    if (!sermon?.audioUris?.length) return;
-    if (isPlaying && soundRef.current) {
-      await soundRef.current.pauseAsync();
-      setIsPlaying(false);
-      return;
-    }
-    if (soundRef.current) {
-      await soundRef.current.playAsync();
-      setIsPlaying(true);
-      return;
-    }
-    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-    const { sound } = await Audio.Sound.createAsync(
-      { uri: sermon.audioUris[0] },
-      { shouldPlay: true },
-      (status) => {
-        if (status.isLoaded) {
-          setPlaybackPos(status.positionMillis);
-          if (status.didJustFinish) {
-            setIsPlaying(false);
-            setPlaybackPos(0);
-            void soundRef.current?.unloadAsync();
-            soundRef.current = null;
-          }
-        }
-      },
-    );
-    soundRef.current = sound;
-    setIsPlaying(true);
   };
 
   const onCancelEdit = () => {
@@ -289,39 +248,10 @@ export default function SermonDetail() {
         ) : (
           <Text style={styles.sermonTitle} numberOfLines={3}>{sermon.title}</Text>
         )}
-        <View style={styles.metaRow}>
-          <Text style={styles.sermonMeta}>
-            {formatDate(sermon.createdAt)} · {formatElapsed(sermon.durationMs)}
-          </Text>
-          {sermon.audioUris?.length > 0 && (
-            <TouchableOpacity onPress={togglePlayback} style={styles.playBtn} activeOpacity={0.7}>
-              <Text style={styles.playBtnText}>{isPlaying ? '⏸ Pause' : '▶ Play'}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        <Text style={styles.sermonMeta}>
+          {formatDate(sermon.createdAt)} · {formatElapsed(sermon.durationMs)}
+        </Text>
       </View>
-
-      {/* Summary card */}
-      {!editing && (sermon.outline.theme || sermon.outline.summary) && (
-        <View style={styles.summaryCard}>
-          {sermon.outline.theme ? (
-            <Text style={styles.summaryTheme}>{sermon.outline.theme}</Text>
-          ) : null}
-          {sermon.outline.summary ? (
-            <Text style={styles.summaryCopy} numberOfLines={3}>{sermon.outline.summary}</Text>
-          ) : null}
-          {sermon.scriptures.length > 0 && (
-            <View style={styles.summaryRefs}>
-              {sermon.scriptures.slice(0, 3).map((s, i) => (
-                <Text key={i} style={styles.summaryRefPill}>{s.reference}</Text>
-              ))}
-              {sermon.scriptures.length > 3 && (
-                <Text style={styles.summaryRefMore}>+{sermon.scriptures.length - 3} more</Text>
-              )}
-            </View>
-          )}
-        </View>
-      )}
 
       {/* Segmented tabs */}
       <View style={styles.tabs}>
@@ -594,61 +524,6 @@ function makeStyles(t: Colors) {
       marginBottom: 4,
     },
     sermonMeta: { ...typography.footnote, color: t.textSecondary },
-    metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    playBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      backgroundColor: t.bgSurfaceRaised,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: radius.pill,
-      borderWidth: 0.5,
-      borderColor: t.separator,
-    },
-    playBtnText: { ...typography.footnote, color: t.accentBlue, fontWeight: '600' },
-
-    summaryCard: {
-      marginHorizontal: spacing.md,
-      marginBottom: spacing.sm,
-      backgroundColor: t.bgSurface,
-      borderRadius: radius.card,
-      padding: 14,
-      borderWidth: 0.5,
-      borderColor: t.separator,
-    },
-    summaryTheme: {
-      ...typography.subhead,
-      fontStyle: 'italic',
-      color: t.accentBlue,
-      marginBottom: 4,
-    },
-    summaryCopy: {
-      ...typography.subhead,
-      color: t.textPrimary,
-      lineHeight: 21,
-    },
-    summaryRefs: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 6,
-      marginTop: 8,
-    },
-    summaryRefPill: {
-      ...typography.caption,
-      color: t.accentBlue,
-      fontWeight: '600',
-      backgroundColor: t.accentBlue + '15',
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      borderRadius: radius.pill,
-      overflow: 'hidden',
-    },
-    summaryRefMore: {
-      ...typography.caption,
-      color: t.textSecondary,
-      paddingVertical: 3,
-    },
 
     tabs: {
       flexDirection: 'row',
