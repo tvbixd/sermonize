@@ -13,38 +13,35 @@ import {
   View,
 } from 'react-native';
 import {
+  getBibleApiKey,
   getGroqKey,
   getTranslation,
+  setBibleApiKey,
   setGroqKey,
   setTranslation,
 } from '@/storage/keys';
+import { APIBIBLE_TRANSLATIONS, LEGACY_TRANSLATIONS } from '@/services/bible';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import { CheckIcon, EyeIcon, EyeOffIcon } from '@/components/icons';
-
-const TRANSLATIONS = [
-  { id: 'web', label: 'World English Bible', abbr: 'WEB — modern, public domain' },
-  { id: 'kjv', label: 'King James Version', abbr: 'KJV — classic English' },
-  { id: 'bbe', label: 'Bible in Basic English', abbr: 'BBE — simplified vocabulary' },
-  { id: 'oeb-us', label: 'Open English Bible', abbr: 'OEB — contemporary, open' },
-  { id: 'almeida', label: 'Almeida (Portuguese)', abbr: 'Almeida — Português' },
-  { id: 'rccv', label: 'Romanian Cornilescu', abbr: 'RCCV — Română' },
-  { id: 'cherokee', label: 'Cherokee New Testament', abbr: 'Cherokee — ᏣᎳᎩ' },
-  { id: 'clementine', label: 'Clementine Vulgate (Latin)', abbr: 'Latin — classic liturgical' },
-];
 
 export default function SettingsScreen() {
   const router = useRouter();
   const [groq, setGroq] = useState('');
+  const [bibleKey, setBibleKey] = useState('');
   const [translation, setTrans] = useState('web');
   const [loaded, setLoaded] = useState(false);
-  const [showKey, setShowKey] = useState(false);
+  const [showGroqKey, setShowGroqKey] = useState(false);
+  const [showBibleKey, setShowBibleKey] = useState(false);
   const [keyStatus, setKeyStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const t = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 
+  const hasBibleKey = !!bibleKey.trim();
+
   useEffect(() => {
     void (async () => {
       setGroq((await getGroqKey()) ?? '');
+      setBibleKey((await getBibleApiKey()) ?? '');
       setTrans(await getTranslation());
       setLoaded(true);
     })();
@@ -64,6 +61,7 @@ export default function SettingsScreen() {
 
   const onSave = async () => {
     await setGroqKey(groq.trim());
+    await setBibleApiKey(bibleKey.trim());
     await setTranslation(translation);
     if (groq.trim()) {
       setKeyStatus('checking');
@@ -80,6 +78,10 @@ export default function SettingsScreen() {
     router.back();
   };
 
+  const allTranslations = hasBibleKey
+    ? [...LEGACY_TRANSLATIONS, ...APIBIBLE_TRANSLATIONS]
+    : LEGACY_TRANSLATIONS;
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -87,10 +89,8 @@ export default function SettingsScreen() {
     >
       <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
 
-      {/* Grab handle (modal) */}
       <View style={styles.grabHandle} />
 
-      {/* Modal header */}
       <View style={styles.modalHeader}>
         <View style={{ width: 60 }} />
         <Text style={styles.modalTitle}>Settings</Text>
@@ -116,10 +116,10 @@ export default function SettingsScreen() {
               placeholderTextColor={t.textTertiary}
               autoCapitalize="none"
               autoCorrect={false}
-              secureTextEntry={!showKey}
+              secureTextEntry={!showGroqKey}
             />
-            <TouchableOpacity onPress={() => setShowKey((v) => !v)} style={styles.eyeBtn} hitSlop={8}>
-              {showKey
+            <TouchableOpacity onPress={() => setShowGroqKey((v) => !v)} style={styles.eyeBtn} hitSlop={8}>
+              {showGroqKey
                 ? <EyeOffIcon size={18} color={t.textSecondary} />
                 : <EyeIcon size={18} color={t.textSecondary} />}
             </TouchableOpacity>
@@ -145,9 +145,48 @@ export default function SettingsScreen() {
           )}
         </View>
 
-        <Text style={styles.sectionLabel}>Bible Translation</Text>
+        <Text style={styles.sectionLabel}>API.Bible Key (Optional)</Text>
         <View style={styles.card}>
-          {TRANSLATIONS.map((tr, i) => (
+          <Text style={styles.helpText}>
+            Add a free API.Bible key to unlock additional translations (ASV, BSB, Spanish, French, and more). Get one at scripture.api.bible.
+          </Text>
+          <View style={styles.divider} />
+          <View style={styles.keyRow}>
+            <TextInput
+              style={styles.keyInput}
+              value={bibleKey}
+              onChangeText={setBibleKey}
+              placeholder="Your API.Bible key..."
+              placeholderTextColor={t.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry={!showBibleKey}
+            />
+            <TouchableOpacity onPress={() => setShowBibleKey((v) => !v)} style={styles.eyeBtn} hitSlop={8}>
+              {showBibleKey
+                ? <EyeOffIcon size={18} color={t.textSecondary} />
+                : <EyeIcon size={18} color={t.textSecondary} />}
+            </TouchableOpacity>
+          </View>
+          {hasBibleKey && (
+            <View style={styles.keyStatusRow}>
+              <CheckIcon size={14} color={t.statusSuccess} />
+              <Text style={[styles.keyStatusText, { color: t.statusSuccess }]}>
+                {APIBIBLE_TRANSLATIONS.length} additional translations unlocked
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <Text style={styles.sectionLabel}>Bible Translation</Text>
+
+        {hasBibleKey && (
+          <>
+            <Text style={styles.groupLabel}>Free (No Key Required)</Text>
+          </>
+        )}
+        <View style={styles.card}>
+          {LEGACY_TRANSLATIONS.map((tr, i) => (
             <React.Fragment key={tr.id}>
               <TouchableOpacity
                 onPress={() => setTrans(tr.id)}
@@ -160,10 +199,34 @@ export default function SettingsScreen() {
                 </View>
                 {translation === tr.id && <CheckIcon size={18} color={t.accentBlue} />}
               </TouchableOpacity>
-              {i < TRANSLATIONS.length - 1 && <View style={styles.divider} />}
+              {i < LEGACY_TRANSLATIONS.length - 1 && <View style={styles.divider} />}
             </React.Fragment>
           ))}
         </View>
+
+        {hasBibleKey && (
+          <>
+            <Text style={styles.groupLabel}>API.Bible Translations</Text>
+            <View style={styles.card}>
+              {APIBIBLE_TRANSLATIONS.map((tr, i) => (
+                <React.Fragment key={tr.id}>
+                  <TouchableOpacity
+                    onPress={() => setTrans(tr.id)}
+                    style={styles.row}
+                    activeOpacity={0.6}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.rowLabel}>{tr.label}</Text>
+                      <Text style={styles.rowSub}>{tr.abbr}</Text>
+                    </View>
+                    {translation === tr.id && <CheckIcon size={18} color={t.accentBlue} />}
+                  </TouchableOpacity>
+                  {i < APIBIBLE_TRANSLATIONS.length - 1 && <View style={styles.divider} />}
+                </React.Fragment>
+              ))}
+            </View>
+          </>
+        )}
 
         <Text style={styles.sectionLabel}>About</Text>
         <View style={styles.card}>
@@ -217,6 +280,14 @@ function makeStyles(t: Colors) {
       marginBottom: spacing.sm,
       marginLeft: spacing.xs,
       marginTop: 20,
+    },
+    groupLabel: {
+      ...typography.footnote,
+      color: t.textSecondary,
+      fontWeight: '600',
+      marginBottom: spacing.sm,
+      marginLeft: spacing.xs,
+      marginTop: spacing.xs,
     },
 
     card: {
