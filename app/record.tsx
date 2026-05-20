@@ -393,7 +393,7 @@ export default function RecordScreen() {
       {isActive && (
         <View style={styles.bottomBar}>
           <TouchableOpacity
-            style={[styles.stopBtn, { backgroundColor: t.textPrimary }]}
+            style={[styles.stopBtn, { backgroundColor: t.accentRed }]}
             onPress={onStop}
             activeOpacity={0.8}
           >
