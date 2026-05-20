@@ -39,10 +39,13 @@ export default function Root() {
   useEffect(() => {
     void (async () => {
       const key = await getGroqKey();
+      if (__DEV__) console.log('[Onboarding] groqKey present?', !!key);
       setHasKey(!!key);
       setChecked(true);
     })();
   }, []);
+
+  if (__DEV__) console.log('[Onboarding] checked=', checked, 'hasKey=', hasKey, 'step=', step);
 
   if (!checked) return null;
   // TODO: remove this bypass after testing onboarding
