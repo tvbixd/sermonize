@@ -44,7 +44,8 @@ export default function Root() {
   }, []);
 
   if (!checked) return null;
-  if (hasKey) return <Redirect href="/folders" />;
+  // TODO: remove this bypass after testing onboarding
+  // if (hasKey) return <Redirect href="/folders" />;
 
   const setupIndex = SETUP_STEPS.indexOf(step);
 
