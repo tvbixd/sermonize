@@ -451,7 +451,7 @@ function makeStyles(t: Colors) {
     timer: { fontSize: 56, fontWeight: '200', letterSpacing: -1, lineHeight: 64, fontVariant: ['tabular-nums'] },
     statusRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 14 },
     statusText: { ...typography.subhead },
-    recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF3B30' },
+    recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.accentRed },
     pauseBars: { flexDirection: 'row', gap: 2 },
     pauseBar: { width: 2.5, height: 10, borderRadius: 1 },
 
