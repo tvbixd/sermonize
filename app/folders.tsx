@@ -106,6 +106,21 @@ export default function FoldersScreen() {
 
   const allCount = countFor(undefined);
 
+  const onRenameFolder = (f: Folder) => {
+    Alert.prompt(
+      'Rename Folder',
+      undefined,
+      async (name) => {
+        if (name?.trim()) {
+          await saveFolder({ ...f, name: name.trim() });
+          await refresh();
+        }
+      },
+      'plain-text',
+      f.name,
+    );
+  };
+
   const onLongPressFolder = (f: Folder) => {
     const isPinned = !!f.pinned;
     const pinLabel = isPinned ? 'Unpin' : 'Pin';
@@ -113,20 +128,21 @@ export default function FoldersScreen() {
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: ['Cancel', pinLabel, 'Edit', 'Delete'],
-          destructiveButtonIndex: 3,
+          options: ['Cancel', pinLabel, 'Rename', 'Edit', 'Delete'],
+          destructiveButtonIndex: 4,
           cancelButtonIndex: 0,
         },
         async (idx) => {
           if (idx === 1) { await togglePinFolder(f.id); await refresh(); }
-          if (idx === 2) openEditModal(f);
-          if (idx === 3) onDeleteFolder(f);
+          if (idx === 2) onRenameFolder(f);
+          if (idx === 3) openEditModal(f);
+          if (idx === 4) onDeleteFolder(f);
         },
       );
     } else {
       Alert.alert(f.name, '', [
         { text: pinLabel, onPress: async () => { await togglePinFolder(f.id); await refresh(); } },
-        { text: 'Edit', onPress: () => openEditModal(f) },
+        { text: 'Rename', onPress: () => openEditModal(f) },
         { text: 'Delete', style: 'destructive', onPress: () => onDeleteFolder(f) },
         { text: 'Cancel', style: 'cancel' },
       ]);
