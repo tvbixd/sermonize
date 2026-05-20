@@ -45,28 +45,32 @@ let cachedApiBibles: TranslationEntry[] | null = null;
 export async function fetchApiBibleTranslations(apiKey: string): Promise<TranslationEntry[]> {
   if (cachedApiBibles) return cachedApiBibles;
 
-  try {
-    const r = await fetch(`${APIBIBLE_BASE}/bibles`, {
-      headers: { 'api-key': apiKey },
-    });
-    if (!r.ok) return [];
+  const r = await fetch(`${APIBIBLE_BASE}/bibles`, {
+    headers: { 'api-key': apiKey },
+  });
 
-    const json = await r.json() as { data?: ApiBibleVersion[] };
-    const bibles = json.data ?? [];
-
-    cachedApiBibles = bibles.map((b) => ({
-      id: `apib-${b.id}`,
-      label: b.nameLocal || b.name,
-      abbr: b.abbreviationLocal || b.abbreviation || '',
-      language: b.language?.name || b.language?.nameLocal || 'Unknown',
-      source: 'apibible' as const,
-      bibleId: b.id,
-    }));
-
-    return cachedApiBibles;
-  } catch {
-    return [];
+  if (r.status === 401 || r.status === 403) {
+    throw new Error('Invalid API key — check your key at scripture.api.bible.');
   }
+  if (!r.ok) {
+    throw new Error(`API error (${r.status}) — try again later.`);
+  }
+
+  const json = await r.json() as { data?: ApiBibleVersion[] };
+  const bibles = json.data ?? [];
+
+  if (bibles.length === 0) return [];
+
+  cachedApiBibles = bibles.map((b) => ({
+    id: `apib-${b.id}`,
+    label: b.nameLocal || b.name,
+    abbr: b.abbreviationLocal || b.abbreviation || '',
+    language: b.language?.name || b.language?.nameLocal || 'Unknown',
+    source: 'apibible' as const,
+    bibleId: b.id,
+  }));
+
+  return cachedApiBibles;
 }
 
 export function clearApiBibleCache(): void {

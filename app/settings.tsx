@@ -58,6 +58,7 @@ export default function SettingsScreen() {
   const [keyStatus, setKeyStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const [apiBibles, setApiBibles] = useState<TranslationEntry[]>([]);
   const [loadingBibles, setLoadingBibles] = useState(false);
+  const [bibleKeyError, setBibleKeyError] = useState('');
   const [bibleSearch, setBibleSearch] = useState('');
   const t = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
@@ -77,19 +78,24 @@ export default function SettingsScreen() {
 
   const loadApiBibles = async (key: string) => {
     setLoadingBibles(true);
-    const bibles = await fetchApiBibleTranslations(key);
-    setApiBibles(bibles);
+    setBibleKeyError('');
+    clearApiBibleCache();
+    try {
+      const bibles = await fetchApiBibleTranslations(key);
+      setApiBibles(bibles);
+      if (bibles.length === 0) {
+        setBibleKeyError('No translations returned — check your key is correct.');
+      }
+    } catch (e) {
+      setBibleKeyError(e instanceof Error ? e.message : 'Failed to load translations.');
+    }
     setLoadingBibles(false);
   };
 
   const onBibleKeyChange = (v: string) => {
     setBibleKey(v);
-    if (v.trim() && v.trim().length > 10) {
-      clearApiBibleCache();
-      void loadApiBibles(v.trim());
-    } else {
-      setApiBibles([]);
-    }
+    setBibleKeyError('');
+    setApiBibles([]);
   };
 
   const validateKey = async (key: string): Promise<boolean> => {
@@ -231,6 +237,22 @@ export default function SettingsScreen() {
               <ActivityIndicator size="small" color={t.textSecondary} />
               <Text style={[styles.keyStatusText, { color: t.textSecondary }]}>Loading translations...</Text>
             </View>
+          )}
+          {hasBibleKey && !loadingBibles && bibleKeyError !== '' && (
+            <View style={styles.keyStatusRow}>
+              <Text style={[styles.keyStatusText, { color: t.statusError }]}>{bibleKeyError}</Text>
+            </View>
+          )}
+          {hasBibleKey && !loadingBibles && (
+            <TouchableOpacity
+              style={styles.loadBtn}
+              onPress={() => void loadApiBibles(bibleKey.trim())}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.loadBtnText}>
+                {apiBibles.length > 0 ? 'Reload Translations' : 'Load Translations'}
+              </Text>
+            </TouchableOpacity>
           )}
         </View>
 
@@ -412,6 +434,13 @@ function makeStyles(t: Colors) {
       paddingVertical: spacing.sm,
     },
     keyStatusText: { ...typography.footnote },
+    loadBtn: {
+      alignItems: 'center',
+      paddingVertical: 12,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.separator,
+    },
+    loadBtnText: { ...typography.subhead, color: t.accentBlue, fontWeight: '600' },
 
     searchWrap: { marginBottom: spacing.sm },
     searchInput: {
