@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import type { Folder } from '../types';
+import { listSermons, saveSermon } from './sermons';
 
 const FOLDERS_PATH = `${FileSystem.documentDirectory ?? ''}folders.json`;
 
@@ -36,4 +37,10 @@ export async function deleteFolder(id: string): Promise<void> {
     FOLDERS_PATH,
     JSON.stringify(all.filter((f) => f.id !== id), null, 2),
   );
+  const sermons = await listSermons();
+  for (const s of sermons) {
+    if (s.folderId === id) {
+      await saveSermon({ ...s, folderId: undefined });
+    }
+  }
 }
