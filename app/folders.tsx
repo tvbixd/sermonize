@@ -390,7 +390,7 @@ function makeStyles(t: Colors) {
       width: 52,
       height: 52,
       borderRadius: 26,
-      backgroundColor: t.accentRed + '18',
+      backgroundColor: t.highlight,
       alignItems: 'center',
       justifyContent: 'center',
     },
