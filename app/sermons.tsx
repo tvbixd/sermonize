@@ -1,8 +1,10 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
+  ActionSheetIOS,
   Alert,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -137,6 +139,28 @@ export default function SermonsScreen() {
     await refresh();
   };
 
+  const onLongPress = (item: Sermon) => {
+    const pinLabel = item.pinned ? 'Unpin' : 'Pin to Top';
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', 'Open', pinLabel, 'Move to Folder', 'Delete'],
+          destructiveButtonIndex: 4,
+          cancelButtonIndex: 0,
+        },
+        async (idx) => {
+          if (idx === 1) router.push(`/sermon/${item.id}`);
+          if (idx === 2) void onPin(item);
+          if (idx === 3) { setMenuSermon(item); setShowFolderPicker(true); }
+          if (idx === 4) void onSoftDelete(item);
+        },
+      );
+    } else {
+      setMenuSermon(item);
+    }
+  };
+
   const sections = groupSermons(filtered);
   const title = folderName ?? (isTrash ? 'Recently Deleted' : isDraftView ? 'Drafts' : 'All Sermons');
   const total = filtered.length;
@@ -255,14 +279,11 @@ export default function SermonsScreen() {
                         key={item.id}
                         style={[styles.row, !isLast && styles.rowBorder]}
                         onPress={() => router.push(`/sermon/${item.id}`)}
-                        onLongPress={() => setMenuSermon(item)}
+                        onLongPress={() => onLongPress(item)}
                         activeOpacity={0.7}
                       >
                         <View style={styles.rowContent}>
-                          <View style={styles.rowTop}>
-                            <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
-                            {item.pinned && <Text style={styles.pin}>📌</Text>}
-                          </View>
+                          <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
                           <Text style={styles.rowMeta}>
                             {formatDate(item.createdAt)} · {formatElapsed(item.durationMs)}
                           </Text>
@@ -415,9 +436,7 @@ function makeStyles(t: Colors) {
     },
     rowBorder: { borderBottomWidth: 0.5, borderBottomColor: t.separator },
     rowContent: { flex: 1 },
-    rowTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs },
-    rowTitle: { ...typography.headline, color: t.textPrimary, flex: 1 },
-    pin: { fontSize: 12 },
+    rowTitle: { ...typography.headline, color: t.textPrimary, marginBottom: spacing.xs },
     rowMeta: { ...typography.footnote, color: t.textSecondary },
     restoreBtn: { ...typography.subhead, color: t.accentBlue, fontWeight: '600', marginRight: spacing.sm },
 
