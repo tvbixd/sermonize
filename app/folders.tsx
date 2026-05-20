@@ -218,16 +218,14 @@ export default function FoldersScreen() {
           <NewFolderIcon size={22} color={t.accentBlue} />
           <Text style={styles.newFolderText}>New Folder</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.micBtn}
+          onPress={() => router.push('/record')}
+          activeOpacity={0.85}
+        >
+          <MicIcon size={22} color="#fff" />
+        </TouchableOpacity>
       </View>
-
-      {/* Record FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => router.push('/record')}
-        activeOpacity={0.85}
-      >
-        <MicIcon size={26} color="#fff" />
-      </TouchableOpacity>
 
       {/* Create / Edit modal */}
       <Modal visible={showModal} transparent animationType="slide" onRequestClose={dismissModal}>
@@ -355,6 +353,9 @@ function makeStyles(t: Colors) {
     rowCount: { ...typography.body, color: t.textSecondary, marginRight: 6 },
 
     bottomBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
       paddingHorizontal: 22,
       paddingTop: spacing.sm,
       paddingBottom: spacing.md,
@@ -364,25 +365,16 @@ function makeStyles(t: Colors) {
       alignItems: 'center',
       gap: 6,
       padding: spacing.sm,
-      alignSelf: 'flex-start',
     },
     newFolderText: { ...typography.body, color: t.accentBlue },
 
-    fab: {
-      position: 'absolute',
-      bottom: 84,
-      right: 20,
-      width: 60,
-      height: 60,
-      borderRadius: 30,
+    micBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       backgroundColor: t.accentRed,
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: t.fabShadow,
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 1,
-      shadowRadius: 16,
-      elevation: 10,
     },
 
     welcomeCard: {
