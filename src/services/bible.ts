@@ -8,7 +8,7 @@ const APIBIBLE_ENDPOINTS = [
   'https://api.scripture.api.bible/v1',
 ];
 const BUNDLED_BIBLE_KEY: string =
-  (Constants.expoConfig?.extra?.apiBibleKey as string) || '';
+  (Constants.expoConfig?.extra?.apiBibleKey as string) || 'G3soqKoVXwubGLo0odCn1';
 
 const memoryCache = new Map<string, Scripture>();
 let activeApiBibleBase: string | null = null;

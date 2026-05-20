@@ -16,7 +16,8 @@ import { MicIcon, WaveformIcon, CheckIcon } from '@/components/icons';
 import { getGroqKey } from '@/storage/keys';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 
-const { width: SCREEN_W } = Dimensions.get('window');
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const SLIDE_HEIGHT = SCREEN_H * 0.5;
 
 type Slide = {
   icon: (t: Colors) => React.ReactNode;
@@ -26,17 +27,17 @@ type Slide = {
 
 const slides: Slide[] = [
   {
-    icon: (t) => <MicIcon size={40} color="#fff" />,
+    icon: () => <MicIcon size={40} color="#fff" />,
     title: 'Record your sermon',
     body: 'Hit record during the sermon and Sermonize captures every word automatically.',
   },
   {
-    icon: (t) => <WaveformIcon size={40} color="#fff" />,
+    icon: () => <WaveformIcon size={40} color="#fff" />,
     title: 'AI-powered outlines',
     body: 'Get a structured outline with key points, themes, and scripture references — all generated in real time.',
   },
   {
-    icon: (t) => <CheckIcon size={40} color="#fff" />,
+    icon: () => <CheckIcon size={40} color="#fff" />,
     title: 'One quick setup step',
     body: 'Sermonize uses Groq for fast AI processing. Create a free API key (no credit card) and paste it in Settings.',
   },
@@ -77,23 +78,30 @@ export default function Root() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <FlatList
-        ref={listRef}
-        data={slides}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        keyExtractor={(_, i) => String(i)}
-        renderItem={({ item }) => (
-          <View style={styles.slide}>
-            <View style={styles.iconWrap}>{item.icon(t)}</View>
-            <Text style={styles.slideTitle}>{item.title}</Text>
-            <Text style={styles.slideBody}>{item.body}</Text>
-          </View>
-        )}
-      />
+      <View style={styles.slideArea}>
+        <FlatList
+          ref={listRef}
+          data={slides}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          keyExtractor={(_, i) => String(i)}
+          getItemLayout={(_, index) => ({
+            length: SCREEN_W,
+            offset: SCREEN_W * index,
+            index,
+          })}
+          renderItem={({ item }) => (
+            <View style={styles.slide}>
+              <View style={styles.iconWrap}>{item.icon(t)}</View>
+              <Text style={styles.slideTitle}>{item.title}</Text>
+              <Text style={styles.slideBody}>{item.body}</Text>
+            </View>
+          )}
+        />
+      </View>
 
       {/* Page dots */}
       <View style={styles.dots}>
@@ -158,9 +166,10 @@ function makeStyles(t: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bgPrimary },
 
+    slideArea: { flex: 1 },
     slide: {
       width: SCREEN_W,
-      flex: 1,
+      height: SLIDE_HEIGHT,
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: spacing.xl,

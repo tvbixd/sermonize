@@ -52,6 +52,7 @@ export default function SettingsScreen() {
   const [translation, setTrans] = useState('web');
   const [loaded, setLoaded] = useState(false);
   const [showGroqKey, setShowGroqKey] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [keyStatus, setKeyStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const [apiBibles, setApiBibles] = useState<TranslationEntry[]>([]);
   const [loadingBibles, setLoadingBibles] = useState(false);
@@ -100,6 +101,8 @@ export default function SettingsScreen() {
       const valid = await validateKey(groq);
       setKeyStatus(valid ? 'valid' : 'invalid');
     }
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   };
 
   if (!loaded) return null;
@@ -268,8 +271,19 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.saveBtn} onPress={onSave} activeOpacity={0.8}>
-          <Text style={styles.saveBtnText}>Save</Text>
+        <TouchableOpacity
+          style={[styles.saveBtn, saved && { backgroundColor: t.statusSuccess }]}
+          onPress={onSave}
+          activeOpacity={0.8}
+        >
+          {saved ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <CheckIcon size={18} color="#fff" />
+              <Text style={styles.saveBtnText}>Saved</Text>
+            </View>
+          ) : (
+            <Text style={styles.saveBtnText}>Save</Text>
+          )}
         </TouchableOpacity>
 
       </ScrollView>
