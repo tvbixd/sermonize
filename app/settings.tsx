@@ -2,8 +2,8 @@ import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -99,7 +99,6 @@ export default function SettingsScreen() {
       const valid = await validateKey(groq);
       setKeyStatus(valid ? 'valid' : 'invalid');
     }
-    Alert.alert('Saved', 'Your settings have been stored securely on this device.');
   };
 
   if (!loaded) return null;
@@ -259,7 +258,11 @@ export default function SettingsScreen() {
             <Text style={styles.rowValue}>1.0.0</Text>
           </View>
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.row} activeOpacity={0.6}>
+          <TouchableOpacity
+            style={styles.row}
+            activeOpacity={0.6}
+            onPress={() => void Linking.openURL('https://sermonize.app/privacy')}
+          >
             <Text style={[styles.rowLabel, { color: t.accentBlue }]}>Privacy Policy</Text>
           </TouchableOpacity>
         </View>
