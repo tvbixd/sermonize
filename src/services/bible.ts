@@ -2,9 +2,13 @@ import type { Scripture } from '../types';
 import { getBibleApiKey, getTranslation } from '../storage/keys';
 
 const LEGACY_BASE = 'https://bible-api.com';
-const APIBIBLE_BASE = 'https://api.scripture.api.bible/v1';
+const APIBIBLE_ENDPOINTS = [
+  'https://rest.api.bible/v1',
+  'https://api.scripture.api.bible/v1',
+];
 
 const memoryCache = new Map<string, Scripture>();
+let activeApiBibleBase: string | null = null;
 
 export type TranslationEntry = {
   id: string;
@@ -45,36 +49,55 @@ let cachedApiBibles: TranslationEntry[] | null = null;
 export async function fetchApiBibleTranslations(apiKey: string): Promise<TranslationEntry[]> {
   if (cachedApiBibles) return cachedApiBibles;
 
-  const r = await fetch(`${APIBIBLE_BASE}/bibles`, {
-    headers: { 'api-key': apiKey },
-  });
+  let lastError = '';
 
-  if (r.status === 401 || r.status === 403) {
-    throw new Error('Invalid API key — check your key at scripture.api.bible.');
+  for (const base of APIBIBLE_ENDPOINTS) {
+    try {
+      const r = await fetch(`${base}/bibles`, {
+        headers: { 'api-key': apiKey },
+      });
+
+      if (r.status === 401 || r.status === 403) {
+        lastError = `${base} rejected the key (${r.status})`;
+        continue;
+      }
+      if (!r.ok) {
+        lastError = `${base} returned error ${r.status}`;
+        continue;
+      }
+
+      const json = await r.json() as { data?: ApiBibleVersion[] };
+      const bibles = json.data ?? [];
+
+      if (bibles.length === 0) {
+        lastError = `${base} returned no translations`;
+        continue;
+      }
+
+      activeApiBibleBase = base;
+
+      cachedApiBibles = bibles.map((b) => ({
+        id: `apib-${b.id}`,
+        label: b.nameLocal || b.name,
+        abbr: b.abbreviationLocal || b.abbreviation || '',
+        language: b.language?.name || b.language?.nameLocal || 'Unknown',
+        source: 'apibible' as const,
+        bibleId: b.id,
+      }));
+
+      return cachedApiBibles;
+    } catch {
+      lastError = `Could not reach ${base}`;
+      continue;
+    }
   }
-  if (!r.ok) {
-    throw new Error(`API error (${r.status}) — try again later.`);
-  }
 
-  const json = await r.json() as { data?: ApiBibleVersion[] };
-  const bibles = json.data ?? [];
-
-  if (bibles.length === 0) return [];
-
-  cachedApiBibles = bibles.map((b) => ({
-    id: `apib-${b.id}`,
-    label: b.nameLocal || b.name,
-    abbr: b.abbreviationLocal || b.abbreviation || '',
-    language: b.language?.name || b.language?.nameLocal || 'Unknown',
-    source: 'apibible' as const,
-    bibleId: b.id,
-  }));
-
-  return cachedApiBibles;
+  throw new Error(lastError || 'Could not connect to API.Bible — check your internet connection.');
 }
 
 export function clearApiBibleCache(): void {
   cachedApiBibles = null;
+  activeApiBibleBase = null;
 }
 
 function findTranslation(id: string): TranslationEntry | undefined {
@@ -95,7 +118,8 @@ async function lookupViaLegacy(reference: string, translationId: string): Promis
 }
 
 async function lookupViaApiBible(reference: string, bibleId: string, apiKey: string): Promise<Scripture> {
-  const searchUrl = `${APIBIBLE_BASE}/bibles/${bibleId}/search?query=${encodeURIComponent(reference)}&limit=1`;
+  const base = activeApiBibleBase ?? APIBIBLE_ENDPOINTS[0];
+  const searchUrl = `${base}/bibles/${bibleId}/search?query=${encodeURIComponent(reference)}&limit=1`;
   const r = await fetch(searchUrl, {
     headers: { 'api-key': apiKey },
   });
