@@ -138,6 +138,8 @@ export default function SermonDetail() {
       await saveSermon(updated);
       setSermon(updated);
       setNewScriptureRef('');
+    } catch {
+      Alert.alert('Lookup failed', `Could not find "${ref}". Check the reference and try again.`);
     } finally {
       setAddingScripture(false);
     }
