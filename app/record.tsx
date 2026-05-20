@@ -25,6 +25,7 @@ import { ensureAudioDir, saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Sermon } from '@/types';
 import { newId } from '@/util/id';
+import { heavyTap, mediumTap } from '@/util/haptics';
 import { BackChevronIcon, ChevronIcon } from '@/components/icons';
 
 const OUTLINE_EVERY_N_CHUNKS = 2;
@@ -138,6 +139,7 @@ export default function RecordScreen() {
   };
 
   const onRecordPress = async () => {
+    mediumTap();
     try {
       if (status === 'idle') {
         const key = await getGroqKey();
@@ -172,6 +174,7 @@ export default function RecordScreen() {
 
   const onStop = async () => {
     if (status !== 'recording' && status !== 'paused') return;
+    heavyTap();
     stopTicker();
     setStatus('processing');
 

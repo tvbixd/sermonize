@@ -7,6 +7,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,6 +28,7 @@ import {
   MicIcon,
   NewFolderIcon,
 } from '@/components/icons';
+import { mediumTap } from '@/util/haptics';
 
 const FOLDER_COLORS = ['#FF3D4D', '#F08C3A', '#34A853', '#4DA3FF', '#7A5AF8', '#E8A838'];
 
@@ -41,6 +43,7 @@ export default function FoldersScreen() {
   const [sermons, setSermons] = useState<Sermon[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [menuFolder, setMenuFolder] = useState<Folder | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
   const [draftName, setDraftName] = useState('');
   const [draftColor, setDraftColor] = useState(FOLDER_COLORS[0]);
@@ -105,6 +108,7 @@ export default function FoldersScreen() {
   const allCount = countFor(undefined);
 
   const onLongPressFolder = (f: Folder) => {
+    mediumTap();
     setMenuFolder(f);
   };
 
@@ -130,7 +134,17 @@ export default function FoldersScreen() {
         {allCount} {allCount === 1 ? 'recording' : 'recordings'}
       </Text>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => { setRefreshing(true); await refresh(); setRefreshing(false); }}
+            tintColor={t.textSecondary}
+          />
+        }
+      >
         {/* Welcome card (empty state) */}
         {allCount === 0 && (
           <TouchableOpacity

@@ -3,6 +3,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   Modal,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -25,6 +26,7 @@ import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Folder, Sermon } from '@/types';
 import { formatDate, formatElapsed } from '@/util/format';
 import { BackChevronIcon, ChevronIcon, FolderIcon, MicIcon, TrashIcon, WaveformIcon } from '@/components/icons';
+import { mediumTap } from '@/util/haptics';
 
 type Section = { title: string; data: Sermon[] };
 
@@ -65,6 +67,7 @@ export default function SermonsScreen() {
   const isDraftView = isDrafts === 'true';
   const [sermons, setSermons] = useState<Sermon[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
   const [menuSermon, setMenuSermon] = useState<Sermon | null>(null);
   const [pickerSermon, setPickerSermon] = useState<Sermon | null>(null);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
@@ -139,6 +142,7 @@ export default function SermonsScreen() {
   };
 
   const onLongPress = (item: Sermon) => {
+    mediumTap();
     setMenuSermon(item);
   };
 
@@ -201,7 +205,16 @@ export default function SermonsScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.listContent}>
+        <ScrollView
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => { setRefreshing(true); await refresh(); setRefreshing(false); }}
+              tintColor={t.textSecondary}
+            />
+          }
+        >
           <Text style={styles.subtitle}>
             {total} {total === 1 ? 'recording' : 'recordings'}
           </Text>
