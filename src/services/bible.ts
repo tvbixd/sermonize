@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import type { Scripture } from '../types';
 import { getTranslation } from '../storage/keys';
 
@@ -6,7 +7,8 @@ const APIBIBLE_ENDPOINTS = [
   'https://rest.api.bible/v1',
   'https://api.scripture.api.bible/v1',
 ];
-const BUNDLED_BIBLE_KEY = 'G3soqKoVXwubGLo0odCn1';
+const BUNDLED_BIBLE_KEY: string =
+  (Constants.expoConfig?.extra?.apiBibleKey as string) || '';
 
 const memoryCache = new Map<string, Scripture>();
 let activeApiBibleBase: string | null = null;
