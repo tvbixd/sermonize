@@ -654,7 +654,7 @@ function makeStyles(t: Colors) {
       flex: 1,
       height: 46,
       borderRadius: radius.pill,
-      backgroundColor: t.accentRed,
+      backgroundColor: t.accentBlue,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
