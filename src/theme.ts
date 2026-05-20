@@ -64,8 +64,6 @@ export function useTheme(): Colors {
   return useMemo(() => (scheme === 'dark' ? darkColors as unknown as Colors : lightColors), [scheme]);
 }
 
-export const colors = lightColors;
-
 export const typography = {
   largeTitle: { fontSize: 32, fontWeight: '700' as const, letterSpacing: 0.2, lineHeight: 40 },
   title2: { fontSize: 24, fontWeight: '700' as const, letterSpacing: 0.1, lineHeight: 30 },
