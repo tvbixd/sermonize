@@ -269,7 +269,7 @@ export default function SermonDetail() {
         {(['outline', 'scriptures', 'transcript'] as Tab[]).map((tb) => (
           <TouchableOpacity
             key={tb}
-            onPress={() => { if (!editing) setTab(tb); }}
+            onPress={() => setTab(tb)}
             style={[styles.tab, tab === tb && styles.tabActive]}
           >
             <Text style={[styles.tabText, tab === tb && styles.tabTextActive]}>
