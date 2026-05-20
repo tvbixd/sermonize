@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScriptureCard } from '@/components/ScriptureCard';
+import { Skeleton } from '@/components/Skeleton';
 import { BackChevronIcon, CloseIcon, ExportIcon, PlusIcon, RegenIcon } from '@/components/icons';
 import { lookupVerse, lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
@@ -206,7 +207,15 @@ export default function SermonDetail() {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ActivityIndicator style={{ marginTop: 40 }} color={t.textSecondary} />
+        <View style={{ padding: spacing.md, paddingTop: 60, gap: 16 }}>
+          <Skeleton width="60%" height={28} />
+          <Skeleton width="40%" height={14} />
+          <View style={{ marginTop: 24, gap: 12 }}>
+            <Skeleton height={20} />
+            <Skeleton width="90%" height={20} />
+            <Skeleton width="75%" height={20} />
+          </View>
+        </View>
       </SafeAreaView>
     );
   }
