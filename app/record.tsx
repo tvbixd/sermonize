@@ -18,7 +18,7 @@ import { SermonRecorder } from '@/audio/SermonRecorder';
 import { lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
-import { transcribeAudio } from '@/services/whisper';
+import { NetworkError, RateLimitError, transcribeAudio } from '@/services/whisper';
 import { useSessionStore } from '@/state/sessionStore';
 import { getGroqKey, getTranslation } from '@/storage/keys';
 import { ensureAudioDir, saveSermon } from '@/storage/sermons';
@@ -94,6 +94,7 @@ export default function RecordScreen() {
   const transcriptRef = useRef<string>('');
   const chunkCountRef = useRef<number>(0);
   const [showOutline, setShowOutline] = useState(false);
+  const [chunkWarning, setChunkWarning] = useState<string | null>(null);
 
   useEffect(() => {
     reset();
@@ -104,7 +105,6 @@ export default function RecordScreen() {
   }, []);
 
   useEffect(() => { transcriptRef.current = liveTranscript; }, [liveTranscript]);
-  useEffect(() => { chunkCountRef.current = chunkCount; }, [chunkCount]);
 
   const startTicker = () => {
     stopTicker();
@@ -121,14 +121,20 @@ export default function RecordScreen() {
     try {
       const text = await transcribeAudio([chunkUri], groqKeyRef.current);
       if (!text.trim()) return;
+      transcriptRef.current = transcriptRef.current ? transcriptRef.current + ' ' + text : text;
       appendTranscript(text);
+      chunkCountRef.current += 1;
       incrementChunk();
-      const newCount = chunkCountRef.current + 1;
-      if (newCount % OUTLINE_EVERY_N_CHUNKS === 0) {
-        const outline = await extractOutline(transcriptRef.current + ' ' + text, groqKeyRef.current);
+      if (chunkCountRef.current % OUTLINE_EVERY_N_CHUNKS === 0) {
+        const outline = await extractOutline(transcriptRef.current, groqKeyRef.current);
         setLiveOutline(outline);
       }
-    } catch { /* silently skip */ }
+    } catch (e) {
+      if (e instanceof NetworkError || e instanceof RateLimitError) {
+        setChunkWarning(e.message);
+        setTimeout(() => setChunkWarning(null), 6000);
+      }
+    }
   };
 
   const onRecordPress = async () => {
@@ -363,6 +369,11 @@ export default function RecordScreen() {
 
           {isActive && (
             <ScrollView style={styles.livePanels} contentContainerStyle={{ gap: 10, paddingBottom: 16 }}>
+              {chunkWarning && (
+                <View style={styles.warningBanner}>
+                  <Text style={styles.warningText}>{chunkWarning}</Text>
+                </View>
+              )}
               {liveTranscript.length > 0 && (
                 <View style={[styles.panel, { backgroundColor: t.bgSurface }]}>
                   <Text style={[styles.panelLabel, { color: t.textSecondary }]}>LIVE TRANSCRIPT</Text>
@@ -473,6 +484,13 @@ function makeStyles(t: Colors) {
     hintText: { ...typography.footnote, textAlign: 'center', lineHeight: 20 },
 
     livePanels: { flex: 1, marginTop: 18, paddingHorizontal: spacing.md },
+    warningBanner: {
+      backgroundColor: t.accentOrange,
+      borderRadius: radius.small,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    warningText: { ...typography.footnote, color: '#fff', fontWeight: '600', textAlign: 'center' },
     panel: { borderRadius: radius.card, padding: 12 },
     panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     panelLabel: {
