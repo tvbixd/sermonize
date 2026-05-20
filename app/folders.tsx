@@ -1,7 +1,6 @@
 import { Link, Stack, useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  ActionSheetIOS,
   Alert,
   Keyboard,
   KeyboardAvoidingView,
@@ -41,6 +40,7 @@ export default function FoldersScreen() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [sermons, setSermons] = useState<Sermon[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [menuFolder, setMenuFolder] = useState<Folder | null>(null);
   const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
   const [draftName, setDraftName] = useState('');
   const [draftColor, setDraftColor] = useState(FOLDER_COLORS[0]);
@@ -105,25 +105,7 @@ export default function FoldersScreen() {
   const allCount = countFor(undefined);
 
   const onLongPressFolder = (f: Folder) => {
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['Cancel', 'Edit', 'Delete'],
-          destructiveButtonIndex: 2,
-          cancelButtonIndex: 0,
-        },
-        (idx) => {
-          if (idx === 1) openEditModal(f);
-          if (idx === 2) onDeleteFolder(f);
-        },
-      );
-    } else {
-      Alert.alert(f.name, '', [
-        { text: 'Edit', onPress: () => openEditModal(f) },
-        { text: 'Delete', style: 'destructive', onPress: () => onDeleteFolder(f) },
-        { text: 'Cancel', style: 'cancel' },
-      ]);
-    }
+    setMenuFolder(f);
   };
 
   const dismissModal = () => {
@@ -295,6 +277,30 @@ export default function FoldersScreen() {
           </Pressable>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Folder context menu bottom sheet */}
+      <Modal visible={!!menuFolder} transparent animationType="slide" onRequestClose={() => setMenuFolder(null)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setMenuFolder(null)}>
+          <View style={styles.menuSheet}>
+            <View style={styles.grabHandle} />
+            <Text style={styles.menuSheetTitle} numberOfLines={1}>{menuFolder?.name}</Text>
+
+            <TouchableOpacity style={styles.menuSheetRow} onPress={() => { if (menuFolder) { openEditModal(menuFolder); setMenuFolder(null); } }}>
+              <Text style={styles.menuSheetRowText}>Edit</Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuSheetDivider} />
+
+            <TouchableOpacity style={styles.menuSheetRow} onPress={() => { if (menuFolder) { setMenuFolder(null); onDeleteFolder(menuFolder); } }}>
+              <Text style={[styles.menuSheetRowText, { color: t.accentRed }]}>Delete</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.menuSheetRow, { marginTop: spacing.xs }]} onPress={() => setMenuFolder(null)}>
+              <Text style={[styles.menuSheetRowText, { fontWeight: '600' }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -453,5 +459,32 @@ function makeStyles(t: Colors) {
     swatchActive: { borderWidth: 3, borderColor: t.textPrimary },
     deleteBtn: { alignItems: 'center', paddingVertical: spacing.md },
     deleteText: { ...typography.body, color: t.accentRed },
+
+    menuSheet: {
+      backgroundColor: t.bgSurface,
+      borderTopLeftRadius: 14,
+      borderTopRightRadius: 14,
+      paddingBottom: 34,
+    },
+    menuSheetTitle: {
+      ...typography.headline,
+      color: t.textPrimary,
+      textAlign: 'center',
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.sm,
+    },
+    menuSheetRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 14,
+    },
+    menuSheetRowText: { ...typography.body, color: t.textPrimary, flex: 1 },
+    menuSheetDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: t.separator,
+      marginHorizontal: spacing.lg,
+      marginVertical: 4,
+    },
   });
 }
