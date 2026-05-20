@@ -102,7 +102,7 @@ export default function SettingsScreen() {
       setKeyStatus(valid ? 'valid' : 'invalid');
     }
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setTimeout(() => { setSaved(false); router.back(); }, 800);
   };
 
   if (!loaded) return null;

@@ -2,10 +2,10 @@ import { Redirect, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
-  FlatList,
   Linking,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -16,32 +16,7 @@ import { MicIcon, WaveformIcon, CheckIcon } from '@/components/icons';
 import { getGroqKey } from '@/storage/keys';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const SLIDE_HEIGHT = SCREEN_H * 0.5;
-
-type Slide = {
-  icon: (t: Colors) => React.ReactNode;
-  title: string;
-  body: string;
-};
-
-const slides: Slide[] = [
-  {
-    icon: () => <MicIcon size={40} color="#fff" />,
-    title: 'Record your sermon',
-    body: 'Hit record during the sermon and Sermonize captures every word automatically.',
-  },
-  {
-    icon: () => <WaveformIcon size={40} color="#fff" />,
-    title: 'AI-powered outlines',
-    body: 'Get a structured outline with key points, themes, and scripture references — all generated in real time.',
-  },
-  {
-    icon: () => <CheckIcon size={40} color="#fff" />,
-    title: 'One quick setup step',
-    body: 'Sermonize uses Groq for fast AI processing. Create a free API key (no credit card) and paste it in Settings.',
-  },
-];
+const { width: SCREEN_W } = Dimensions.get('window');
 
 export default function Root() {
   const [checked, setChecked] = useState(false);
@@ -50,7 +25,7 @@ export default function Root() {
   const router = useRouter();
   const t = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
-  const listRef = useRef<FlatList>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     void (async () => {
@@ -65,47 +40,67 @@ export default function Root() {
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
-    setPage(idx);
+    if (idx >= 0 && idx <= 2) setPage(idx);
   };
 
   const advance = () => {
-    if (page < slides.length - 1) {
-      listRef.current?.scrollToIndex({ index: page + 1, animated: true });
+    if (page < 2) {
+      scrollRef.current?.scrollTo({ x: SCREEN_W * (page + 1), animated: true });
     }
   };
 
-  const isLast = page === slides.length - 1;
+  const isLast = page === 2;
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.slideArea}>
-        <FlatList
-          ref={listRef}
-          data={slides}
+        <ScrollView
+          ref={scrollRef}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           onScroll={onScroll}
           scrollEventThrottle={16}
-          keyExtractor={(_, i) => String(i)}
-          getItemLayout={(_, index) => ({
-            length: SCREEN_W,
-            offset: SCREEN_W * index,
-            index,
-          })}
-          renderItem={({ item }) => (
-            <View style={styles.slide}>
-              <View style={styles.iconWrap}>{item.icon(t)}</View>
-              <Text style={styles.slideTitle}>{item.title}</Text>
-              <Text style={styles.slideBody}>{item.body}</Text>
+          contentContainerStyle={styles.slideContainer}
+        >
+          {/* Slide 1 */}
+          <View style={styles.slide}>
+            <View style={styles.iconWrap}>
+              <MicIcon size={40} color="#fff" />
             </View>
-          )}
-        />
+            <Text style={styles.slideTitle}>Record your sermon</Text>
+            <Text style={styles.slideBody}>
+              Hit record during the sermon and Sermonize captures every word automatically.
+            </Text>
+          </View>
+
+          {/* Slide 2 */}
+          <View style={styles.slide}>
+            <View style={styles.iconWrap}>
+              <WaveformIcon size={40} color="#fff" />
+            </View>
+            <Text style={styles.slideTitle}>AI-powered outlines</Text>
+            <Text style={styles.slideBody}>
+              Get a structured outline with key points, themes, and scripture references — all generated in real time.
+            </Text>
+          </View>
+
+          {/* Slide 3 */}
+          <View style={styles.slide}>
+            <View style={styles.iconWrap}>
+              <CheckIcon size={40} color="#fff" />
+            </View>
+            <Text style={styles.slideTitle}>One quick setup step</Text>
+            <Text style={styles.slideBody}>
+              Sermonize uses Groq for fast AI processing. Create a free API key (no credit card) and paste it in Settings.
+            </Text>
+          </View>
+        </ScrollView>
       </View>
 
       {/* Page dots */}
       <View style={styles.dots}>
-        {slides.map((_, i) => (
+        {[0, 1, 2].map((i) => (
           <View
             key={i}
             style={[styles.dot, i === page && styles.dotActive]}
@@ -166,10 +161,10 @@ function makeStyles(t: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.bgPrimary },
 
-    slideArea: { flex: 1 },
+    slideArea: { flex: 1, justifyContent: 'center' },
+    slideContainer: { alignItems: 'center' },
     slide: {
       width: SCREEN_W,
-      height: SLIDE_HEIGHT,
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: spacing.xl,
