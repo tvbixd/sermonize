@@ -2,10 +2,10 @@ import { useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 
 export const lightColors = {
-  bgPrimary: '#FEF8F2',
+  bgPrimary: '#F1F3F5',
   bgSurface: '#FFFFFF',
-  bgSurfaceRaised: '#FFF5EB',
-  bgWarm: '#FEF0E3',
+  bgSurfaceRaised: '#E9ECEF',
+  bgWarm: '#E9ECEF',
   textPrimary: '#2B3031',
   textSecondary: '#7A7E80',
   textTertiary: '#B8BABB',
@@ -18,7 +18,7 @@ export const lightColors = {
   accentPurple: '#7A5AF8',
   destructive: '#D93025',
   highlight: 'rgba(255,61,77,0.12)',
-  emptyBg: '#F5EDE4',
+  emptyBg: '#E9ECEF',
   dimOverlay: 'rgba(0,0,0,0.35)',
   spinnerTrack: 'rgba(43,48,49,0.08)',
   spinnerArc: '#FF3D4D',
