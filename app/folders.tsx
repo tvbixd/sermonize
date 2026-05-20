@@ -16,7 +16,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { deleteFolder, listFolders, saveFolder, togglePinFolder } from '@/storage/folders';
+import { deleteFolder, listFolders, saveFolder } from '@/storage/folders';
 import { listSermons, purgeExpiredDeleted } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Folder, Sermon } from '@/types';
@@ -31,7 +31,7 @@ import {
 
 const FOLDER_COLORS = ['#FF3D4D', '#F08C3A', '#34A853', '#4DA3FF', '#7A5AF8', '#E8A838'];
 
-type FolderRow = { id: string; name: string; color: string; count: number; pinned: boolean };
+type FolderRow = { id: string; name: string; color: string; count: number };
 
 export default function FoldersScreen() {
   const router = useRouter();
@@ -98,51 +98,28 @@ export default function FoldersScreen() {
     ]);
   };
 
-  const myFolders: FolderRow[] = folders
-    .map((f) => ({
-      id: f.id, name: f.name, color: f.color, count: countFor(f.id), pinned: !!f.pinned,
-    }))
-    .sort((a, b) => (a.pinned === b.pinned ? 0 : a.pinned ? -1 : 1));
+  const myFolders: FolderRow[] = folders.map((f) => ({
+    id: f.id, name: f.name, color: f.color, count: countFor(f.id),
+  }));
 
   const allCount = countFor(undefined);
 
-  const onRenameFolder = (f: Folder) => {
-    Alert.prompt(
-      'Rename Folder',
-      undefined,
-      async (name) => {
-        if (name?.trim()) {
-          await saveFolder({ ...f, name: name.trim() });
-          await refresh();
-        }
-      },
-      'plain-text',
-      f.name,
-    );
-  };
-
   const onLongPressFolder = (f: Folder) => {
-    const isPinned = !!f.pinned;
-    const pinLabel = isPinned ? 'Unpin' : 'Pin';
-
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: ['Cancel', pinLabel, 'Rename', 'Edit', 'Delete'],
-          destructiveButtonIndex: 4,
+          options: ['Cancel', 'Edit', 'Delete'],
+          destructiveButtonIndex: 2,
           cancelButtonIndex: 0,
         },
-        async (idx) => {
-          if (idx === 1) { await togglePinFolder(f.id); await refresh(); }
-          if (idx === 2) onRenameFolder(f);
-          if (idx === 3) openEditModal(f);
-          if (idx === 4) onDeleteFolder(f);
+        (idx) => {
+          if (idx === 1) openEditModal(f);
+          if (idx === 2) onDeleteFolder(f);
         },
       );
     } else {
       Alert.alert(f.name, '', [
-        { text: pinLabel, onPress: async () => { await togglePinFolder(f.id); await refresh(); } },
-        { text: 'Rename', onPress: () => openEditModal(f) },
+        { text: 'Edit', onPress: () => openEditModal(f) },
         { text: 'Delete', style: 'destructive', onPress: () => onDeleteFolder(f) },
         { text: 'Cancel', style: 'cancel' },
       ]);
