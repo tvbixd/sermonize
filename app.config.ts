@@ -34,6 +34,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     permissions: ['RECORD_AUDIO', 'FOREGROUND_SERVICE', 'WAKE_LOCK'],
   },
+  updates: {
+    url: `https://u.expo.dev/${process.env.EAS_PROJECT_ID ?? ''}`,
+  },
+  runtimeVersion: {
+    policy: 'appVersion',
+  },
   plugins: [
     'expo-router',
     [
@@ -44,6 +50,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     'expo-secure-store',
+    [
+      '@sentry/react-native/expo',
+      {
+        organization: process.env.SENTRY_ORG ?? '',
+        project: process.env.SENTRY_PROJECT ?? '',
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,
