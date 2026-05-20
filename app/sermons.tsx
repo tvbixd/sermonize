@@ -26,7 +26,6 @@ import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Folder, Sermon } from '@/types';
 import { formatDate, formatElapsed } from '@/util/format';
 import { BackChevronIcon, ChevronIcon, FolderIcon, MicIcon, TrashIcon, WaveformIcon } from '@/components/icons';
-import { SwipeableRow } from '@/components/SwipeableRow';
 import { mediumTap } from '@/util/haptics';
 
 type Section = { title: string; data: Sermon[] };
@@ -270,26 +269,21 @@ export default function SermonsScreen() {
                   {section.data.map((item, index) => {
                     const isLast = index === section.data.length - 1;
                     return (
-                      <SwipeableRow
+                      <TouchableOpacity
                         key={item.id}
-                        deleteColor={t.accentRed}
-                        onDelete={() => void onSoftDelete(item)}
+                        style={[styles.row, !isLast && styles.rowBorder]}
+                        onPress={() => router.push(`/sermon/${item.id}`)}
+                        onLongPress={() => onLongPress(item)}
+                        activeOpacity={0.7}
                       >
-                        <TouchableOpacity
-                          style={[styles.row, !isLast && styles.rowBorder, { backgroundColor: t.bgSurface }]}
-                          onPress={() => router.push(`/sermon/${item.id}`)}
-                          onLongPress={() => onLongPress(item)}
-                          activeOpacity={0.7}
-                        >
-                          <View style={styles.rowContent}>
-                            <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
-                            <Text style={styles.rowMeta}>
-                              {formatDate(item.createdAt)} · {formatElapsed(item.durationMs)}
-                            </Text>
-                          </View>
-                          <ChevronIcon color={t.textTertiary} size={12} />
-                        </TouchableOpacity>
-                      </SwipeableRow>
+                        <View style={styles.rowContent}>
+                          <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+                          <Text style={styles.rowMeta}>
+                            {formatDate(item.createdAt)} · {formatElapsed(item.durationMs)}
+                          </Text>
+                        </View>
+                        <ChevronIcon color={t.textTertiary} size={12} />
+                      </TouchableOpacity>
                     );
                   })}
                 </View>
