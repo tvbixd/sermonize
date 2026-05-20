@@ -53,7 +53,14 @@ export default function Root() {
 
   const setupIndex = SETUP_STEPS.indexOf(step);
 
-  const goNext = (next: Step) => setStep(next);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  const goNext = (next: Step) => {
+    Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
+      setStep(next);
+      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+    });
+  };
   const goBack = () => {
     const idx = SETUP_STEPS.indexOf(step);
     if (idx > 0) setStep(SETUP_STEPS[idx - 1]);
@@ -77,24 +84,26 @@ export default function Root() {
         />
       )}
 
-      {step === 'welcome' && (
-        <WelcomeStep t={t} styles={styles} onNext={() => goNext('value')} onSkip={skip} />
-      )}
-      {step === 'value' && (
-        <ValuePropStep t={t} styles={styles} onNext={() => goNext('mic')} />
-      )}
-      {step === 'mic' && (
-        <MicPermissionStep t={t} styles={styles} onNext={() => goNext('groq')} />
-      )}
-      {step === 'groq' && (
-        <GroqKeyStep t={t} styles={styles} onNext={() => goNext('translation')} />
-      )}
-      {step === 'translation' && (
-        <TranslationStep t={t} styles={styles} onNext={() => goNext('allset')} />
-      )}
-      {step === 'allset' && (
-        <AllSetStep t={t} styles={styles} onFinish={finish} />
-      )}
+      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        {step === 'welcome' && (
+          <WelcomeStep t={t} styles={styles} onNext={() => goNext('value')} onSkip={skip} />
+        )}
+        {step === 'value' && (
+          <ValuePropStep t={t} styles={styles} onNext={() => goNext('mic')} />
+        )}
+        {step === 'mic' && (
+          <MicPermissionStep t={t} styles={styles} onNext={() => goNext('groq')} />
+        )}
+        {step === 'groq' && (
+          <GroqKeyStep t={t} styles={styles} onNext={() => goNext('translation')} />
+        )}
+        {step === 'translation' && (
+          <TranslationStep t={t} styles={styles} onNext={() => goNext('allset')} />
+        )}
+        {step === 'allset' && (
+          <AllSetStep t={t} styles={styles} onFinish={finish} />
+        )}
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -131,36 +140,41 @@ function StepChrome({
 // ─── Step 1: Welcome ─────────────────────────────────────────────────────────
 
 function WelcomeStep({ t, styles, onNext, onSkip }: { t: Colors; styles: any; onNext: () => void; onSkip: () => void }) {
-  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const textFade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1, duration: 2000, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 0, duration: 2000, easing: Easing.in(Easing.ease), useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 1, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     ).start();
+    Animated.timing(textFade, { toValue: 1, duration: 600, delay: 200, useNativeDriver: true }).start();
   }, []);
 
-  const scale = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
+  const translateY = floatAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -10] });
+  const scale = floatAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.04, 1] });
 
   return (
     <View style={styles.stepFull}>
       <View style={styles.welcomeCenter}>
-        <Animated.View style={{ transform: [{ scale }] }}>
+        <Animated.View style={{ transform: [{ translateY }, { scale }] }}>
           <BigLogomark />
         </Animated.View>
-        <Text style={styles.welcomeTitle}>Welcome to Scribe.</Text>
-        <Text style={styles.welcomeSub}>
-          The pulpit-ready notebook that listens while you preach.
-        </Text>
+        <Animated.View style={{ opacity: textFade, alignItems: 'center', gap: 12 }}>
+          <Text style={styles.welcomeTitle}>Welcome to Scribe.</Text>
+          <Text style={styles.welcomeSub}>
+            The pulpit-ready notebook that listens while you preach.
+          </Text>
+        </Animated.View>
       </View>
-      <View style={styles.bottomActions}>
+      <Animated.View style={[styles.bottomActions, { opacity: textFade }]}>
         <PrimaryButton label="Get Started" onPress={onNext} color={t.accentBlue} />
         <TouchableOpacity onPress={onSkip} activeOpacity={0.7} style={styles.linkBtn}>
           <Text style={[styles.linkBtnText, { color: t.accentBlue }]}>I already have an account</Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -242,18 +256,29 @@ function ValuePropStep({ t, styles, onNext }: { t: Colors; styles: any; onNext: 
   );
 }
 
+function useStaggerFade(count: number, delay = 150) {
+  const anims = useRef(Array.from({ length: count }, () => new Animated.Value(0))).current;
+  useEffect(() => {
+    anims.forEach((a, i) => {
+      Animated.timing(a, { toValue: 1, duration: 400, delay: i * delay, useNativeDriver: true }).start();
+    });
+  }, []);
+  return anims;
+}
+
 function ValueVisual({ kind, t }: { kind: 'transcribe' | 'outline' | 'scripture'; t: Colors }) {
   if (kind === 'transcribe') {
+    const fades = useStaggerFade(2, 200);
     return (
       <View style={[vStyles.card, { backgroundColor: t.bgSurface }]}>
-        <View style={[vStyles.micCircle, { backgroundColor: t.accentBlue }]}>
+        <Animated.View style={[vStyles.micCircle, { backgroundColor: t.accentBlue, opacity: fades[0], transform: [{ scale: fades[0] }] }]}>
           <MicIcon size={32} color="#fff" />
-        </View>
-        <View style={[vStyles.transcriptBubble, { backgroundColor: t.bgSurfaceRaised }]}>
+        </Animated.View>
+        <Animated.View style={[vStyles.transcriptBubble, { backgroundColor: t.bgSurfaceRaised, opacity: fades[1] }]}>
           <Text style={[vStyles.transcriptText, { color: t.textPrimary }]}>
             …not as scholars, but as <Text style={{ backgroundColor: `${t.accentBlue}22` }}>sojourners</Text>…
           </Text>
-        </View>
+        </Animated.View>
       </View>
     );
   }
@@ -263,10 +288,11 @@ function ValueVisual({ kind, t }: { kind: 'transcribe' | 'outline' | 'scripture'
       { n: '2', t: 'The language of sojourners', sub: 'Heb 11:13' },
       { n: '3', t: 'What we inherit, we also carry', sub: 'Gen 26:3' },
     ];
+    const fades = useStaggerFade(3);
     return (
       <View style={[vStyles.card, { backgroundColor: t.bgSurface, padding: 20 }]}>
         {points.map((p, i) => (
-          <View key={i} style={[vStyles.outlineRow, { backgroundColor: t.bgSurfaceRaised }]}>
+          <Animated.View key={i} style={[vStyles.outlineRow, { backgroundColor: t.bgSurfaceRaised, opacity: fades[i], transform: [{ translateY: fades[i].interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] }]}>
             <View style={[vStyles.outlineNum, { backgroundColor: t.accentBlue }]}>
               <Text style={vStyles.outlineNumText}>{p.n}</Text>
             </View>
@@ -274,7 +300,7 @@ function ValueVisual({ kind, t }: { kind: 'transcribe' | 'outline' | 'scripture'
               <Text style={[vStyles.outlineTitle, { color: t.textPrimary }]}>{p.t}</Text>
               <Text style={[vStyles.outlineSub, { color: t.accentBlue }]}>{p.sub}</Text>
             </View>
-          </View>
+          </Animated.View>
         ))}
       </View>
     );
@@ -284,10 +310,11 @@ function ValueVisual({ kind, t }: { kind: 'transcribe' | 'outline' | 'scripture'
     { ref: 'Genesis 15:6', text: '"And he believed in the Lord; and he counted it to him for righteousness."' },
     { ref: 'Hebrews 11:13', text: '"These all died in faith, not having received the promises…"' },
   ];
+  const fades = useStaggerFade(2, 200);
   return (
     <View style={[vStyles.card, { backgroundColor: t.bgSurface, padding: 20 }]}>
       {verses.map((v, i) => (
-        <View key={i} style={[vStyles.verseCard, { backgroundColor: t.bgSurfaceRaised }]}>
+        <Animated.View key={i} style={[vStyles.verseCard, { backgroundColor: t.bgSurfaceRaised, opacity: fades[i], transform: [{ translateY: fades[i].interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] }]}>
           <View style={vStyles.verseHeader}>
             <Text style={[vStyles.verseRef, { color: t.accentBlue }]}>{v.ref}</Text>
             <View style={[vStyles.verseBadge, { backgroundColor: t.bgSurface }]}>
@@ -295,7 +322,7 @@ function ValueVisual({ kind, t }: { kind: 'transcribe' | 'outline' | 'scripture'
             </View>
           </View>
           <Text style={[vStyles.verseText, { color: t.textPrimary }]}>{v.text}</Text>
-        </View>
+        </Animated.View>
       ))}
     </View>
   );
@@ -323,44 +350,45 @@ const vStyles = StyleSheet.create({
 
 function MicPermissionStep({ t, styles, onNext }: { t: Colors; styles: any; onNext: () => void }) {
   const [granted, setGranted] = useState(false);
-  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const grantedScale = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (!granted) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1, duration: 2000, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 0, duration: 2000, easing: Easing.in(Easing.ease), useNativeDriver: true }),
-        ])
-      ).start();
-    }
-  }, [granted]);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, { toValue: 1, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
 
   const requestPermission = async () => {
     try {
       const { granted: g } = await Audio.requestPermissionsAsync();
-      setGranted(g);
       if (g) {
-        setTimeout(onNext, 800);
+        setGranted(true);
+        Animated.spring(grantedScale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
+        setTimeout(onNext, 1000);
       }
     } catch {
       setGranted(false);
     }
   };
 
-  const scale = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+  const translateY = floatAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -8] });
+  const scale = floatAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.04, 1] });
 
   return (
     <View style={styles.stepFull}>
       <View style={styles.welcomeCenter}>
         {granted ? (
-          <View style={styles.grantedCircle}>
+          <Animated.View style={[styles.grantedCircle, { transform: [{ scale: grantedScale }] }]}>
             <Svg width={52} height={52} viewBox="0 0 58 58" fill="none">
               <Path d="M14 30l10 10 20-22" stroke="#fff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
             </Svg>
-          </View>
+          </Animated.View>
         ) : (
-          <Animated.View style={{ transform: [{ scale }] }}>
+          <Animated.View style={{ transform: [{ translateY }, { scale }] }}>
             <BigLogomark />
           </Animated.View>
         )}
@@ -588,22 +616,40 @@ function TranslationStep({ t, styles, onNext }: { t: Colors; styles: any; onNext
 // ─── Step 6: All Set ─────────────────────────────────────────────────────────
 
 function AllSetStep({ t, styles, onFinish }: { t: Colors; styles: any; onFinish: () => void }) {
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const contentFade = useRef(new Animated.Value(0)).current;
   const checklist = [
     { label: 'Microphone access', done: true },
     { label: 'Groq API key', done: true },
     { label: 'Bible translation', done: true },
   ];
 
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, { toValue: 1, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
+    Animated.timing(contentFade, { toValue: 1, duration: 500, delay: 150, useNativeDriver: true }).start();
+  }, []);
+
+  const translateY = floatAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -10] });
+
   return (
     <View style={styles.stepFull}>
       <View style={styles.welcomeCenter}>
-        <BigLogomark />
-        <Text style={styles.welcomeTitle}>You're ready to preach.</Text>
-        <Text style={styles.welcomeSub}>
-          Tap the red mic on the home screen the next time you step into the pulpit. Scribe takes care of the rest.
-        </Text>
+        <Animated.View style={{ transform: [{ translateY }] }}>
+          <BigLogomark />
+        </Animated.View>
+        <Animated.View style={{ opacity: contentFade, alignItems: 'center', gap: 12 }}>
+          <Text style={styles.welcomeTitle}>You're ready to preach.</Text>
+          <Text style={styles.welcomeSub}>
+            Tap the red mic on the home screen the next time you step into the pulpit. Scribe takes care of the rest.
+          </Text>
+        </Animated.View>
 
-        <View style={[styles.checklistCard, { backgroundColor: t.bgSurface }]}>
+        <Animated.View style={[styles.checklistCard, { backgroundColor: t.bgSurface, opacity: contentFade, transform: [{ translateY: contentFade.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }]}>
           {checklist.map((c, i) => (
             <React.Fragment key={i}>
               <View style={styles.checklistRow}>
@@ -619,7 +665,7 @@ function AllSetStep({ t, styles, onFinish }: { t: Colors; styles: any; onFinish:
               )}
             </React.Fragment>
           ))}
-        </View>
+        </Animated.View>
       </View>
       <View style={styles.bottomActions}>
         <PrimaryButton label="Open Scribe" onPress={onFinish} color={t.accentBlue} />
