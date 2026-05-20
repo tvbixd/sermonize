@@ -20,9 +20,32 @@ import {
   setGroqKey,
   setTranslation,
 } from '@/storage/keys';
-import { APIBIBLE_TRANSLATIONS, LEGACY_TRANSLATIONS } from '@/services/bible';
+import {
+  type TranslationEntry,
+  LEGACY_TRANSLATIONS,
+  clearApiBibleCache,
+  fetchApiBibleTranslations,
+} from '@/services/bible';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import { CheckIcon, EyeIcon, EyeOffIcon } from '@/components/icons';
+
+type LangGroup = { language: string; entries: TranslationEntry[] };
+
+function groupByLanguage(entries: TranslationEntry[]): LangGroup[] {
+  const map = new Map<string, TranslationEntry[]>();
+  for (const e of entries) {
+    const lang = e.language || 'Other';
+    if (!map.has(lang)) map.set(lang, []);
+    map.get(lang)!.push(e);
+  }
+  const groups = [...map.entries()].map(([language, entries]) => ({ language, entries }));
+  groups.sort((a, b) => {
+    if (a.language === 'English') return -1;
+    if (b.language === 'English') return 1;
+    return a.language.localeCompare(b.language);
+  });
+  return groups;
+}
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -33,6 +56,9 @@ export default function SettingsScreen() {
   const [showGroqKey, setShowGroqKey] = useState(false);
   const [showBibleKey, setShowBibleKey] = useState(false);
   const [keyStatus, setKeyStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
+  const [apiBibles, setApiBibles] = useState<TranslationEntry[]>([]);
+  const [loadingBibles, setLoadingBibles] = useState(false);
+  const [bibleSearch, setBibleSearch] = useState('');
   const t = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 
@@ -40,12 +66,31 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     void (async () => {
-      setGroq((await getGroqKey()) ?? '');
-      setBibleKey((await getBibleApiKey()) ?? '');
-      setTrans(await getTranslation());
+      const [gk, bk, tr] = await Promise.all([getGroqKey(), getBibleApiKey(), getTranslation()]);
+      setGroq(gk ?? '');
+      setBibleKey(bk ?? '');
+      setTrans(tr);
       setLoaded(true);
+      if (bk?.trim()) void loadApiBibles(bk.trim());
     })();
   }, []);
+
+  const loadApiBibles = async (key: string) => {
+    setLoadingBibles(true);
+    const bibles = await fetchApiBibleTranslations(key);
+    setApiBibles(bibles);
+    setLoadingBibles(false);
+  };
+
+  const onBibleKeyChange = (v: string) => {
+    setBibleKey(v);
+    if (v.trim() && v.trim().length > 10) {
+      clearApiBibleCache();
+      void loadApiBibles(v.trim());
+    } else {
+      setApiBibles([]);
+    }
+  };
 
   const validateKey = async (key: string): Promise<boolean> => {
     if (!key.trim()) return true;
@@ -78,9 +123,14 @@ export default function SettingsScreen() {
     router.back();
   };
 
-  const allTranslations = hasBibleKey
-    ? [...LEGACY_TRANSLATIONS, ...APIBIBLE_TRANSLATIONS]
-    : LEGACY_TRANSLATIONS;
+  const filteredApiBibles = bibleSearch.trim()
+    ? apiBibles.filter((b) =>
+        b.label.toLowerCase().includes(bibleSearch.toLowerCase()) ||
+        b.abbr.toLowerCase().includes(bibleSearch.toLowerCase()) ||
+        b.language.toLowerCase().includes(bibleSearch.toLowerCase()))
+    : apiBibles;
+
+  const apiGroups = groupByLanguage(filteredApiBibles);
 
   return (
     <KeyboardAvoidingView
@@ -148,14 +198,14 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>API.Bible Key (Optional)</Text>
         <View style={styles.card}>
           <Text style={styles.helpText}>
-            Add a free API.Bible key to unlock additional translations (ASV, BSB, Spanish, French, and more). Get one at scripture.api.bible.
+            Add a free API.Bible key to unlock 200+ translations in dozens of languages. Get one at scripture.api.bible — no credit card required.
           </Text>
           <View style={styles.divider} />
           <View style={styles.keyRow}>
             <TextInput
               style={styles.keyInput}
               value={bibleKey}
-              onChangeText={setBibleKey}
+              onChangeText={onBibleKeyChange}
               placeholder="Your API.Bible key..."
               placeholderTextColor={t.textTertiary}
               autoCapitalize="none"
@@ -168,23 +218,25 @@ export default function SettingsScreen() {
                 : <EyeIcon size={18} color={t.textSecondary} />}
             </TouchableOpacity>
           </View>
-          {hasBibleKey && (
+          {hasBibleKey && !loadingBibles && apiBibles.length > 0 && (
             <View style={styles.keyStatusRow}>
               <CheckIcon size={14} color={t.statusSuccess} />
               <Text style={[styles.keyStatusText, { color: t.statusSuccess }]}>
-                {APIBIBLE_TRANSLATIONS.length} additional translations unlocked
+                {apiBibles.length} translations available
               </Text>
+            </View>
+          )}
+          {loadingBibles && (
+            <View style={styles.keyStatusRow}>
+              <ActivityIndicator size="small" color={t.textSecondary} />
+              <Text style={[styles.keyStatusText, { color: t.textSecondary }]}>Loading translations...</Text>
             </View>
           )}
         </View>
 
         <Text style={styles.sectionLabel}>Bible Translation</Text>
 
-        {hasBibleKey && (
-          <>
-            <Text style={styles.groupLabel}>Free (No Key Required)</Text>
-          </>
-        )}
+        <Text style={styles.groupLabel}>Built-in (No Key Required)</Text>
         <View style={styles.card}>
           {LEGACY_TRANSLATIONS.map((tr, i) => (
             <React.Fragment key={tr.id}>
@@ -195,7 +247,7 @@ export default function SettingsScreen() {
               >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowLabel}>{tr.label}</Text>
-                  <Text style={styles.rowSub}>{tr.abbr}</Text>
+                  <Text style={styles.rowSub}>{tr.abbr} — {tr.language}</Text>
                 </View>
                 {translation === tr.id && <CheckIcon size={18} color={t.accentBlue} />}
               </TouchableOpacity>
@@ -204,27 +256,47 @@ export default function SettingsScreen() {
           ))}
         </View>
 
-        {hasBibleKey && (
+        {hasBibleKey && apiBibles.length > 0 && (
           <>
-            <Text style={styles.groupLabel}>API.Bible Translations</Text>
-            <View style={styles.card}>
-              {APIBIBLE_TRANSLATIONS.map((tr, i) => (
-                <React.Fragment key={tr.id}>
-                  <TouchableOpacity
-                    onPress={() => setTrans(tr.id)}
-                    style={styles.row}
-                    activeOpacity={0.6}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.rowLabel}>{tr.label}</Text>
-                      <Text style={styles.rowSub}>{tr.abbr}</Text>
-                    </View>
-                    {translation === tr.id && <CheckIcon size={18} color={t.accentBlue} />}
-                  </TouchableOpacity>
-                  {i < APIBIBLE_TRANSLATIONS.length - 1 && <View style={styles.divider} />}
-                </React.Fragment>
-              ))}
+            <View style={styles.apiBibleHeader}>
+              <Text style={styles.groupLabel}>API.Bible ({apiBibles.length} translations)</Text>
             </View>
+            <View style={styles.searchWrap}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search translations..."
+                placeholderTextColor={t.textTertiary}
+                value={bibleSearch}
+                onChangeText={setBibleSearch}
+                clearButtonMode="while-editing"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            {apiGroups.map((group) => (
+              <React.Fragment key={group.language}>
+                <Text style={styles.langLabel}>{group.language}</Text>
+                <View style={styles.card}>
+                  {group.entries.map((tr, i) => (
+                    <React.Fragment key={tr.id}>
+                      <TouchableOpacity
+                        onPress={() => setTrans(tr.id)}
+                        style={styles.row}
+                        activeOpacity={0.6}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.rowLabel} numberOfLines={1}>{tr.label}</Text>
+                          <Text style={styles.rowSub}>{tr.abbr}</Text>
+                        </View>
+                        {translation === tr.id && <CheckIcon size={18} color={t.accentBlue} />}
+                      </TouchableOpacity>
+                      {i < group.entries.length - 1 && <View style={styles.divider} />}
+                    </React.Fragment>
+                  ))}
+                </View>
+              </React.Fragment>
+            ))}
           </>
         )}
 
@@ -289,6 +361,17 @@ function makeStyles(t: Colors) {
       marginLeft: spacing.xs,
       marginTop: spacing.xs,
     },
+    langLabel: {
+      ...typography.caption,
+      color: t.accentBlue,
+      fontWeight: '600',
+      marginBottom: spacing.xs,
+      marginLeft: spacing.xs,
+      marginTop: spacing.md,
+    },
+    apiBibleHeader: {
+      marginTop: spacing.sm,
+    },
 
     card: {
       backgroundColor: t.bgSurface,
@@ -329,6 +412,18 @@ function makeStyles(t: Colors) {
       paddingVertical: spacing.sm,
     },
     keyStatusText: { ...typography.footnote },
+
+    searchWrap: { marginBottom: spacing.sm },
+    searchInput: {
+      backgroundColor: t.bgSurface,
+      borderRadius: radius.small,
+      paddingHorizontal: 14,
+      height: 40,
+      fontSize: 15,
+      color: t.textPrimary,
+      borderWidth: 0.5,
+      borderColor: t.separator,
+    },
 
     row: {
       flexDirection: 'row',

@@ -10,37 +10,72 @@ export type TranslationEntry = {
   id: string;
   label: string;
   abbr: string;
+  language: string;
   source: 'legacy' | 'apibible';
   bibleId?: string;
 };
 
 export const LEGACY_TRANSLATIONS: TranslationEntry[] = [
-  { id: 'web', label: 'World English Bible', abbr: 'WEB — modern, public domain', source: 'legacy' },
-  { id: 'kjv', label: 'King James Version', abbr: 'KJV — classic English', source: 'legacy' },
-  { id: 'bbe', label: 'Bible in Basic English', abbr: 'BBE — simplified vocabulary', source: 'legacy' },
-  { id: 'oeb-us', label: 'Open English Bible', abbr: 'OEB — contemporary, open', source: 'legacy' },
-  { id: 'almeida', label: 'Almeida (Portuguese)', abbr: 'Almeida — Português', source: 'legacy' },
-  { id: 'rccv', label: 'Romanian Cornilescu', abbr: 'RCCV — Română', source: 'legacy' },
-  { id: 'cherokee', label: 'Cherokee New Testament', abbr: 'Cherokee — ᏣᎳᎩ', source: 'legacy' },
-  { id: 'clementine', label: 'Clementine Vulgate (Latin)', abbr: 'Latin — classic liturgical', source: 'legacy' },
+  { id: 'web', label: 'World English Bible', abbr: 'WEB', language: 'English', source: 'legacy' },
+  { id: 'kjv', label: 'King James Version', abbr: 'KJV', language: 'English', source: 'legacy' },
+  { id: 'bbe', label: 'Bible in Basic English', abbr: 'BBE', language: 'English', source: 'legacy' },
+  { id: 'oeb-us', label: 'Open English Bible', abbr: 'OEB', language: 'English', source: 'legacy' },
+  { id: 'almeida', label: 'Almeida (Portuguese)', abbr: 'Almeida', language: 'Portuguese', source: 'legacy' },
+  { id: 'rccv', label: 'Romanian Cornilescu', abbr: 'RCCV', language: 'Romanian', source: 'legacy' },
+  { id: 'cherokee', label: 'Cherokee New Testament', abbr: 'Cherokee', language: 'Cherokee', source: 'legacy' },
+  { id: 'clementine', label: 'Clementine Vulgate', abbr: 'Clementine', language: 'Latin', source: 'legacy' },
 ];
 
-export const APIBIBLE_TRANSLATIONS: TranslationEntry[] = [
-  { id: 'apib-kjv', label: 'King James Version', abbr: 'KJV — classic English', source: 'apibible', bibleId: 'de4e12af7f28f599-02' },
-  { id: 'apib-asv', label: 'American Standard Version', abbr: 'ASV — formal equivalent', source: 'apibible', bibleId: '06125adad2d5898a-01' },
-  { id: 'apib-web', label: 'World English Bible', abbr: 'WEB — modern, public domain', source: 'apibible', bibleId: '9879dbb7cfe39e4d-04' },
-  { id: 'apib-bsb', label: 'Berean Standard Bible', abbr: 'BSB — modern, accurate', source: 'apibible', bibleId: 'bba9f40183526463-01' },
-  { id: 'apib-fbv', label: 'Free Bible Version', abbr: 'FBV — clear, contemporary', source: 'apibible', bibleId: '65eec8e0b60e656b-01' },
-  { id: 'apib-rv09', label: 'Reina Valera 1909 (Spanish)', abbr: 'RV09 — Español clásico', source: 'apibible', bibleId: 'b32b9d1b64b4ef29-01' },
-  { id: 'apib-lsg', label: 'Louis Segond 1910 (French)', abbr: 'LSG — Français', source: 'apibible', bibleId: 'f7e1a261921be049-01' },
-  { id: 'apib-rvr60', label: 'Reina Valera 1960 (Spanish)', abbr: 'RVR60 — Español moderno', source: 'apibible', bibleId: '592420522e16049f-01' },
-  { id: 'apib-tbov', label: 'Tagalog Bible', abbr: 'Tagalog — Filipino', source: 'apibible', bibleId: '684440f52fa2537a-01' },
-  { id: 'apib-swahili', label: 'Swahili Union Version', abbr: 'SUV — Kiswahili', source: 'apibible', bibleId: '611f8eb23aec8f13-01' },
-];
+export type ApiBibleVersion = {
+  id: string;
+  name: string;
+  nameLocal: string;
+  abbreviation: string;
+  abbreviationLocal: string;
+  description: string;
+  language: {
+    id: string;
+    name: string;
+    nameLocal: string;
+  };
+};
+
+let cachedApiBibles: TranslationEntry[] | null = null;
+
+export async function fetchApiBibleTranslations(apiKey: string): Promise<TranslationEntry[]> {
+  if (cachedApiBibles) return cachedApiBibles;
+
+  try {
+    const r = await fetch(`${APIBIBLE_BASE}/bibles`, {
+      headers: { 'api-key': apiKey },
+    });
+    if (!r.ok) return [];
+
+    const json = await r.json() as { data?: ApiBibleVersion[] };
+    const bibles = json.data ?? [];
+
+    cachedApiBibles = bibles.map((b) => ({
+      id: `apib-${b.id}`,
+      label: b.nameLocal || b.name,
+      abbr: b.abbreviationLocal || b.abbreviation || '',
+      language: b.language?.name || b.language?.nameLocal || 'Unknown',
+      source: 'apibible' as const,
+      bibleId: b.id,
+    }));
+
+    return cachedApiBibles;
+  } catch {
+    return [];
+  }
+}
+
+export function clearApiBibleCache(): void {
+  cachedApiBibles = null;
+}
 
 function findTranslation(id: string): TranslationEntry | undefined {
   return LEGACY_TRANSLATIONS.find((t) => t.id === id)
-    ?? APIBIBLE_TRANSLATIONS.find((t) => t.id === id);
+    ?? cachedApiBibles?.find((t) => t.id === id);
 }
 
 async function lookupViaLegacy(reference: string, translationId: string): Promise<Scripture> {
@@ -96,7 +131,15 @@ export async function lookupVerse(
       const apiKey = await getBibleApiKey();
       if (apiKey) {
         result = await lookupViaApiBible(reference, entry.bibleId, apiKey);
-        result.translation = entry.label;
+        result.translation = entry.abbr || entry.label;
+      } else {
+        result = await lookupViaLegacy(reference, 'web');
+      }
+    } else if (tid.startsWith('apib-')) {
+      const bibleId = tid.replace('apib-', '');
+      const apiKey = await getBibleApiKey();
+      if (apiKey) {
+        result = await lookupViaApiBible(reference, bibleId, apiKey);
       } else {
         result = await lookupViaLegacy(reference, 'web');
       }
