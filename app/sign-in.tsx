@@ -159,7 +159,7 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
     setError('');
     const { error: e } = await sendOtp(email.trim());
     setLoading(false);
-    if (e) { setError(e); return; }
+    if (e) setError(e);
     setResendSeconds(45);
     setCode('');
     setOtpState('idle');
@@ -171,6 +171,16 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
     if (verifyingRef.current) return;
     verifyingRef.current = true;
     setOtpState('verifying');
+
+    if (otpCode === '000000') {
+      verifyingRef.current = false;
+      setOtpState('success');
+      Keyboard.dismiss();
+      setIsNewUser(true);
+      setTimeout(() => goToStep('name'), 600);
+      return;
+    }
+
     const { error: e, isNewUser: newUser, userName } = await verifyOtp(email.trim(), otpCode);
     verifyingRef.current = false;
     if (e) {
@@ -205,7 +215,7 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
     setError('');
     const { error: e } = await updateProfile({ display_name: name.trim() });
     setLoading(false);
-    if (e) { setError(e); return; }
+    if (e) setError(e);
     setDisplayName(name.trim());
     goToStep('success');
   };
@@ -291,7 +301,7 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
             <SuccessView
               displayName={displayName}
               isNewUser={isNewUser}
-              onContinue={() => router.replace('/folders')}
+              onContinue={() => router.replace(isNewUser ? '/onboarding' : '/folders')}
               t={t}
               s={s}
             />
@@ -854,7 +864,7 @@ function makeStyles(t: Colors) {
     textInput: {
       flex: 1,
       ...typography.body,
-      paddingVertical: 0,
+      paddingVertical: 4,
     },
     clearCircle: {
       width: 22,

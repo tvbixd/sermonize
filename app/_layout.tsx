@@ -20,6 +20,7 @@ function RootLayout() {
           <Stack.Screen name="index" />
           <Stack.Screen name="sign-in" />
           <Stack.Screen name="sign-up" />
+          <Stack.Screen name="onboarding" />
           <Stack.Screen name="folders" />
           <Stack.Screen name="sermons" />
           <Stack.Screen name="record" />
