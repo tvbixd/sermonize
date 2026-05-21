@@ -25,6 +25,7 @@ import {
   clearApiBibleCache,
   fetchApiBibleTranslations,
 } from '@/services/bible';
+import { useAuth } from '@/context/auth';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import { CheckIcon, EyeIcon, EyeOffIcon } from '@/components/icons';
 
@@ -57,6 +58,7 @@ export default function SettingsScreen() {
   const [apiBibles, setApiBibles] = useState<TranslationEntry[]>([]);
   const [loadingBibles, setLoadingBibles] = useState(false);
   const [bibleSearch, setBibleSearch] = useState('');
+  const { user, signOut } = useAuth();
   const t = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
 
@@ -270,6 +272,29 @@ export default function SettingsScreen() {
             <Text style={[styles.rowLabel, { color: t.accentBlue }]}>Privacy Policy</Text>
           </TouchableOpacity>
         </View>
+
+        {user && (
+          <>
+            <Text style={styles.sectionLabel}>Account</Text>
+            <View style={styles.card}>
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>Email</Text>
+                <Text style={styles.rowValue}>{user.email}</Text>
+              </View>
+              <View style={styles.divider} />
+              <TouchableOpacity
+                style={styles.row}
+                activeOpacity={0.6}
+                onPress={async () => {
+                  await signOut();
+                  router.replace('/');
+                }}
+              >
+                <Text style={[styles.rowLabel, { color: t.destructive }]}>Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
 
         <TouchableOpacity
           style={[styles.saveBtn, saved && { backgroundColor: t.statusSuccess }]}

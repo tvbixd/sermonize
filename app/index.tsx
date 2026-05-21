@@ -19,6 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Svg, Path, Rect, Circle } from 'react-native-svg';
 import { CheckIcon, MicIcon, WaveformIcon } from '@/components/icons';
+import { useAuth } from '@/context/auth';
 import { LEGACY_TRANSLATIONS } from '@/services/bible';
 import { getGroqKey, setGroqKey, setTranslation } from '@/storage/keys';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
@@ -30,26 +31,18 @@ const SETUP_STEPS: Step[] = ['value', 'mic', 'groq', 'translation'];
 
 export default function Root() {
   const [checked, setChecked] = useState(false);
-  const [hasKey, setHasKey] = useState(false);
   const [step, setStep] = useState<Step>('welcome');
   const router = useRouter();
   const t = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
+  const { session, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    void (async () => {
-      const key = await getGroqKey();
-      if (__DEV__) console.log('[Onboarding] groqKey present?', !!key);
-      setHasKey(!!key);
-      setChecked(true);
-    })();
-  }, []);
-
-  if (__DEV__) console.log('[Onboarding] checked=', checked, 'hasKey=', hasKey, 'step=', step);
+    if (!authLoading) setChecked(true);
+  }, [authLoading]);
 
   if (!checked) return null;
-  // TODO: remove this bypass after testing onboarding
-  // if (hasKey) return <Redirect href="/folders" />;
+  if (session) return <Redirect href="/folders" />;
 
   const setupIndex = SETUP_STEPS.indexOf(step);
 
@@ -67,8 +60,8 @@ export default function Root() {
     else if (step === 'allset') setStep('translation');
     else setStep('welcome');
   };
-  const skip = () => router.replace('/folders');
-  const finish = () => router.replace('/folders');
+  const skip = () => router.replace('/sign-up');
+  const finish = () => router.replace('/sign-up');
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -86,7 +79,7 @@ export default function Root() {
 
       <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
         {step === 'welcome' && (
-          <WelcomeStep t={t} styles={styles} onNext={() => goNext('value')} onSkip={skip} />
+          <WelcomeStep t={t} styles={styles} onNext={() => goNext('value')} onSignIn={() => router.replace('/sign-in')} />
         )}
         {step === 'value' && (
           <ValuePropStep t={t} styles={styles} onNext={() => goNext('mic')} />
@@ -139,7 +132,7 @@ function StepChrome({
 
 // ─── Step 1: Welcome ─────────────────────────────────────────────────────────
 
-function WelcomeStep({ t, styles, onNext, onSkip }: { t: Colors; styles: any; onNext: () => void; onSkip: () => void }) {
+function WelcomeStep({ t, styles, onNext, onSignIn }: { t: Colors; styles: any; onNext: () => void; onSignIn: () => void }) {
   const floatAnim = useRef(new Animated.Value(0)).current;
   const textFade = useRef(new Animated.Value(0)).current;
 
@@ -171,7 +164,7 @@ function WelcomeStep({ t, styles, onNext, onSkip }: { t: Colors; styles: any; on
       </View>
       <Animated.View style={[styles.bottomActions, { opacity: textFade }]}>
         <PrimaryButton label="Get Started" onPress={onNext} color={t.accentBlue} />
-        <TouchableOpacity onPress={onSkip} activeOpacity={0.7} style={styles.linkBtn}>
+        <TouchableOpacity onPress={onSignIn} activeOpacity={0.7} style={styles.linkBtn}>
           <Text style={[styles.linkBtnText, { color: t.accentBlue }]}>I already have an account</Text>
         </TouchableOpacity>
       </Animated.View>

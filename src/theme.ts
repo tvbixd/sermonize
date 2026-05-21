@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 
 export const lightColors = {
-  bgPrimary: '#F1F3F5',
+  bgPrimary: '#F2F2F7',
   bgSurface: '#FFFFFF',
   bgSurfaceRaised: '#E9ECEF',
   bgWarm: '#E9ECEF',
