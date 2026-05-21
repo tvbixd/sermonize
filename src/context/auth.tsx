@@ -2,15 +2,18 @@ import type { Session, User } from '@supabase/supabase-js';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
+type AuthResult = { error: string | null };
+type AuthResultWithUser = { error: string | null; isNewUser: boolean; userName: string | null };
+
 type AuthState = {
   session: Session | null;
   user: User | null;
   loading: boolean;
-  signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUpWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
-  resetPassword: (email: string) => Promise<{ error: string | null }>;
-  signInWithIdToken: (provider: 'google' | 'apple', idToken: string, nonce?: string) => Promise<{ error: string | null }>;
+  signInWithIdToken: (provider: 'google' | 'apple', idToken: string, nonce?: string) => Promise<AuthResultWithUser>;
+  sendOtp: (email: string) => Promise<AuthResult>;
+  verifyOtp: (email: string, token: string) => Promise<AuthResultWithUser>;
+  updateProfile: (displayName: string) => Promise<AuthResult>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -32,31 +35,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signInWithEmail = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
-  };
-
-  const signUpWithEmail = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password });
-    return { error: error?.message ?? null };
-  };
-
   const signOut = async () => {
     await supabase.auth.signOut();
   };
 
-  const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
-    return { error: error?.message ?? null };
-  };
-
-  const signInWithIdToken = async (provider: 'google' | 'apple', idToken: string, nonce?: string) => {
-    const { error } = await supabase.auth.signInWithIdToken({
+  const signInWithIdToken = async (provider: 'google' | 'apple', idToken: string, nonce?: string): Promise<AuthResultWithUser> => {
+    const { data, error } = await supabase.auth.signInWithIdToken({
       provider,
       token: idToken,
       nonce,
     });
+    if (error) return { error: error.message, isNewUser: false, userName: null };
+    const userName = data.user?.user_metadata?.display_name ?? null;
+    return { error: null, isNewUser: !userName, userName };
+  };
+
+  const sendOtp = async (email: string): Promise<AuthResult> => {
+    const { error } = await supabase.auth.signInWithOtp({ email });
+    return { error: error?.message ?? null };
+  };
+
+  const verifyOtp = async (email: string, token: string): Promise<AuthResultWithUser> => {
+    const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
+    if (error) return { error: error.message, isNewUser: false, userName: null };
+    const userName = data.user?.user_metadata?.display_name ?? null;
+    return { error: null, isNewUser: !userName, userName };
+  };
+
+  const updateProfile = async (displayName: string): Promise<AuthResult> => {
+    const { error } = await supabase.auth.updateUser({ data: { display_name: displayName } });
     return { error: error?.message ?? null };
   };
 
@@ -66,11 +73,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         session,
         user: session?.user ?? null,
         loading,
-        signInWithEmail,
-        signUpWithEmail,
         signOut,
-        resetPassword,
         signInWithIdToken,
+        sendOtp,
+        verifyOtp,
+        updateProfile,
       }}
     >
       {children}
