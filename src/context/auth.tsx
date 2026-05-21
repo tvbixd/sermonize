@@ -15,12 +15,14 @@ type AuthState = {
   verifyOtp: (email: string, token: string) => Promise<AuthResultWithUser>;
   updateProfile: (data: Record<string, unknown>) => Promise<AuthResult>;
   changeEmail: (newEmail: string) => Promise<AuthResult>;
+  setTestUser: (email: string, displayName: string) => void;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const [testUser, setTestUserState] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -36,7 +38,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  const setTestUser = (email: string, displayName: string) => {
+    setTestUserState({
+      id: 'test-user',
+      email,
+      user_metadata: { display_name: displayName },
+      app_metadata: {},
+      aud: 'authenticated',
+      created_at: new Date().toISOString(),
+    } as unknown as User);
+  };
+
   const signOut = async () => {
+    setTestUserState(null);
     await supabase.auth.signOut();
   };
 
@@ -76,8 +90,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        session,
-        user: session?.user ?? null,
+        session: session ?? (testUser ? ({ user: testUser } as unknown as Session) : null),
+        user: session?.user ?? testUser,
         loading,
         signOut,
         signInWithIdToken,
@@ -85,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         verifyOtp,
         updateProfile,
         changeEmail,
+        setTestUser,
       }}
     >
       {children}
