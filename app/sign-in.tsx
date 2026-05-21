@@ -210,41 +210,8 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
     goToStep('success');
   };
 
-  const handleApple = async () => {
-    try {
-      const AppleAuthentication = await import('expo-apple-authentication');
-      const nonce = Math.random().toString(36).substring(2);
-      const encoder = new TextEncoder();
-      const data = encoder.encode(nonce);
-      const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', data);
-      const hashedNonce = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-        nonce: hashedNonce,
-      });
-      if (credential.identityToken) {
-        setLoading(true);
-        const { error: e, isNewUser: newUser, userName } = await signInWithIdToken('apple', credential.identityToken, nonce);
-        setLoading(false);
-        if (e) { setError(e); return; }
-        setIsNewUser(newUser);
-        if (newUser) {
-          const appleName = credential.fullName
-            ? `${credential.fullName.givenName || ''} ${credential.fullName.familyName || ''}`.trim()
-            : '';
-          if (appleName) setName(appleName);
-          goToStep('name');
-        } else {
-          setDisplayName(userName || 'there');
-          goToStep('success');
-        }
-      }
-    } catch (e: any) {
-      if (e.code !== 'ERR_REQUEST_CANCELED') setError('Apple sign-in failed');
-    }
+  const handleApple = () => {
+    setError('Apple sign-in requires a development build.');
   };
 
   const handleGoogle = () => {
