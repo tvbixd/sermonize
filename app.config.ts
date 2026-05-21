@@ -13,7 +13,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   splash: {
     image: './assets/splash.png',
     resizeMode: 'contain',
-    backgroundColor: '#F1F3F5',
+    backgroundColor: '#F2F2F7',
   },
   ios: {
     supportsTablet: true,
@@ -50,13 +50,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     'expo-secure-store',
-    [
-      '@sentry/react-native/expo',
-      {
-        organization: process.env.SENTRY_ORG ?? '',
-        project: process.env.SENTRY_PROJECT ?? '',
-      },
-    ],
   ],
   experiments: {
     typedRoutes: true,
