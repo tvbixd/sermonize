@@ -36,6 +36,7 @@ export default function Root() {
   const t = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
   const { session, loading: authLoading } = useAuth();
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!authLoading) setChecked(true);
@@ -45,8 +46,6 @@ export default function Root() {
   if (session) return <Redirect href="/folders" />;
 
   const setupIndex = SETUP_STEPS.indexOf(step);
-
-  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   const goNext = (next: Step) => {
     Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
@@ -259,46 +258,47 @@ function useStaggerFade(count: number, delay = 150) {
   return anims;
 }
 
-function ValueVisual({ kind, t }: { kind: 'transcribe' | 'outline' | 'scripture'; t: Colors }) {
-  if (kind === 'transcribe') {
-    const fades = useStaggerFade(2, 200);
-    return (
-      <View style={[vStyles.card, { backgroundColor: t.bgSurface }]}>
-        <Animated.View style={[vStyles.micCircle, { backgroundColor: t.accentBlue, opacity: fades[0], transform: [{ scale: fades[0] }] }]}>
-          <MicIcon size={32} color="#fff" />
+function TranscribeVisual({ t }: { t: Colors }) {
+  const fades = useStaggerFade(2, 200);
+  return (
+    <View style={[vStyles.card, { backgroundColor: t.bgSurface }]}>
+      <Animated.View style={[vStyles.micCircle, { backgroundColor: t.accentBlue, opacity: fades[0], transform: [{ scale: fades[0] }] }]}>
+        <MicIcon size={32} color="#fff" />
+      </Animated.View>
+      <Animated.View style={[vStyles.transcriptBubble, { backgroundColor: t.bgSurfaceRaised, opacity: fades[1] }]}>
+        <Text style={[vStyles.transcriptText, { color: t.textPrimary }]}>
+          …not as scholars, but as <Text style={{ backgroundColor: `${t.accentBlue}22` }}>sojourners</Text>…
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+function OutlineVisual({ t }: { t: Colors }) {
+  const points = [
+    { n: '1', t: 'Blessing precedes command', sub: 'Gen 15:6' },
+    { n: '2', t: 'The language of sojourners', sub: 'Heb 11:13' },
+    { n: '3', t: 'What we inherit, we also carry', sub: 'Gen 26:3' },
+  ];
+  const fades = useStaggerFade(3);
+  return (
+    <View style={[vStyles.card, { backgroundColor: t.bgSurface, padding: 20 }]}>
+      {points.map((p, i) => (
+        <Animated.View key={i} style={[vStyles.outlineRow, { backgroundColor: t.bgSurfaceRaised, opacity: fades[i], transform: [{ translateY: fades[i].interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] }]}>
+          <View style={[vStyles.outlineNum, { backgroundColor: t.accentBlue }]}>
+            <Text style={vStyles.outlineNumText}>{p.n}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[vStyles.outlineTitle, { color: t.textPrimary }]}>{p.t}</Text>
+            <Text style={[vStyles.outlineSub, { color: t.accentBlue }]}>{p.sub}</Text>
+          </View>
         </Animated.View>
-        <Animated.View style={[vStyles.transcriptBubble, { backgroundColor: t.bgSurfaceRaised, opacity: fades[1] }]}>
-          <Text style={[vStyles.transcriptText, { color: t.textPrimary }]}>
-            …not as scholars, but as <Text style={{ backgroundColor: `${t.accentBlue}22` }}>sojourners</Text>…
-          </Text>
-        </Animated.View>
-      </View>
-    );
-  }
-  if (kind === 'outline') {
-    const points = [
-      { n: '1', t: 'Blessing precedes command', sub: 'Gen 15:6' },
-      { n: '2', t: 'The language of sojourners', sub: 'Heb 11:13' },
-      { n: '3', t: 'What we inherit, we also carry', sub: 'Gen 26:3' },
-    ];
-    const fades = useStaggerFade(3);
-    return (
-      <View style={[vStyles.card, { backgroundColor: t.bgSurface, padding: 20 }]}>
-        {points.map((p, i) => (
-          <Animated.View key={i} style={[vStyles.outlineRow, { backgroundColor: t.bgSurfaceRaised, opacity: fades[i], transform: [{ translateY: fades[i].interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] }]}>
-            <View style={[vStyles.outlineNum, { backgroundColor: t.accentBlue }]}>
-              <Text style={vStyles.outlineNumText}>{p.n}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[vStyles.outlineTitle, { color: t.textPrimary }]}>{p.t}</Text>
-              <Text style={[vStyles.outlineSub, { color: t.accentBlue }]}>{p.sub}</Text>
-            </View>
-          </Animated.View>
-        ))}
-      </View>
-    );
-  }
-  // scripture
+      ))}
+    </View>
+  );
+}
+
+function ScriptureVisual({ t }: { t: Colors }) {
   const verses = [
     { ref: 'Genesis 15:6', text: '"And he believed in the Lord; and he counted it to him for righteousness."' },
     { ref: 'Hebrews 11:13', text: '"These all died in faith, not having received the promises…"' },
@@ -319,6 +319,12 @@ function ValueVisual({ kind, t }: { kind: 'transcribe' | 'outline' | 'scripture'
       ))}
     </View>
   );
+}
+
+function ValueVisual({ kind, t }: { kind: 'transcribe' | 'outline' | 'scripture'; t: Colors }) {
+  if (kind === 'transcribe') return <TranscribeVisual t={t} />;
+  if (kind === 'outline') return <OutlineVisual t={t} />;
+  return <ScriptureVisual t={t} />;
 }
 
 const vStyles = StyleSheet.create({
