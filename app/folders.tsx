@@ -153,7 +153,7 @@ export default function FoldersScreen() {
             activeOpacity={0.85}
           >
             <View style={styles.welcomeIcon}>
-              <MicIcon size={28} color={t.accentRed} />
+              <MicIcon size={28} color={t.accentBlue} />
             </View>
             <View style={styles.welcomeText}>
               <Text style={styles.welcomeTitle}>Record your first sermon</Text>
@@ -394,7 +394,7 @@ function makeStyles(t: Colors) {
     welcomeCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: t.bgWarm,
+      backgroundColor: `${t.accentBlue}12`,
       borderRadius: radius.card,
       padding: 18,
       gap: 14,
@@ -404,7 +404,7 @@ function makeStyles(t: Colors) {
       width: 52,
       height: 52,
       borderRadius: 26,
-      backgroundColor: t.highlight,
+      backgroundColor: `${t.accentBlue}1A`,
       alignItems: 'center',
       justifyContent: 'center',
     },
