@@ -13,7 +13,8 @@ type AuthState = {
   signInWithIdToken: (provider: 'google' | 'apple', idToken: string, nonce?: string) => Promise<AuthResultWithUser>;
   sendOtp: (email: string) => Promise<AuthResult>;
   verifyOtp: (email: string, token: string) => Promise<AuthResultWithUser>;
-  updateProfile: (displayName: string) => Promise<AuthResult>;
+  updateProfile: (data: Record<string, unknown>) => Promise<AuthResult>;
+  changeEmail: (newEmail: string) => Promise<AuthResult>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -62,8 +63,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null, isNewUser: !userName, userName };
   };
 
-  const updateProfile = async (displayName: string): Promise<AuthResult> => {
-    const { error } = await supabase.auth.updateUser({ data: { display_name: displayName } });
+  const updateProfile = async (data: Record<string, unknown>): Promise<AuthResult> => {
+    const { error } = await supabase.auth.updateUser({ data });
+    return { error: error?.message ?? null };
+  };
+
+  const changeEmail = async (newEmail: string): Promise<AuthResult> => {
+    const { error } = await supabase.auth.updateUser({ email: newEmail });
     return { error: error?.message ?? null };
   };
 
@@ -78,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         sendOtp,
         verifyOtp,
         updateProfile,
+        changeEmail,
       }}
     >
       {children}

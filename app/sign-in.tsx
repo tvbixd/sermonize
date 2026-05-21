@@ -205,7 +205,7 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
     if (!name.trim()) return;
     setLoading(true);
     setError('');
-    const { error: e } = await updateProfile(name.trim());
+    const { error: e } = await updateProfile({ display_name: name.trim() });
     setLoading(false);
     if (e) { setError(e); return; }
     setDisplayName(name.trim());
