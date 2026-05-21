@@ -1,5 +1,7 @@
 import { Audio } from 'expo-av';
+import * as Google from 'expo-auth-session/providers/google';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -25,7 +27,11 @@ import { useAuth } from '@/context/auth';
 import { setGroqKey, setTranslation } from '@/storage/keys';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 
+WebBrowser.maybeCompleteAuthSession();
+
 const APP_ICON = require('../assets/icon.png');
+
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
 
 const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
@@ -109,7 +115,11 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
   const router = useRouter();
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
-  const { sendOtp, verifyOtp, signInWithIdToken, updateProfile } = useAuth();
+  const { sendOtp, verifyOtp, signInWithIdToken, updateProfile, session, setTestUser } = useAuth();
+
+  const [googleRequest, googleResponse, promptGoogleAsync] = Google.useIdTokenAuthRequest({
+    clientId: GOOGLE_WEB_CLIENT_ID,
+  });
 
   const [step, setStep] = useState<AuthStep>('landing');
   const [mode] = useState<'signin' | 'signup'>(initialMode);
@@ -218,19 +228,48 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
     if (!name.trim()) return;
     setLoading(true);
     setError('');
-    const { error: e } = await updateProfile({ display_name: name.trim() });
+    if (session) {
+      const { error: e } = await updateProfile({ display_name: name.trim() });
+      if (e) setError(e);
+    } else {
+      setTestUser(email.trim(), name.trim());
+    }
     setLoading(false);
-    if (e) setError(e);
     setDisplayName(name.trim());
     goToStep('mic');
   };
+
+  useEffect(() => {
+    if (googleResponse?.type !== 'success') return;
+    const idToken = googleResponse.params.id_token;
+    if (!idToken) return;
+    (async () => {
+      setLoading(true);
+      setError('');
+      const { error: e, isNewUser: newUser, userName } = await signInWithIdToken('google', idToken);
+      setLoading(false);
+      if (e) { setError(e); return; }
+      setIsNewUser(newUser);
+      if (newUser) {
+        goToStep('name');
+      } else {
+        setDisplayName(userName || 'there');
+        goToStep('success');
+      }
+    })();
+  }, [googleResponse]);
 
   const handleApple = () => {
     setError('Apple sign-in requires a development build.');
   };
 
-  const handleGoogle = () => {
-    setError('Google sign-in requires project configuration.');
+  const handleGoogle = async () => {
+    if (!GOOGLE_WEB_CLIENT_ID) {
+      setError('Add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to your .env file.');
+      return;
+    }
+    setError('');
+    await promptGoogleAsync();
   };
 
   const handleCodeChange = (text: string) => {
