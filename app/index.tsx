@@ -29,21 +29,12 @@ const { width: SCREEN_W } = Dimensions.get('window');
 type Step = 'welcome' | 'value' | 'mic' | 'groq' | 'translation' | 'allset';
 const SETUP_STEPS: Step[] = ['value', 'mic', 'groq', 'translation'];
 
-export default function Root() {
-  const [checked, setChecked] = useState(false);
+function OnboardingFlow() {
   const [step, setStep] = useState<Step>('welcome');
   const router = useRouter();
   const t = useTheme();
   const styles = useMemo(() => makeStyles(t), [t]);
-  const { session, loading: authLoading } = useAuth();
   const fadeAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (!authLoading) setChecked(true);
-  }, [authLoading]);
-
-  if (!checked) return null;
-  if (session) return <Redirect href="/folders" />;
 
   const setupIndex = SETUP_STEPS.indexOf(step);
 
@@ -64,7 +55,6 @@ export default function Root() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Progress chrome for setup steps */}
       {setupIndex >= 0 && (
         <StepChrome
           step={setupIndex}
@@ -98,6 +88,14 @@ export default function Root() {
       </Animated.View>
     </SafeAreaView>
   );
+}
+
+export default function Root() {
+  const { session, loading: authLoading } = useAuth();
+
+  if (authLoading) return null;
+  if (session) return <Redirect href="/folders" />;
+  return <OnboardingFlow />;
 }
 
 // ─── Step Chrome (progress dots + back/skip) ─────────────────────────────────
