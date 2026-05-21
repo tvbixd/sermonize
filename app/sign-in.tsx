@@ -475,7 +475,7 @@ function EmailView({
             </View>
             <TextInput
               style={[s.textInput, { color: t.textPrimary }]}
-              placeholder="pastor@church.com"
+              placeholder="you@example.com"
               placeholderTextColor={t.textTertiary}
               value={email}
               onChangeText={onChangeEmail}

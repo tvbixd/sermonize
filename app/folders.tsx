@@ -409,7 +409,7 @@ function makeStyles(t: Colors) {
       justifyContent: 'center',
     },
     welcomeText: { flex: 1 },
-    welcomeTitle: { ...typography.headline, color: t.textPrimary, marginBottom: 2 },
+    welcomeTitle: { ...typography.headline, color: t.accentBlue, marginBottom: 2 },
     welcomeDesc: { ...typography.footnote, color: t.textSecondary, lineHeight: 18 },
 
     overlay: { flex: 1, backgroundColor: t.dimOverlay, justifyContent: 'flex-end' },
