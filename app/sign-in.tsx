@@ -123,10 +123,10 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
   const goToStep = useCallback((next: AuthStep) => {
-    Animated.timing(stepFade, { toValue: 0, duration: 120, useNativeDriver: true }).start(() => {
+    Animated.timing(stepFade, { toValue: 0.3, duration: 80, useNativeDriver: true }).start(() => {
       setStep(next);
       setError('');
-      Animated.timing(stepFade, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+      Animated.timing(stepFade, { toValue: 1, duration: 150, useNativeDriver: true }).start();
     });
   }, [stepFade]);
 
