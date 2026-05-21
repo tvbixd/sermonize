@@ -1,4 +1,3 @@
-import * as AppleAuthentication from 'expo-apple-authentication';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -213,6 +212,7 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
 
   const handleApple = async () => {
     try {
+      const AppleAuthentication = await import('expo-apple-authentication');
       const nonce = Math.random().toString(36).substring(2);
       const encoder = new TextEncoder();
       const data = encoder.encode(nonce);
