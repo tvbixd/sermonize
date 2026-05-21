@@ -1,3 +1,4 @@
+import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -7,8 +8,10 @@ import {
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -17,14 +20,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Circle, Path, Rect, Svg } from 'react-native-svg';
+import { CheckIcon, MicIcon } from '@/components/icons';
 import { useAuth } from '@/context/auth';
+import { setGroqKey, setTranslation } from '@/storage/keys';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 
 const APP_ICON = require('../assets/icon.png');
 
 const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
-type AuthStep = 'landing' | 'email' | 'otp' | 'name' | 'success';
+type AuthStep = 'landing' | 'email' | 'otp' | 'name' | 'mic' | 'groq' | 'translation' | 'success';
 
 // ─── SVG Glyphs ──────────────────────────────────────────────────────────────
 
@@ -217,7 +222,7 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
     setLoading(false);
     if (e) setError(e);
     setDisplayName(name.trim());
-    goToStep('success');
+    goToStep('mic');
   };
 
   const handleApple = () => {
@@ -297,11 +302,32 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
               s={s}
             />
           )}
+          {step === 'mic' && (
+            <MicSetupView
+              onNext={() => goToStep('groq')}
+              t={t}
+              s={s}
+            />
+          )}
+          {step === 'groq' && (
+            <GroqSetupView
+              onNext={() => goToStep('translation')}
+              t={t}
+              s={s}
+            />
+          )}
+          {step === 'translation' && (
+            <TranslationSetupView
+              onNext={() => goToStep('success')}
+              t={t}
+              s={s}
+            />
+          )}
           {step === 'success' && (
             <SuccessView
               displayName={displayName}
               isNewUser={isNewUser}
-              onContinue={() => router.replace(isNewUser ? '/onboarding' : '/folders')}
+              onContinue={() => router.replace('/folders')}
               t={t}
               s={s}
             />
@@ -691,6 +717,260 @@ function NameView({
   );
 }
 
+// ─── Mic Setup ──────────────────────────────────────────────────────────────
+
+function MicSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: ReturnType<typeof makeStyles> }) {
+  const [granted, setGranted] = useState(false);
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const grantedScale = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, { toValue: 1, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  const requestPermission = async () => {
+    try {
+      const { granted: g } = await Audio.requestPermissionsAsync();
+      if (g) {
+        setGranted(true);
+        Animated.spring(grantedScale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
+        setTimeout(onNext, 1000);
+      }
+    } catch {
+      setGranted(false);
+    }
+  };
+
+  const translateY = floatAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -8] });
+
+  return (
+    <View style={{ flex: 1 }}>
+      <NavBar t={t} />
+      <View style={s.setupCenter}>
+        {granted ? (
+          <Animated.View style={[s.grantedCircle, { transform: [{ scale: grantedScale }] }]}>
+            <Svg width={52} height={52} viewBox="0 0 58 58" fill="none">
+              <Path d="M14 30l10 10 20-22" stroke="#fff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          </Animated.View>
+        ) : (
+          <Animated.View style={[s.micCircleLarge, { backgroundColor: t.accentBlue, transform: [{ translateY }] }]}>
+            <MicIcon size={36} color="#fff" />
+          </Animated.View>
+        )}
+        <Text style={s.setupTitle}>
+          {granted ? 'You’re all set.' : 'Let Scribe hear you.'}
+        </Text>
+        <Text style={s.setupSub}>
+          {granted
+            ? 'Microphone access granted.'
+            : 'Scribe needs microphone access to record your sermons. Audio stays on your phone.'}
+        </Text>
+      </View>
+      <View style={s.bottomAction}>
+        {granted ? (
+          <TouchableOpacity style={[s.primaryBtn, { backgroundColor: t.accentBlue }]} activeOpacity={0.85} onPress={onNext}>
+            <Text style={s.primaryBtnText}>Continue</Text>
+          </TouchableOpacity>
+        ) : (
+          <>
+            <TouchableOpacity style={[s.primaryBtn, { backgroundColor: t.accentBlue }]} activeOpacity={0.85} onPress={requestPermission}>
+              <Text style={s.primaryBtnText}>Allow Microphone Access</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onNext} activeOpacity={0.7} style={{ alignItems: 'center', paddingVertical: 10 }}>
+              <Text style={{ ...typography.subhead, color: t.textSecondary, fontWeight: '500' }}>Not now</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ─── Groq Setup ─────────────────────────────────────────────────────────────
+
+function GroqSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: ReturnType<typeof makeStyles> }) {
+  const [key, setKey] = useState('');
+  const [status, setStatus] = useState<'empty' | 'verifying' | 'valid' | 'invalid'>('empty');
+
+  const validate = async (k: string) => {
+    if (!k.trim()) { setStatus('empty'); return; }
+    setStatus('verifying');
+    try {
+      const resp = await fetch('https://api.groq.com/openai/v1/models', {
+        headers: { Authorization: `Bearer ${k.trim()}` },
+      });
+      setStatus(resp.ok ? 'valid' : 'invalid');
+    } catch {
+      setStatus('valid');
+    }
+  };
+
+  const onChangeKey = (v: string) => { setKey(v); setStatus('empty'); };
+  const onSubmitKey = () => void validate(key);
+
+  const onContinue = async () => {
+    if (status === 'valid') await setGroqKey(key.trim());
+    onNext();
+  };
+
+  return (
+    <View style={{ flex: 1 }}>
+      <NavBar t={t} />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: 20, paddingBottom: spacing.md }} keyboardShouldPersistTaps="handled">
+        <View style={s.setupIconWrap}>
+          <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
+            <Rect x="3" y="11" width="18" height="11" rx="2" stroke={t.accentBlue} strokeWidth="1.8" />
+            <Path d="M7 11V7a5 5 0 0 1 10 0v4" stroke={t.accentBlue} strokeWidth="1.8" strokeLinecap="round" />
+            <Circle cx="12" cy="16.5" r="1.5" fill={t.accentBlue} />
+          </Svg>
+        </View>
+        <Text style={s.stepTitle}>Add your Groq key.</Text>
+        <Text style={[s.stepSubtitle, { marginBottom: 24 }]}>
+          Scribe uses Groq for fast, private transcription. The free tier covers most preachers.
+        </Text>
+
+        <View style={[s.groqCard, { backgroundColor: t.bgSurface }]}>
+          <TextInput
+            style={s.groqInput}
+            value={key}
+            onChangeText={onChangeKey}
+            onEndEditing={onSubmitKey}
+            placeholder="gsk_..."
+            placeholderTextColor={t.textTertiary}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="done"
+            onSubmitEditing={onSubmitKey}
+          />
+          {key.length > 0 && (
+            <TouchableOpacity onPress={() => { setKey(''); setStatus('empty'); }} style={{ padding: 4 }}>
+              <View style={[s.clearCircle, { backgroundColor: t.textTertiary }]}>
+                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{'✕'}</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={s.groqStatus}>
+          {status === 'verifying' && (
+            <>
+              <ActivityIndicator size="small" color={t.accentBlue} />
+              <Text style={[s.groqStatusText, { color: t.textSecondary }]}>Verifying…</Text>
+            </>
+          )}
+          {status === 'valid' && (
+            <>
+              <CheckIcon size={14} color={t.statusSuccess} />
+              <Text style={[s.groqStatusText, { color: t.statusSuccess }]}>Key looks good</Text>
+            </>
+          )}
+          {status === 'invalid' && (
+            <Text style={[s.groqStatusText, { color: t.statusError }]}>That key didn't work. Double-check and try again.</Text>
+          )}
+        </View>
+
+        <TouchableOpacity
+          style={[s.groqHelp, { backgroundColor: t.bgSurface }]}
+          activeOpacity={0.7}
+          onPress={() => void Linking.openURL('https://console.groq.com')}
+        >
+          <View style={[s.groqHelpIcon, { backgroundColor: `${t.accentBlue}1A` }]}>
+            <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
+              <Circle cx="8" cy="8" r="7" stroke={t.accentBlue} strokeWidth="1.5" />
+              <Path d="M6 6a2 2 0 1 1 3 1.6c-.6.4-1 .6-1 1.2M8 11.5v.01" stroke={t.accentBlue} strokeWidth="1.5" strokeLinecap="round" />
+            </Svg>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ ...typography.subhead, fontWeight: '500', color: t.textPrimary, marginBottom: 2 }}>Don't have a key?</Text>
+            <Text style={{ ...typography.footnote, color: t.textSecondary }}>Open console.groq.com — takes two minutes.</Text>
+          </View>
+        </TouchableOpacity>
+      </ScrollView>
+
+      <View style={s.bottomAction}>
+        <TouchableOpacity
+          style={[s.primaryBtn, { backgroundColor: status === 'valid' ? t.accentBlue : '#C7C7CC' }]}
+          activeOpacity={0.85}
+          onPress={onContinue}
+          disabled={status !== 'valid'}
+        >
+          <Text style={s.primaryBtnText}>Continue</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onNext} activeOpacity={0.7} style={{ alignItems: 'center', paddingVertical: 10 }}>
+          <Text style={{ ...typography.subhead, color: t.textSecondary, fontWeight: '500' }}>I'll add it later</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+// ─── Translation Setup ──────────────────────────────────────────────────────
+
+const SETUP_TRANSLATIONS = [
+  { id: 'kjv', label: 'King James Version', abbr: 'KJV', desc: 'Classic English. Familiar cadence.' },
+  { id: 'nlt', label: 'New Living Translation', abbr: 'NLT', desc: 'Clear, natural language.' },
+  { id: 'niv', label: 'New International Version', abbr: 'NIV', desc: 'Balanced accuracy and readability.' },
+  { id: 'amp', label: 'Amplified Bible', abbr: 'AMP', desc: 'Expanded meanings and nuance.' },
+];
+
+function TranslationSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: ReturnType<typeof makeStyles> }) {
+  const [selected, setSelected] = useState('kjv');
+
+  const onContinue = async () => {
+    await setTranslation(selected);
+    onNext();
+  };
+
+  return (
+    <View style={{ flex: 1 }}>
+      <NavBar t={t} />
+      <View style={{ flex: 1, paddingHorizontal: spacing.lg, paddingTop: 20 }}>
+        <View style={s.setupIconWrap}>
+          <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
+            <Path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke={t.accentBlue} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            <Path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke={t.accentBlue} strokeWidth="1.8" />
+          </Svg>
+        </View>
+        <Text style={s.stepTitle}>Pick a translation.</Text>
+        <Text style={s.stepSubtitle}>
+          Scribe will look up every verse you cite in this translation. You can switch any time in Settings.
+        </Text>
+
+        <View style={[s.translationCard, { backgroundColor: t.bgSurface }]}>
+          {SETUP_TRANSLATIONS.map((tr, i) => (
+            <React.Fragment key={tr.id}>
+              <TouchableOpacity style={s.translationRow} activeOpacity={0.6} onPress={() => setSelected(tr.id)}>
+                <View style={[s.translationBadge, { backgroundColor: selected === tr.id ? t.accentBlue : t.bgSurfaceRaised }]}>
+                  <Text style={[s.translationBadgeText, { color: selected === tr.id ? '#fff' : t.textSecondary }]}>{tr.abbr}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.translationName, { color: t.textPrimary }]}>{tr.label}</Text>
+                  <Text style={[s.translationDesc, { color: t.textSecondary }]}>{tr.desc}</Text>
+                </View>
+                {selected === tr.id && <CheckIcon size={20} color={t.accentBlue} />}
+              </TouchableOpacity>
+              {i < SETUP_TRANSLATIONS.length - 1 && (
+                <View style={[s.translationDivider, { backgroundColor: t.separator }]} />
+              )}
+            </React.Fragment>
+          ))}
+        </View>
+      </View>
+      <View style={s.bottomAction}>
+        <TouchableOpacity style={[s.primaryBtn, { backgroundColor: t.accentBlue }]} activeOpacity={0.85} onPress={onContinue}>
+          <Text style={s.primaryBtnText}>Continue</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ─── Success ─────────────────────────────────────────────────────────────────
 
 function SuccessView({
@@ -983,6 +1263,94 @@ function makeStyles(t: Colors) {
       paddingHorizontal: 20,
       paddingBottom: 14,
     },
+
+    // Setup steps (mic, groq, translation)
+    setupCenter: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.xl,
+      gap: 24,
+    },
+    setupTitle: {
+      fontSize: 28,
+      fontWeight: '700',
+      color: t.textPrimary,
+      textAlign: 'center',
+      letterSpacing: -0.6,
+    },
+    setupSub: {
+      ...typography.body,
+      color: t.textSecondary,
+      textAlign: 'center',
+      lineHeight: 24,
+      maxWidth: 300,
+    },
+    setupIconWrap: {
+      width: 56,
+      height: 56,
+      borderRadius: 14,
+      backgroundColor: t.bgSurface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 18,
+    },
+    micCircleLarge: {
+      width: 88,
+      height: 88,
+      borderRadius: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...Platform.select({
+        ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16 },
+        android: { elevation: 8 },
+      }),
+    },
+    grantedCircle: {
+      width: 88,
+      height: 88,
+      borderRadius: 44,
+      backgroundColor: '#30B65B',
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...Platform.select({
+        ios: { shadowColor: '#30B65B', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 16 },
+        android: { elevation: 8 },
+      }),
+    },
+    groqCard: {
+      borderRadius: radius.card,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      minHeight: 50,
+    },
+    groqInput: {
+      flex: 1,
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+      fontSize: 15,
+      letterSpacing: 0.5,
+      color: t.textPrimary,
+      paddingVertical: 12,
+    },
+    groqStatus: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 22, paddingTop: 10 },
+    groqStatusText: { ...typography.footnote },
+    groqHelp: {
+      marginTop: 20,
+      borderRadius: 14,
+      padding: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+    },
+    groqHelpIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+    translationCard: { borderRadius: radius.card, marginTop: spacing.lg, overflow: 'hidden' },
+    translationRow: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 14 },
+    translationBadge: { width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    translationBadgeText: { fontSize: 13, fontWeight: '700', letterSpacing: 0.3 },
+    translationName: { ...typography.body, fontWeight: '500', marginBottom: 2 },
+    translationDesc: { ...typography.footnote },
+    translationDivider: { height: StyleSheet.hairlineWidth, marginLeft: 14 },
   });
 }
 
