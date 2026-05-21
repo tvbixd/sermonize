@@ -1,5 +1,4 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
-import * as Crypto from 'expo-crypto';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -215,7 +214,10 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
   const handleApple = async () => {
     try {
       const nonce = Math.random().toString(36).substring(2);
-      const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, nonce);
+      const encoder = new TextEncoder();
+      const data = encoder.encode(nonce);
+      const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', data);
+      const hashedNonce = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
