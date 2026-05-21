@@ -440,7 +440,9 @@ function EmailView({
       <View style={s.inputSection}>
         <View style={[s.inputCard, { backgroundColor: t.bgSurface }]}>
           <View style={s.inputRow}>
-            <MailGlyph color={t.textSecondary} />
+            <View style={[s.iconCircle, { backgroundColor: `${t.accentBlue}1A` }]}>
+              <MailGlyph color={t.accentBlue} />
+            </View>
             <TextInput
               style={[s.textInput, { color: t.textPrimary }]}
               placeholder="pastor@church.com"
@@ -643,13 +645,13 @@ function NameView({
 
       <View style={s.inputSection}>
         <View style={[s.inputCard, { backgroundColor: t.bgSurface }]}>
-          <View style={[s.inputRow, { paddingVertical: 14 }]}>
-            <View style={[s.avatarCircle, { backgroundColor: `${t.accentBlue}1A` }]}>
+          <View style={s.inputRow}>
+            <View style={[s.iconCircle, { backgroundColor: `${t.accentBlue}1A` }]}>
               <PersonGlyph color={t.accentBlue} />
             </View>
             <TextInput
               style={[s.textInput, { color: t.textPrimary }]}
-              placeholder="Pastor Daniel Marsh"
+              placeholder="Daniel Ayowole"
               placeholderTextColor={t.textTertiary}
               value={name}
               onChangeText={onChangeName}
@@ -858,13 +860,23 @@ function makeStyles(t: Colors) {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingVertical: 10,
       gap: 12,
+      minHeight: 56,
     },
     textInput: {
       flex: 1,
-      ...typography.body,
-      paddingVertical: 4,
+      fontSize: 17,
+      fontWeight: '400' as const,
+      letterSpacing: -0.2,
+      paddingVertical: 0,
+    },
+    iconCircle: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
     },
     clearCircle: {
       width: 22,
@@ -877,13 +889,6 @@ function makeStyles(t: Colors) {
       ...typography.footnote,
       paddingTop: 10,
       paddingHorizontal: 6,
-    },
-    avatarCircle: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      alignItems: 'center',
-      justifyContent: 'center',
     },
 
     otpSection: {
