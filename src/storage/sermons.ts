@@ -35,7 +35,10 @@ async function loadAll(): Promise<Sermon[]> {
   for (const name of jsonFiles) {
     try {
       const raw = await FileSystem.readAsStringAsync(`${SERMONS_DIR}${name}`);
-      sermons.push(JSON.parse(raw) as Sermon);
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.id === 'string' && typeof parsed.createdAt === 'number') {
+        sermons.push(parsed as Sermon);
+      }
     } catch {
       // skip corrupt entries
     }
@@ -77,7 +80,9 @@ export async function getSermon(id: string): Promise<Sermon | null> {
   const info = await FileSystem.getInfoAsync(path);
   if (!info.exists) return null;
   const raw = await FileSystem.readAsStringAsync(path);
-  return JSON.parse(raw) as Sermon;
+  const parsed = JSON.parse(raw);
+  if (!parsed || typeof parsed.id !== 'string' || typeof parsed.createdAt !== 'number') return null;
+  return parsed as Sermon;
 }
 
 export async function saveSermon(sermon: Sermon): Promise<void> {

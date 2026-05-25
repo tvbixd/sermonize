@@ -97,7 +97,8 @@ export class SermonRecorder {
       await this.current.stopAndUnloadAsync();
       tempUri = this.current.getURI();
     } catch {
-      // ignore — will try again next tick
+      try { await this.current.stopAndUnloadAsync(); } catch { /* exhausted retries */ }
+      tempUri = this.current.getURI();
     }
     this.current = null;
 
@@ -141,7 +142,10 @@ export class SermonRecorder {
       try {
         await this.current.stopAndUnloadAsync();
         tempUri = this.current.getURI();
-      } catch { /* ignore */ }
+      } catch {
+        try { await this.current.stopAndUnloadAsync(); } catch { /* exhausted retries */ }
+        tempUri = this.current.getURI();
+      }
 
       if (this.segmentStartedAt != null) {
         this.accumulatedMs += Date.now() - this.segmentStartedAt;

@@ -1,8 +1,11 @@
+import { ErrorBoundary } from 'expo-router';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '@/context/auth';
 import { useTheme } from '@/theme';
+
+export { ErrorBoundary };
 
 function RootLayout() {
   const t = useTheme();
