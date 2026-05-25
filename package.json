@@ -12,7 +12,8 @@
     "build:prod": "eas build --profile production --platform all",
     "submit:ios": "eas submit --platform ios --profile production",
     "submit:android": "eas submit --platform android --profile production",
-    "test": "jest"
+    "test": "jest",
+    "postinstall": "rm -rf node_modules/@expo/router-server"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.1",
