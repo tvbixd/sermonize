@@ -33,8 +33,8 @@ describe('Security gates', () => {
     expect(bible).not.toContain("'G3soqKoVXwubGLo0odCn1'");
   });
 
-  it('ErrorBoundary is exported from root layout', () => {
+  it('ErrorBoundary is defined in root layout', () => {
     const layout = fs.readFileSync(path.join(ROOT, 'app/_layout.tsx'), 'utf-8');
-    expect(layout).toContain('ErrorBoundary');
+    expect(layout).toContain('export function ErrorBoundary');
   });
 });

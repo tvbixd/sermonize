@@ -1,11 +1,21 @@
-import { ErrorBoundary } from 'expo-router';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { Text, View, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '@/context/auth';
 import { useTheme } from '@/theme';
 
-export { ErrorBoundary };
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+      <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8 }}>Something went wrong</Text>
+      <Text style={{ fontSize: 14, color: '#888', textAlign: 'center', marginBottom: 20 }}>{error.message}</Text>
+      <TouchableOpacity onPress={retry} style={{ backgroundColor: '#0A84FF', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
+        <Text style={{ color: '#fff', fontWeight: '600' }}>Try Again</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 function RootLayout() {
   const t = useTheme();
