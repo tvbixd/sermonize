@@ -10,6 +10,7 @@ const APIBIBLE_ENDPOINTS = [
 const BUNDLED_BIBLE_KEY: string =
   (Constants.expoConfig?.extra?.apiBibleKey as string) || '';
 
+const CACHE_MAX = 500;
 const memoryCache = new Map<string, Scripture>();
 let activeApiBibleBase: string | null = null;
 
@@ -173,6 +174,10 @@ export async function lookupVerse(
       result = await lookupViaLegacy(reference, tid);
     }
 
+    if (memoryCache.size >= CACHE_MAX) {
+      const oldest = memoryCache.keys().next().value!;
+      memoryCache.delete(oldest);
+    }
     memoryCache.set(cacheKey, result);
     return result;
   } catch {

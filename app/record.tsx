@@ -96,11 +96,14 @@ export default function RecordScreen() {
   const chunkCountRef = useRef<number>(0);
   const [showOutline, setShowOutline] = useState(false);
   const [chunkWarning, setChunkWarning] = useState<string | null>(null);
+  const failedChunksRef = useRef(0);
+  const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     reset();
     return () => {
       stopTicker();
+      if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
       void recorderRef.current?.stop().catch(() => undefined);
     };
   }, []);
@@ -132,8 +135,11 @@ export default function RecordScreen() {
       }
     } catch (e) {
       if (e instanceof NetworkError || e instanceof RateLimitError) {
-        setChunkWarning(e.message);
-        setTimeout(() => setChunkWarning(null), 6000);
+        failedChunksRef.current += 1;
+        const count = failedChunksRef.current;
+        setChunkWarning(count > 1 ? `${e.message} (${count} chunks missed)` : e.message);
+        if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+        warningTimerRef.current = setTimeout(() => setChunkWarning(null), 10000);
       }
     }
   };

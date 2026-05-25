@@ -811,7 +811,7 @@ function GroqSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: Ret
       });
       setStatus(resp.ok ? 'valid' : 'invalid');
     } catch {
-      setStatus('valid');
+      setStatus('invalid');
     }
   };
 
