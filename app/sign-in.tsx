@@ -177,7 +177,7 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
     verifyingRef.current = true;
     setOtpState('verifying');
 
-    if (otpCode === '000000') {
+    if (__DEV__ && otpCode === '000000') {
       verifyingRef.current = false;
       setOtpState('success');
       Keyboard.dismiss();

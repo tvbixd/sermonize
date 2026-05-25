@@ -39,6 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setTestUser = (email: string, displayName: string) => {
+    if (!__DEV__) return;
     setTestUserState({
       id: 'test-user',
       email,
@@ -90,8 +91,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        session: session ?? (testUser ? ({ user: testUser } as unknown as Session) : null),
-        user: session?.user ?? testUser,
+        session: session ?? (__DEV__ && testUser ? ({ user: testUser } as unknown as Session) : null),
+        user: session?.user ?? (__DEV__ ? testUser : null),
         loading,
         signOut,
         signInWithIdToken,
