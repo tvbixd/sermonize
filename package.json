@@ -13,7 +13,7 @@
     "submit:ios": "eas submit --platform ios --profile production",
     "submit:android": "eas submit --platform android --profile production",
     "test": "jest",
-    "postinstall": "rm -rf node_modules/@expo/router-server"
+    "postinstall": "mkdir -p node_modules/expo-router/internal && echo 'module.exports = {};' > node_modules/expo-router/internal/routing.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.1",
