@@ -22,8 +22,9 @@ import { BackChevronIcon, CloseIcon, ExportIcon, PlusIcon, RegenIcon } from '@/c
 import { lookupVerse, lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
+import { transcribeAudio } from '@/services/whisper';
 import { getGroqKey, getTranslation } from '@/storage/keys';
-import { getSermon, saveSermon } from '@/storage/sermons';
+import { audioDir, getSermon, saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Outline, Sermon } from '@/types';
 import { formatDate, formatElapsed, sermonToMarkdown } from '@/util/format';
@@ -175,6 +176,60 @@ export default function SermonDetail() {
     }
   };
 
+  const onRetranscribe = async () => {
+    if (!sermon) return;
+    const dir = audioDir(sermon.id);
+    const entries = await FileSystem.readDirectoryAsync(dir).catch(() => [] as string[]);
+    const audioFiles = entries.filter((f) => f.endsWith('.m4a') || f.endsWith('.mp4') || f.endsWith('.webm')).sort();
+    if (audioFiles.length === 0) {
+      Alert.alert('No Audio', 'No saved audio files found for this sermon.');
+      return;
+    }
+    Alert.alert(
+      'Re-transcribe',
+      `Found ${audioFiles.length} audio chunks. This will replace the current transcript and rebuild the outline.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Re-transcribe',
+          onPress: async () => {
+            setBusy(true);
+            try {
+              const key = await getGroqKey();
+              if (!key) throw new Error('Groq API key not set.');
+              const uris = audioFiles.map((f) => `${dir}${f}`);
+              const transcript = await transcribeAudio(uris, key);
+              const translation = await getTranslation();
+              const outline = transcript.trim()
+                ? await extractOutline(transcript, key)
+                : sermon.outline;
+              const refs = new Set(findScriptureReferences(transcript));
+              for (const p of outline.points) for (const r of p.scriptures) refs.add(r);
+              const scriptures = await lookupVerses([...refs], translation);
+              const updated: Sermon = {
+                ...sermon,
+                transcript,
+                title: outline.title,
+                outline,
+                scriptures,
+                audioUris: uris,
+                isDraft: false,
+              };
+              await saveSermon(updated);
+              setSermon(updated);
+              seedDraft(updated);
+              Alert.alert('Done', 'Sermon re-transcribed successfully.');
+            } catch (e) {
+              Alert.alert('Error', e instanceof Error ? e.message : 'Re-transcription failed.');
+            } finally {
+              setBusy(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const onExport = () => {
     if (!sermon) return;
     Alert.alert('Export', 'Choose a format', [
@@ -260,7 +315,7 @@ export default function SermonDetail() {
           <Text style={styles.sermonTitle} numberOfLines={3}>{sermon.title}</Text>
         )}
         <Text style={styles.sermonMeta}>
-          {formatDate(sermon.createdAt)} · {formatElapsed(sermon.durationMs)}
+          {sermon.isDraft ? 'Draft · ' : ''}{formatDate(sermon.createdAt)} · {formatElapsed(sermon.durationMs)}
         </Text>
       </View>
 
@@ -441,16 +496,29 @@ export default function SermonDetail() {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.regenBtn} onPress={onRegenerate} disabled={busy}>
-          {busy
-            ? <ActivityIndicator color={t.textSecondary} />
-            : (
-              <>
-                <RegenIcon color={t.textPrimary} size={18} />
-                <Text style={styles.regenText}>Regenerate</Text>
-              </>
-            )}
-        </TouchableOpacity>
+        {sermon.isDraft || sermon.audioUris.length > 0 ? (
+          <TouchableOpacity style={styles.regenBtn} onPress={onRetranscribe} disabled={busy}>
+            {busy
+              ? <ActivityIndicator color={t.textSecondary} />
+              : (
+                <>
+                  <RegenIcon color={t.textPrimary} size={18} />
+                  <Text style={styles.regenText}>Re-transcribe</Text>
+                </>
+              )}
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.regenBtn} onPress={onRegenerate} disabled={busy}>
+            {busy
+              ? <ActivityIndicator color={t.textSecondary} />
+              : (
+                <>
+                  <RegenIcon color={t.textPrimary} size={18} />
+                  <Text style={styles.regenText}>Regenerate</Text>
+                </>
+              )}
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={styles.exportBtn} onPress={onExport}>
           <ExportIcon color="#fff" size={18} />
           <Text style={styles.exportText}>Export</Text>

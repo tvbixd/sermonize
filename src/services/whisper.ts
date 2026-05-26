@@ -115,7 +115,9 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, attempts = 4): Promise<
         throw new NetworkError();
       }
       if (msg.includes('(429)')) {
-        throw new RateLimitError(60_000);
+        const retryMatch = msg.match(/try again in (\d+(?:\.\d+)?)\s*s/i);
+        const retrySec = retryMatch ? parseFloat(retryMatch[1]) : 60;
+        throw new RateLimitError(Math.ceil(retrySec * 1000));
       }
       if (i === attempts - 1) break;
       await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, i)));

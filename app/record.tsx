@@ -98,11 +98,15 @@ export default function RecordScreen() {
   const [chunkWarning, setChunkWarning] = useState<string | null>(null);
   const failedChunksRef = useRef(0);
   const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioOnlyRef = useRef(false);
+  const [audioOnlyMode, setAudioOnlyMode] = useState(false);
 
   useEffect(() => {
     reset();
     return () => {
       stopTicker();
+      if (autoSaveRef.current) clearInterval(autoSaveRef.current);
       if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
       void recorderRef.current?.stop().catch(() => undefined);
     };
@@ -121,7 +125,43 @@ export default function RecordScreen() {
     if (tickerRef.current) { clearInterval(tickerRef.current); tickerRef.current = null; }
   };
 
+  const autoSaveDraft = async () => {
+    if (!sermonIdRef.current || !transcriptRef.current.trim()) return;
+    const sermon: Sermon = {
+      id: sermonIdRef.current,
+      createdAt: Date.now(),
+      title: 'Draft — ' + new Date().toLocaleDateString(),
+      transcript: transcriptRef.current,
+      outline: useSessionStore.getState().liveOutline ?? { title: 'Draft', theme: '', summary: '', points: [] },
+      scriptures: [],
+      audioUris: [],
+      durationMs: recorderRef.current?.getElapsedMs() ?? 0,
+      isDraft: true,
+    };
+    await saveSermon(sermon).catch(() => {});
+  };
+
+  const saveDraftNow = async () => {
+    stopTicker();
+    const result = await recorderRef.current?.stop().catch(() => undefined);
+    const sermon: Sermon = {
+      id: sermonIdRef.current,
+      createdAt: Date.now(),
+      title: 'Draft — ' + new Date().toLocaleDateString(),
+      transcript: transcriptRef.current,
+      outline: liveOutline ?? { title: 'Draft', theme: '', summary: '', points: [] },
+      scriptures: [],
+      audioUris: result?.uris ?? [],
+      durationMs: result?.durationMs ?? 0,
+      isDraft: true,
+    };
+    await saveSermon(sermon);
+    reset();
+    router.back();
+  };
+
   const onChunkReady = async (chunkUri: string) => {
+    if (audioOnlyRef.current) return;
     try {
       const text = await transcribeAudio([chunkUri], groqKeyRef.current);
       if (!text.trim()) return;
@@ -129,6 +169,7 @@ export default function RecordScreen() {
       appendTranscript(text);
       chunkCountRef.current += 1;
       incrementChunk();
+      failedChunksRef.current = 0;
       if (chunkCountRef.current % OUTLINE_EVERY_N_CHUNKS === 0) {
         const outline = await extractOutline(transcriptRef.current, groqKeyRef.current);
         setLiveOutline(outline);
@@ -140,6 +181,17 @@ export default function RecordScreen() {
         setChunkWarning(count > 1 ? `${e.message} (${count} chunks missed)` : e.message);
         if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
         warningTimerRef.current = setTimeout(() => setChunkWarning(null), 10000);
+        if (count >= 3) {
+          Alert.alert(
+            'Transcription Limit Reached',
+            'Your API rate limit has been hit. Audio is still being saved.',
+            [
+              { text: 'Stop & Save', onPress: () => void saveDraftNow() },
+              { text: 'Continue (Audio Only)', onPress: () => { audioOnlyRef.current = true; setAudioOnlyMode(true); setChunkWarning(null); } },
+              { text: 'Keep Trying', style: 'cancel' },
+            ],
+          );
+        }
       }
     }
   };
@@ -162,6 +214,7 @@ export default function RecordScreen() {
         recorderRef.current = recorder;
         setStatus('recording');
         startTicker();
+        autoSaveRef.current = setInterval(() => void autoSaveDraft(), 5 * 60 * 1000);
       } else if (status === 'recording') {
         await recorderRef.current?.pause();
         stopTicker();
@@ -182,6 +235,7 @@ export default function RecordScreen() {
     if (status !== 'recording' && status !== 'paused') return;
     heavyTap();
     stopTicker();
+    if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
     setStatus('processing');
 
     try {
@@ -228,6 +282,7 @@ export default function RecordScreen() {
         text: 'Save as Draft',
         onPress: async () => {
           stopTicker();
+          if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
           const result = await recorderRef.current?.stop().catch(() => undefined);
           const sermon: Sermon = {
             id: sermonIdRef.current,
@@ -250,6 +305,7 @@ export default function RecordScreen() {
         style: 'destructive',
         onPress: async () => {
           stopTicker();
+          if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
           await recorderRef.current?.stop().catch(() => undefined);
           reset();
           router.back();
@@ -373,6 +429,9 @@ export default function RecordScreen() {
               <Text style={[styles.hintText, { color: t.textSecondary }]}>
                 {'Recording will transcribe and outline\nyour sermon automatically.'}
               </Text>
+              <Text style={[styles.limitHint, { color: t.textTertiary }]}>
+                Free tier: ~2 hours of transcription per day
+              </Text>
             </View>
           )}
 
@@ -381,6 +440,11 @@ export default function RecordScreen() {
               {chunkWarning && (
                 <View style={styles.warningBanner}>
                   <Text style={styles.warningText}>{chunkWarning}</Text>
+                </View>
+              )}
+              {audioOnlyMode && (
+                <View style={[styles.warningBanner, { backgroundColor: t.accentBlue }]}>
+                  <Text style={styles.warningText}>Audio only mode — transcription paused</Text>
                 </View>
               )}
               {liveTranscript.length > 0 && (
@@ -491,6 +555,7 @@ function makeStyles(t: Colors) {
     idleBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 48, marginBottom: 20 },
     idleBar: { width: 3, borderRadius: 2 },
     hintText: { ...typography.footnote, textAlign: 'center', lineHeight: 20 },
+    limitHint: { ...typography.caption, textAlign: 'center', marginTop: 8 },
 
     livePanels: { flex: 1, marginTop: 18, paddingHorizontal: spacing.md },
     warningBanner: {
