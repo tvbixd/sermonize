@@ -27,6 +27,8 @@ import {
   fetchApiBibleTranslations,
 } from '@/services/bible';
 import { useAuth } from '@/context/auth';
+import { getCrashLog, clearLogs } from '@/services/logger';
+import { getAudioStorageBytes } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import { CheckIcon, EyeIcon, EyeOffIcon } from '@/components/icons';
 
@@ -188,6 +190,9 @@ export default function SettingsScreen() {
   const [syncEnabled, setSyncEnabled] = useState(true);
   const [loaded, setLoaded] = useState(false);
 
+  const [audioStorageMb, setAudioStorageMb] = useState<string | null>(null);
+  const [crashCount, setCrashCount] = useState(0);
+
   useEffect(() => {
     void (async () => {
       const [gk, tr] = await Promise.all([getGroqKey(), getTranslation()]);
@@ -198,6 +203,10 @@ export default function SettingsScreen() {
         const bibles = await fetchApiBibleTranslations();
         setApiBibles(bibles);
       } catch {}
+      const bytes = await getAudioStorageBytes().catch(() => 0);
+      setAudioStorageMb((bytes / (1024 * 1024)).toFixed(1));
+      const crashes = await getCrashLog().catch(() => []);
+      setCrashCount(crashes.length);
     })();
   }, []);
 
@@ -680,6 +689,34 @@ export default function SettingsScreen() {
             ))}
           </>
         )}
+
+        {/* Storage */}
+        <Text style={s.sectionLabel}>STORAGE</Text>
+        <View style={[s.card, { marginHorizontal: 16 }]}>
+          <View style={s.settingsRow}>
+            <Text style={[s.rowText, { color: t.textPrimary }]}>Audio recordings</Text>
+            <Text style={[typography.body, { color: t.textSecondary }]}>{audioStorageMb ? `${audioStorageMb} MB` : '...'}</Text>
+          </View>
+          <Divider indent={16} />
+          <View style={s.settingsRow}>
+            <Text style={[s.rowText, { color: t.textPrimary }]}>Error log</Text>
+            <Text style={[typography.body, { color: t.textSecondary }]}>{crashCount} entries</Text>
+          </View>
+          {crashCount > 0 && (
+            <>
+              <Divider indent={16} />
+              <TouchableOpacity
+                style={s.settingsRow}
+                activeOpacity={0.6}
+                onPress={() => {
+                  void clearLogs().then(() => setCrashCount(0));
+                }}
+              >
+                <Text style={[s.rowText, { color: t.destructive }]}>Clear error log</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
 
         {/* Support */}
         <Text style={s.sectionLabel}>SUPPORT</Text>

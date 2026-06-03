@@ -1,11 +1,14 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '@/context/auth';
+import { logCrash } from '@/services/logger';
 import { useTheme } from '@/theme';
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  useEffect(() => { void logCrash(error, { source: 'ErrorBoundary' }); }, [error]);
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
       <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8 }}>Something went wrong</Text>

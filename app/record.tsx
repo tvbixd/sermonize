@@ -27,6 +27,8 @@ import type { Sermon } from '@/types';
 import { newId } from '@/util/id';
 import { heavyTap, mediumTap } from '@/util/haptics';
 import { BackChevronIcon, ChevronIcon } from '@/components/icons';
+import { logEvent, logCrash } from '@/services/logger';
+import { checkConnectivity } from '@/services/network';
 
 const OUTLINE_EVERY_N_CHUNKS = 2;
 
@@ -182,6 +184,7 @@ export default function RecordScreen() {
         if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
         warningTimerRef.current = setTimeout(() => setChunkWarning(null), 10000);
         if (count >= 3) {
+          void logEvent('rate_limit_alert', { consecutiveFailures: count });
           Alert.alert(
             'Transcription Limit Reached',
             'Your API rate limit has been hit. Audio is still being saved.',
@@ -206,15 +209,40 @@ export default function RecordScreen() {
           return;
         }
         groqKeyRef.current = key;
-        const id = newId();
-        sermonIdRef.current = id;
-        const dir = await ensureAudioDir(id);
-        const recorder = new SermonRecorder(dir);
-        await recorder.start(onChunkReady);
-        recorderRef.current = recorder;
-        setStatus('recording');
-        startTicker();
-        autoSaveRef.current = setInterval(() => void autoSaveDraft(), 5 * 60 * 1000);
+
+        const online = await checkConnectivity(key);
+        const beginRecording = async (audioOnly: boolean) => {
+          if (audioOnly) {
+            audioOnlyRef.current = true;
+            setAudioOnlyMode(true);
+          }
+          const id = newId();
+          sermonIdRef.current = id;
+          const dir = await ensureAudioDir(id);
+          const recorder = new SermonRecorder(dir);
+          await recorder.start(onChunkReady);
+          recorderRef.current = recorder;
+          setStatus('recording');
+          startTicker();
+          autoSaveRef.current = setInterval(() => void autoSaveDraft(), 5 * 60 * 1000);
+          void logEvent('recording_started', { audioOnly });
+        };
+
+        if (!online) {
+          Alert.alert(
+            'No Internet Connection',
+            'You can still record audio. Transcription will be available later via Re-transcribe.',
+            [
+              { text: 'Record Audio Only', onPress: () => void beginRecording(true).catch((e) => {
+                setError(e instanceof Error ? e.message : String(e));
+                setStatus('error');
+              }) },
+              { text: 'Cancel', style: 'cancel' },
+            ],
+          );
+          return;
+        }
+        await beginRecording(false);
       } else if (status === 'recording') {
         await recorderRef.current?.pause();
         stopTicker();
@@ -268,10 +296,13 @@ export default function RecordScreen() {
       };
       await saveSermon(sermon);
       setStatus('done');
+      void logEvent('recording_completed', { durationMs: durationRef.current, chunks: chunkCountRef.current });
       router.replace(`/sermon/${sermon.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const err = e instanceof Error ? e : new Error(String(e));
+      setError(err.message);
       setStatus('error');
+      void logCrash(err, { phase: 'processing', step });
     }
   };
 

@@ -113,3 +113,31 @@ export async function deleteSermon(id: string): Promise<void> {
   await FileSystem.deleteAsync(path, { idempotent: true });
   await FileSystem.deleteAsync(dir, { idempotent: true });
 }
+
+export async function getAudioStorageBytes(): Promise<number> {
+  await ensureDir();
+  const entries = await FileSystem.readDirectoryAsync(SERMONS_DIR);
+  let total = 0;
+  for (const entry of entries) {
+    const dir = `${SERMONS_DIR}${entry}/audio/`;
+    const info = await FileSystem.getInfoAsync(dir);
+    if (!info.exists || !info.isDirectory) continue;
+    const files = await FileSystem.readDirectoryAsync(dir);
+    for (const file of files) {
+      const fInfo = await FileSystem.getInfoAsync(`${dir}${file}`);
+      if (fInfo.exists && 'size' in fInfo) total += (fInfo as { size: number }).size;
+    }
+  }
+  return total;
+}
+
+export async function deleteAudioForSermon(id: string): Promise<void> {
+  const dir = audioDir(id);
+  await FileSystem.deleteAsync(dir, { idempotent: true });
+  await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+  const sermon = await getSermon(id);
+  if (sermon) {
+    sermon.audioUris = [];
+    await saveSermon(sermon);
+  }
+}
