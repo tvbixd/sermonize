@@ -49,6 +49,11 @@ Expo Go hides real-world issues. Must test on actual hardware before any public 
 - Configure Apple Sign-In entitlement
 - Test the full auth flow on both platforms
 
+### 1D. Background recording + lock-screen UI
+- Verify background/locked recording on device — see `BACKGROUND_RECORDING.md`
+- Lock-screen recording UI (iOS Live Activity / Android foreground notification)
+  — full plan in `LOCK_SCREEN_UI.md`; do after background capture is confirmed
+
 ---
 
 ## Phase 2: Crash Reporting & Analytics
