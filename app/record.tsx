@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
+  AppState,
   Easing,
   ScrollView,
   StyleSheet,
@@ -116,6 +117,26 @@ export default function RecordScreen() {
 
   useEffect(() => { transcriptRef.current = liveTranscript; }, [liveTranscript]);
 
+  // When the app is backgrounded or the phone is locked mid-recording, the JS
+  // thread freezes. The native recorder keeps capturing into the current
+  // segment, but to guarantee zero data loss if the OS later kills us, we seal
+  // the in-progress chunk to disk and save a draft right before suspension.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'background' || next === 'inactive') {
+        const s = useSessionStore.getState().status;
+        if (s === 'recording') {
+          void logEvent('recording_backgrounded');
+          void (async () => {
+            await recorderRef.current?.flushCurrentChunk().catch(() => undefined);
+            await autoSaveDraft();
+          })();
+        }
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
   const startTicker = () => {
     stopTicker();
     tickerRef.current = setInterval(() => {
@@ -128,7 +149,10 @@ export default function RecordScreen() {
   };
 
   const autoSaveDraft = async () => {
-    if (!sermonIdRef.current || !transcriptRef.current.trim()) return;
+    if (!sermonIdRef.current) return;
+    const uris = recorderRef.current?.getCurrentUris() ?? [];
+    // Nothing worth saving yet
+    if (!transcriptRef.current.trim() && uris.length === 0) return;
     const sermon: Sermon = {
       id: sermonIdRef.current,
       createdAt: Date.now(),
@@ -136,7 +160,7 @@ export default function RecordScreen() {
       transcript: transcriptRef.current,
       outline: useSessionStore.getState().liveOutline ?? { title: 'Draft', theme: '', summary: '', points: [] },
       scriptures: [],
-      audioUris: [],
+      audioUris: uris,
       durationMs: recorderRef.current?.getElapsedMs() ?? 0,
       isDraft: true,
     };

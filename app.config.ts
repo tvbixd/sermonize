@@ -32,7 +32,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#0A84FF',
     },
-    permissions: ['RECORD_AUDIO', 'FOREGROUND_SERVICE', 'WAKE_LOCK'],
+    permissions: [
+      'RECORD_AUDIO',
+      'FOREGROUND_SERVICE',
+      'FOREGROUND_SERVICE_MICROPHONE',
+      'WAKE_LOCK',
+    ],
   },
   updates: {
     url: `https://u.expo.dev/${process.env.EAS_PROJECT_ID ?? ''}`,
@@ -42,6 +47,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     'expo-router',
+    'expo-dev-client',
     [
       'expo-av',
       {
