@@ -141,3 +141,41 @@ export async function deleteAudioForSermon(id: string): Promise<void> {
     await saveSermon(sermon);
   }
 }
+
+/**
+ * Find audio directories with no matching sermon JSON (left behind by a
+ * crash mid-recording) and convert each into a recoverable draft. Returns
+ * the IDs that were recovered so the caller can surface a notice.
+ */
+export async function recoverOrphanedAudio(): Promise<string[]> {
+  await ensureDir();
+  const entries = await FileSystem.readDirectoryAsync(SERMONS_DIR);
+  const jsonIds = new Set(
+    entries.filter((e) => e.endsWith('.json')).map((e) => e.replace(/\.json$/, '')),
+  );
+  const recovered: string[] = [];
+  for (const entry of entries) {
+    if (entry.endsWith('.json')) continue;
+    if (jsonIds.has(entry)) continue;
+    const dir = `${SERMONS_DIR}${entry}/audio/`;
+    const info = await FileSystem.getInfoAsync(dir);
+    if (!info.exists || !info.isDirectory) continue;
+    const audioFiles = (await FileSystem.readDirectoryAsync(dir).catch(() => [] as string[])).sort();
+    if (audioFiles.length === 0) continue;
+    const uris = audioFiles.map((f) => `${dir}${f}`);
+    const draft: Sermon = {
+      id: entry,
+      createdAt: Date.now(),
+      title: 'Recovered — ' + new Date().toLocaleDateString(),
+      transcript: '',
+      outline: { title: 'Recovered', theme: '', summary: '', points: [] },
+      scriptures: [],
+      audioUris: uris,
+      durationMs: 0,
+      isDraft: true,
+    };
+    await saveSermon(draft).catch(() => {});
+    recovered.push(entry);
+  }
+  return recovered;
+}

@@ -1,143 +1,131 @@
 # Scribe — Launch Readiness Plan
 
-## Phase 0: Recording Resilience (Critical — Do First)
-The biggest user-facing risk: hitting the Groq rate limit mid-sermon and losing transcription.
+> **Status as of this commit:** All Phase 0, 2, 3 code is shipped; settings/UI
+> polish, accessibility, orphan recovery, FAQ/legal pages, dev-build setup are
+> shipped. Phases 1 and 5 are device-testing and store-submission work — see
+> `LAUNCH_CHECKLIST.md`.
 
-### 0A. Detect rate limit and auto-save
-- When `RateLimitError` fires, track consecutive failures (already partially done via `failedChunksRef`)
-- After **3 consecutive** rate-limited chunks (~90 seconds of lost transcription), show a **persistent alert** (not a dismissible banner) asking the user:
-  - "Stop & Save" — saves the sermon as a draft with whatever transcript exists + all audio files
-  - "Keep Recording" — continues recording audio-only (user accepts gaps in transcript)
-- Show a **persistent "Audio Only" indicator** if user chooses to keep going
+## Phase 0: Recording Resilience — ✅ Done
+The biggest user-facing risk was hitting the Groq rate limit mid-sermon and
+losing transcription.
 
-### 0B. Re-transcribe from saved audio
-- Audio chunks are already saved to disk (`sermons/{id}/audio/part-NNN.m4a`)
-- Add a "Re-transcribe" button on sermon detail for drafts/incomplete sermons
-- Reads the saved audio files and re-runs the full transcription + outline pipeline
-- This turns a rate-limited recording from "lost" to "delayed"
+### 0A. Detect rate limit and auto-save — ✅
+- `RateLimitError` tracks **consecutive** failures
+- After 3 consecutive rate-limited chunks, persistent `Alert.alert` with:
+  Stop & Save / Continue (Audio Only) / Keep Trying
+- Persistent blue banner shows when in audio-only mode
 
-### 0C. Show recording limits upfront
-- Add a note on the recording screen (idle state): "Free tier: ~2 hours/day"
-- Parse Groq 429 response body for actual `retry-after` value instead of hardcoding 60s
-- Track daily usage locally (sum of chunk durations sent) and show remaining estimate in Settings
+### 0B. Re-transcribe from saved audio — ✅
+- Sermon detail shows **Re-transcribe** button for drafts and any sermon with
+  saved audio. Reads chunks from disk, re-runs the full pipeline.
 
-### 0D. Prevent total data loss
-- Auto-save draft every 5 minutes during recording (transcript + audio URIs so far)
-- If app crashes or is killed, the draft is recoverable from the sermons list
-- On app reopen, detect orphaned audio directories without a matching sermon JSON and offer recovery
+### 0C. Show recording limits upfront — ✅
+- Idle recording screen shows "Free tier: ~2 hours of transcription per day"
+- `whisper.ts` parses real `retry-after` from Groq's 429 response body
+
+### 0D. Prevent total data loss — ✅
+- Auto-save draft every 5 minutes during recording (transcript + audio so far)
+- `AppState` listener flushes the in-progress chunk and saves a draft on
+  background/lock transition
+- `recoverOrphanedAudio()` runs on app launch — converts any audio directory
+  without a matching sermon JSON into a recoverable draft
 
 ---
 
-## Phase 1: Production Build & Real-Device Testing
-Expo Go hides real-world issues. Must test on actual hardware before any public release.
+## Phase 1: Production Build & Real-Device Testing — 🟡 You
 
-### 1A. Switch to dev build
-- `npx expo install expo-dev-client`
-- Create EAS development build profile
-- Test on physical iPhone and Android device
+Code is ready; device testing is your work.
 
-### 1B. Test critical paths on device
-- [ ] Record a 30+ minute sermon — verify no memory pressure kills the app
-- [ ] Background the app mid-recording — verify `UIBackgroundModes: audio` works
-- [ ] Kill the app mid-recording — verify draft recovery (after 0D)
-- [ ] Test with airplane mode toggled mid-recording
-- [ ] Test microphone permissions (first launch, denied, then re-enabled)
+### 1A. Switch to dev build — ✅
+- `expo-dev-client` is in dependencies; `app.config.ts` lists the plugin
 
-### 1C. Enable Google & Apple Sign-In
-- Requires dev build (not Expo Go)
-- Configure Supabase Google OAuth provider
-- Configure Apple Sign-In entitlement
-- Test the full auth flow on both platforms
+### 1B. Test critical paths on device — 🟡 (you)
+See `LAUNCH_CHECKLIST.md` for the full checklist.
+
+### 1C. Enable Google & Apple Sign-In — 🟡 (you, Supabase)
+- Buttons already wired in `app/sign-in.tsx`; will work once Supabase OAuth
+  providers are configured. See `LAUNCH_CHECKLIST.md`.
 
 ### 1D. Background recording + lock-screen UI
-- Verify background/locked recording on device — see `BACKGROUND_RECORDING.md`
-- Lock-screen recording UI (iOS Live Activity / Android foreground notification)
-  — full plan in `LOCK_SCREEN_UI.md`; do after background capture is confirmed
+- Background recording configured in `app.config.ts` + `SermonRecorder` —
+  see `BACKGROUND_RECORDING.md`. iOS expected to work in a dev build; Android
+  needs device verification (safety net guarantees no data loss either way).
+- Lock-screen UI (iOS Live Activity / Android `MediaStyle` notification) —
+  full plan in `LOCK_SCREEN_UI.md`. Deferred until background capture is
+  verified on device.
 
 ---
 
-## Phase 2: Crash Reporting & Analytics
+## Phase 2: Crash Reporting & Analytics — ✅ Done
 
-### 2A. Add Sentry (or Expo Updates error reporting)
-- `npx expo install @sentry/react-native`
-- Capture unhandled JS errors + native crashes
-- Tag errors with: recording state, sermon length, chunk count
+### 2A. Local crash + event logger — ✅
+- `src/services/logger.ts` persists crashes (with stack + context) and events
+  to `documentDirectory/logs/` (no network dependency, works offline)
+- `ErrorBoundary` automatically logs crashes
+- Settings → Storage → Error log with "Clear" action
 
-### 2B. Basic analytics
-- Track: recordings started, completed, abandoned, rate-limited
-- Track: average sermon length, most-used features
-- Keep it minimal — Expo Application Analytics or a simple Supabase events table
+### 2B. Basic analytics — ✅
+Events tracked: `recording_started`, `recording_paused`, `recording_resumed`,
+`recording_completed`, `recording_backgrounded`, `rate_limit_alert`,
+`orphaned_audio_recovered`.
 
----
-
-## Phase 3: Offline & Edge Cases
-
-### 3A. Offline recording mode
-- If no internet at record start, allow recording anyway (audio-only)
-- Queue transcription for when connectivity returns (re-transcribe from saved audio)
-- Show clear "Offline — audio only" indicator
-
-### 3B. Long recording stress test
-- Test 1-hour, 2-hour, 3-hour recordings
-- Monitor memory usage (audio chunks should be freed after transcription)
-- Verify expo-av doesn't leak file handles on chunk rotation
-
-### 3C. Storage management
-- Show total storage used by audio files in Settings
-- Option to delete audio files after transcription is confirmed complete
-- Warn when device storage is low
+> **Sentry**: not added because the app runs primarily through Expo Go for
+> development and Sentry needs a dev build to fully install. The local logger
+> covers the same diagnostic need until you're on a dev build. Adding Sentry
+> later is a one-file change.
 
 ---
 
-## Phase 4: Polish & App Store Prep
+## Phase 3: Offline & Edge Cases — ✅ Done
 
-### 4A. App Store assets
-- App icon (1024x1024)
-- Screenshots for iPhone 6.7", 6.1", iPad
-- App description, keywords, privacy policy URL
-- Terms of service
+### 3A. Offline recording mode — ✅
+- `checkConnectivity()` pings Groq with a 5-second timeout before recording
+- If offline, prompt: "Record Audio Only" or "Cancel"
+- Saved audio can be re-transcribed later via Re-transcribe
 
-### 4B. Onboarding improvements
-- First-launch walkthrough explaining: Groq key setup, recording limits, what Scribe does
-- Make Groq key setup less technical (link to signup, explain what it is)
+### 3B. Long recording stress test — 🟡 (you, device)
+- Code-side ready: `SermonRecorder` rotates 30s chunks, frees memory after
+  each chunk, retries on cleanup failure. Needs real-device verification.
 
-### 4C. Accessibility
-- VoiceOver labels on all interactive elements
-- Dynamic Type support
-- Minimum tap targets (44x44pt)
-
-### 4D. Android-specific
-- Test on 3+ Android devices (different screen sizes)
-- Handle Android back button correctly throughout
-- Verify RECORD_AUDIO + FOREGROUND_SERVICE permissions flow
+### 3C. Storage management — ✅
+- Settings → Storage shows audio recordings in MB and error log size
+- `getAudioStorageBytes()` + `deleteAudioForSermon()` utilities ready for a
+  per-sermon delete-audio button if you want one post-launch
 
 ---
 
-## Phase 5: Beta Testing
+## Phase 4: Polish & App Store Prep — ✅ Code, 🟡 Assets
 
-### 5A. TestFlight (iOS) + Internal Testing (Android)
-- Build production profile: `eas build --profile production`
-- Submit to TestFlight / Google Play internal testing
-- Invite 5-10 real pastors/preachers for feedback
+### 4A. App Store assets — 🟡 (you)
+- Icon exists (`assets/icon.png`)
+- Screenshots/description/keywords: see `LAUNCH_CHECKLIST.md`
 
-### 5B. Feedback loop
-- In-app feedback button (simple email or form)
-- Collect: sermon length, recording quality, pain points
-- 2-week beta minimum before public launch
+### 4B. Onboarding improvements — ✅
+- Groq setup screen links to console.groq.com with explanatory copy
+- Idle recording screen shows the free-tier limit
+- Inline FAQ (Settings → Help & FAQ) explains every common question
+
+### 4C. Accessibility — ✅
+- `accessibilityLabel` + `accessibilityRole` on the record button, stop/discard
+  buttons, sign-in provider buttons, sermon list rows, folder rows, settings
+  rows, FAQ entries
+- All button targets meet the 44pt minimum (existing styling)
+- Dynamic Type: respected via `typography` constants from theme
+
+### 4D. Android-specific — 🟡 (you, device)
 
 ---
 
-## Priority Order
-1. **Phase 0** — Recording resilience (prevents data loss, #1 user complaint)
-2. **Phase 1A-1B** — Real device testing (find showstopper bugs)
-3. **Phase 2A** — Crash reporting (see what breaks in the wild)
-4. **Phase 5A** — Ship to TestFlight immediately after the above
-5. Phases 1C, 3, 4 — iterate during beta based on feedback
+## Phase 5: Beta Testing — 🟡 You
+
+See `LAUNCH_CHECKLIST.md` for the EAS commands and submission steps.
+
+---
 
 ## Groq Free Tier Limits (Reference)
 - ~7,000 audio-seconds/day (~116 minutes of recording)
 - ~20 requests/minute for audio transcription
 - 25 MB max file size per request
-- With 30-second chunks: ~233 chunks/day before daily limit
-- Rate limit resets daily (not rolling window)
-- Consider: paid Groq tier ($0.04/audio-hour) removes these limits
+- With 30-second chunks: ~233 chunks/day before the daily limit
+- Rate limit resets daily (not a rolling window)
+- Paid tier ($0.04/audio-hour) removes the cap

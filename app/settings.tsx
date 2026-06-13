@@ -3,12 +3,12 @@ import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Linking,
   Platform,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -27,6 +27,9 @@ import {
   fetchApiBibleTranslations,
 } from '@/services/bible';
 import { useAuth } from '@/context/auth';
+import { FAQ } from '@/config/faq';
+import { PRIVACY_POLICY_TEXT, TERMS_TEXT } from '@/config/legal';
+import { GROQ_CONSOLE_URL, PRIVACY_POLICY_URL, SUPPORT_EMAIL, TERMS_URL } from '@/config/support';
 import { getCrashLog, clearLogs } from '@/services/logger';
 import { getAudioStorageBytes } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
@@ -109,15 +112,6 @@ function EmailRowIcon({ color }: { color: string }) {
   );
 }
 
-function CloudIcon({ color }: { color: string }) {
-  return (
-    <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
-      <Path d="M4 9.5C2.5 9.5 1 8.3 1 6.5 1 5 2.1 3.7 3.6 3.5 4 2 5.5 1 7 1c1.8 0 3.3 1.4 3.6 3.2C12 4.4 13 5.6 13 7c0 1.4-1 2.5-2.5 2.5" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-      <Path d="M7 7v6m0 0l-2-2m2 2l2-2" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
-}
-
 function ChevronRight({ color }: { color: string }) {
   return (
     <Svg width={8} height={14} viewBox="0 0 8 14" fill="none">
@@ -166,7 +160,8 @@ export default function SettingsScreen() {
   const s = useMemo(() => makeStyles(t), [t]);
   const { user, signOut, updateProfile, changeEmail } = useAuth();
 
-  const [page, setPage] = useState<'root' | 'edit-profile' | 'change-email'>('root');
+  const [page, setPage] = useState<'root' | 'edit-profile' | 'change-email' | 'faq' | 'privacy' | 'terms'>('root');
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
   // Groq key state
   const [groq, setGroq] = useState('');
@@ -176,7 +171,6 @@ export default function SettingsScreen() {
   // Translation state
   const [translation, setTrans] = useState('web');
   const [apiBibles, setApiBibles] = useState<TranslationEntry[]>([]);
-  const [loadingBibles, setLoadingBibles] = useState(false);
   const [bibleSearch, setBibleSearch] = useState('');
 
   // Profile state
@@ -187,7 +181,6 @@ export default function SettingsScreen() {
   const [profileInterests, setProfileInterests] = useState<string[]>([]);
   const [newEmail, setNewEmail] = useState('');
 
-  const [syncEnabled, setSyncEnabled] = useState(true);
   const [loaded, setLoaded] = useState(false);
 
   const [audioStorageMb, setAudioStorageMb] = useState<string | null>(null);
@@ -232,6 +225,36 @@ export default function SettingsScreen() {
   const onSignOut = async () => {
     await signOut();
     router.replace('/');
+  };
+
+  const onContactSupport = () => {
+    const subject = encodeURIComponent('Scribe support request');
+    const body = encodeURIComponent(
+      `\n\n---\nApp version: ${Constants.expoConfig?.version ?? '1.0.0'}\nPlatform: ${Platform.OS}`,
+    );
+    void Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`);
+  };
+
+  const onDeleteAccount = () => {
+    Alert.alert(
+      'Delete account?',
+      'This permanently removes your account from our auth provider. Your local sermons and audio stay on this device. To finish deletion, we need a confirmation by email.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Email Support',
+          style: 'destructive',
+          onPress: () => {
+            const subject = encodeURIComponent('Delete my Scribe account');
+            const body = encodeURIComponent(
+              `Please permanently delete the account associated with this email address.\n\nUser ID: ${user?.id ?? 'unknown'}\nApp version: ${Constants.expoConfig?.version ?? '1.0.0'}`,
+            );
+            void Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`);
+            void signOut().then(() => router.replace('/'));
+          },
+        },
+      ],
+    );
   };
 
   const onSaveProfile = async () => {
@@ -493,6 +516,106 @@ export default function SettingsScreen() {
     );
   }
 
+  // ─── FAQ ─────────────────────────────────────────────────────────────────
+
+  if (page === 'faq') {
+    return (
+      <View style={s.container}>
+        <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
+        <View style={s.grabHandle} />
+        <View style={s.subNavBar}>
+          <TouchableOpacity
+            onPress={() => setPage('root')}
+            style={s.backBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Back to settings"
+          >
+            <BackChevron color={t.accentBlue} />
+            <Text style={[s.backText, { color: t.accentBlue }]}>Settings</Text>
+          </TouchableOpacity>
+          <Text style={s.subNavTitle}>Help & FAQ</Text>
+          <View style={{ width: 90 }} />
+        </View>
+        <ScrollView contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
+          <View style={[s.card, { marginHorizontal: 16, marginTop: 12 }]}>
+            {FAQ.map((entry, i) => {
+              const expanded = expandedFaq === i;
+              return (
+                <React.Fragment key={i}>
+                  <TouchableOpacity
+                    onPress={() => setExpandedFaq(expanded ? null : i)}
+                    style={{ paddingHorizontal: 16, paddingVertical: 14 }}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityLabel={entry.q}
+                    accessibilityState={{ expanded }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <Text style={[typography.body, { color: t.textPrimary, flex: 1, fontWeight: expanded ? '600' : '400' }]}>
+                        {entry.q}
+                      </Text>
+                      <Text style={{ color: t.textTertiary, fontSize: 16 }}>{expanded ? '−' : '+'}</Text>
+                    </View>
+                    {expanded && (
+                      <Text style={[typography.subhead, { color: t.textSecondary, marginTop: 8, lineHeight: 21 }]}>
+                        {entry.a}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                  {i < FAQ.length - 1 && <Divider indent={16} />}
+                </React.Fragment>
+              );
+            })}
+          </View>
+          <View style={{ paddingHorizontal: 20, paddingVertical: 24 }}>
+            <Text style={[typography.footnote, { color: t.textSecondary, textAlign: 'center' }]}>
+              Still stuck? Tap Contact support in Settings to email us.
+            </Text>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ─── Privacy ─────────────────────────────────────────────────────────────
+
+  if (page === 'privacy' || page === 'terms') {
+    const isPrivacy = page === 'privacy';
+    return (
+      <View style={s.container}>
+        <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
+        <View style={s.grabHandle} />
+        <View style={s.subNavBar}>
+          <TouchableOpacity
+            onPress={() => setPage('root')}
+            style={s.backBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Back to settings"
+          >
+            <BackChevron color={t.accentBlue} />
+            <Text style={[s.backText, { color: t.accentBlue }]}>Settings</Text>
+          </TouchableOpacity>
+          <Text style={s.subNavTitle}>{isPrivacy ? 'Privacy Policy' : 'Terms of Service'}</Text>
+          <View style={{ width: 90 }} />
+        </View>
+        <ScrollView contentContainerStyle={[s.scrollContent, { paddingHorizontal: 22, paddingTop: 12 }]} showsVerticalScrollIndicator={false}>
+          <Text style={[typography.subhead, { color: t.textPrimary, lineHeight: 22 }]}>
+            {isPrivacy ? PRIVACY_POLICY_TEXT : TERMS_TEXT}
+          </Text>
+          <TouchableOpacity
+            onPress={() => void Linking.openURL(isPrivacy ? PRIVACY_POLICY_URL : TERMS_URL)}
+            style={{ paddingVertical: 20, alignItems: 'center' }}
+            accessibilityRole="link"
+          >
+            <Text style={[typography.footnote, { color: t.accentBlue }]}>
+              View online version
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    );
+  }
+
   // ─── Settings Root ───────────────────────────────────────────────────────
 
   const filteredApiBibles = bibleSearch.trim()
@@ -573,22 +696,6 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Sync */}
-            <Text style={s.sectionLabel}>SYNC & BACKUP</Text>
-            <View style={[s.card, { marginHorizontal: 16 }]}>
-              <View style={s.settingsRow}>
-                <RowIcon bg={`${t.accentBlue}1A`}><CloudIcon color={t.accentBlue} /></RowIcon>
-                <View style={{ flex: 1 }}>
-                  <Text style={[typography.body, { color: t.textPrimary }]}>iCloud Sync</Text>
-                  <Text style={[typography.footnote, { color: t.textSecondary, marginTop: 2 }]}>Last synced 2 min ago</Text>
-                </View>
-                <Switch
-                  value={syncEnabled}
-                  onValueChange={setSyncEnabled}
-                  trackColor={{ false: '#E9E9EA', true: '#30B65B' }}
-                />
-              </View>
-            </View>
           </>
         )}
 
@@ -596,8 +703,18 @@ export default function SettingsScreen() {
         <Text style={s.sectionLabel}>GROQ API KEY</Text>
         <View style={[s.card, { marginHorizontal: 16 }]}>
           <Text style={s.helpText}>
-            Scribe uses Groq for fast transcription and outlining. Create a free key at console.groq.com — the free tier is generous.
+            Scribe uses Groq for fast transcription and outlining. The free tier covers about 2 hours of recording per day.
           </Text>
+          <TouchableOpacity
+            onPress={() => void Linking.openURL(GROQ_CONSOLE_URL)}
+            style={{ paddingHorizontal: 16, paddingBottom: 12 }}
+            accessibilityRole="link"
+            accessibilityLabel="Open Groq console to create an API key"
+          >
+            <Text style={[typography.footnote, { color: t.accentBlue, fontWeight: '600' }]}>
+              Create a free key at console.groq.com →
+            </Text>
+          </TouchableOpacity>
           <Divider indent={16} />
           <View style={s.keyRow}>
             <TextInput
@@ -721,12 +838,24 @@ export default function SettingsScreen() {
         {/* Support */}
         <Text style={s.sectionLabel}>SUPPORT</Text>
         <View style={[s.card, { marginHorizontal: 16 }]}>
-          <TouchableOpacity style={s.settingsRow} activeOpacity={0.6}>
+          <TouchableOpacity
+            style={s.settingsRow}
+            activeOpacity={0.6}
+            onPress={() => setPage('faq')}
+            accessibilityRole="button"
+            accessibilityLabel="Open Help and FAQ"
+          >
             <Text style={[s.rowText, { color: t.textPrimary }]}>Help & FAQ</Text>
             <ChevronRight color={t.textTertiary} />
           </TouchableOpacity>
           <Divider indent={16} />
-          <TouchableOpacity style={s.settingsRow} activeOpacity={0.6}>
+          <TouchableOpacity
+            style={s.settingsRow}
+            activeOpacity={0.6}
+            onPress={onContactSupport}
+            accessibilityRole="button"
+            accessibilityLabel="Email support"
+          >
             <Text style={[s.rowText, { color: t.textPrimary }]}>Contact support</Text>
             <ChevronRight color={t.textTertiary} />
           </TouchableOpacity>
@@ -734,9 +863,22 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={s.settingsRow}
             activeOpacity={0.6}
-            onPress={() => void Linking.openURL('https://scribe.app/privacy')}
+            onPress={() => setPage('privacy')}
+            accessibilityRole="button"
+            accessibilityLabel="Open privacy policy"
           >
             <Text style={[s.rowText, { color: t.textPrimary }]}>Privacy policy</Text>
+            <ChevronRight color={t.textTertiary} />
+          </TouchableOpacity>
+          <Divider indent={16} />
+          <TouchableOpacity
+            style={s.settingsRow}
+            activeOpacity={0.6}
+            onPress={() => setPage('terms')}
+            accessibilityRole="button"
+            accessibilityLabel="Open terms of service"
+          >
+            <Text style={[s.rowText, { color: t.textPrimary }]}>Terms of service</Text>
             <ChevronRight color={t.textTertiary} />
           </TouchableOpacity>
           <Divider indent={16} />
@@ -758,7 +900,12 @@ export default function SettingsScreen() {
                 <Text style={[typography.headline, { color: t.destructive, fontWeight: '500' }]}>Sign out</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={{ alignItems: 'center', paddingVertical: 10, paddingBottom: 32 }}>
+            <TouchableOpacity
+              style={{ alignItems: 'center', paddingVertical: 10, paddingBottom: 32 }}
+              onPress={onDeleteAccount}
+              accessibilityRole="button"
+              accessibilityLabel="Delete account"
+            >
               <Text style={[typography.footnote, { color: t.textSecondary }]}>Delete account</Text>
             </TouchableOpacity>
           </>

@@ -189,6 +189,9 @@ export default function FoldersScreen() {
                     onPress={() => router.push({ pathname: '/sermons', params: { folderId: f.id, folderName: f.name } })}
                     onLongPress={() => onLongPressFolder(folders.find((x) => x.id === f.id)!)}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${f.name} folder, ${f.count} sermons`}
+                    accessibilityHint="Double tap to open, long press to rename or delete"
                   >
                     <FolderIcon kind="folder" color={f.color} size={28} />
                     <Text style={styles.rowLabel}>{f.name}</Text>

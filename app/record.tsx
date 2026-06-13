@@ -271,10 +271,12 @@ export default function RecordScreen() {
         await recorderRef.current?.pause();
         stopTicker();
         setStatus('paused');
+        void logEvent('recording_paused');
       } else if (status === 'paused') {
         await recorderRef.current?.resume();
         setStatus('recording');
         startTicker();
+        void logEvent('recording_resumed');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -453,6 +455,12 @@ export default function RecordScreen() {
               onPress={onRecordPress}
               style={[styles.ring, { borderColor: ringColor }]}
               activeOpacity={0.9}
+              accessibilityRole="button"
+              accessibilityLabel={
+                status === 'idle' ? 'Start recording'
+                  : status === 'recording' ? 'Pause recording'
+                  : 'Resume recording'
+              }
             >
               <View style={[styles.innerShape, {
                 width: innerSize,
@@ -536,6 +544,8 @@ export default function RecordScreen() {
             style={[styles.stopBtn, { backgroundColor: t.accentBlue }]}
             onPress={onStop}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Stop and save sermon"
           >
             <Text style={styles.stopText}>Stop & Save</Text>
           </TouchableOpacity>
@@ -543,6 +553,8 @@ export default function RecordScreen() {
             style={[styles.discardBtn, { backgroundColor: t.bgSurface, borderWidth: 0.5, borderColor: t.separator }]}
             onPress={onDiscard}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Discard recording"
           >
             <Text style={[styles.discardText, { color: t.accentRed }]}>Discard</Text>
           </TouchableOpacity>

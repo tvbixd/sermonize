@@ -273,6 +273,9 @@ export default function SermonsScreen() {
                         onPress={() => router.push(`/sermon/${item.id}`)}
                         onLongPress={() => onLongPress(item)}
                         activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${item.title}, ${formatDate(item.createdAt)}, ${formatElapsed(item.durationMs)}`}
+                        accessibilityHint="Double tap to open, long press for more options"
                       >
                         <View style={styles.rowContent}>
                           <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
@@ -292,7 +295,13 @@ export default function SermonsScreen() {
       )}
 
       {!isSpecial && (
-        <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={() => router.push('/record')}>
+        <TouchableOpacity
+          style={styles.fab}
+          activeOpacity={0.85}
+          onPress={() => router.push('/record')}
+          accessibilityRole="button"
+          accessibilityLabel="Record new sermon"
+        >
           <MicIcon size={28} color="#fff" />
         </TouchableOpacity>
       )}

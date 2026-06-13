@@ -4,7 +4,8 @@ import { useEffect } from 'react';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '@/context/auth';
-import { logCrash } from '@/services/logger';
+import { logCrash, logEvent } from '@/services/logger';
+import { purgeExpiredDeleted, recoverOrphanedAudio } from '@/storage/sermons';
 import { useTheme } from '@/theme';
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
@@ -22,6 +23,16 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => voi
 
 function RootLayout() {
   const t = useTheme();
+
+  useEffect(() => {
+    void (async () => {
+      const recovered = await recoverOrphanedAudio().catch(() => [] as string[]);
+      if (recovered.length > 0) {
+        void logEvent('orphaned_audio_recovered', { count: recovered.length });
+      }
+      await purgeExpiredDeleted().catch(() => undefined);
+    })();
+  }, []);
 
   return (
     <AuthProvider>

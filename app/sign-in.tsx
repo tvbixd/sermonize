@@ -21,6 +21,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Circle, Path, Rect, Svg } from 'react-native-svg';
 import { CheckIcon, MicIcon } from '@/components/icons';
+import { PRIVACY_POLICY_URL, TERMS_URL, GROQ_CONSOLE_URL } from '@/config/support';
 import { useAuth } from '@/context/auth';
 import { setGroqKey, setTranslation } from '@/storage/keys';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
@@ -406,6 +407,8 @@ function LandingView({
             activeOpacity={0.85}
             onPress={onApple}
             disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel="Continue with Apple"
           >
             <AppleGlyph color="#fff" />
             <Text style={[s.providerBtnText, { color: '#fff' }]}>Continue with Apple</Text>
@@ -417,6 +420,8 @@ function LandingView({
           activeOpacity={0.85}
           onPress={onGoogle}
           disabled={loading}
+          accessibilityRole="button"
+          accessibilityLabel="Continue with Google"
         >
           <GoogleGlyph />
           <Text style={[s.providerBtnText, { color: t.textPrimary }]}>Continue with Google</Text>
@@ -427,6 +432,8 @@ function LandingView({
           activeOpacity={0.85}
           onPress={onEmail}
           disabled={loading}
+          accessibilityRole="button"
+          accessibilityLabel="Continue with email"
         >
           <MailGlyph color="#fff" />
           <Text style={[s.providerBtnText, { color: '#fff' }]}>Continue with email</Text>
@@ -434,8 +441,17 @@ function LandingView({
 
         <Text style={s.termsText}>
           By continuing, you agree to our{' '}
-          <Text style={{ color: t.accentBlue, fontWeight: '500' }}>Terms</Text> and{' '}
-          <Text style={{ color: t.accentBlue, fontWeight: '500' }}>Privacy Policy</Text>.
+          <Text
+            style={{ color: t.accentBlue, fontWeight: '500' }}
+            onPress={() => void Linking.openURL(TERMS_URL)}
+            accessibilityRole="link"
+          >Terms</Text>{' '}
+          and{' '}
+          <Text
+            style={{ color: t.accentBlue, fontWeight: '500' }}
+            onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+            accessibilityRole="link"
+          >Privacy Policy</Text>.
         </Text>
       </Animated.View>
     </View>
@@ -882,7 +898,9 @@ function GroqSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: Ret
         <TouchableOpacity
           style={[s.groqHelp, { backgroundColor: t.bgSurface }]}
           activeOpacity={0.7}
-          onPress={() => void Linking.openURL('https://console.groq.com')}
+          onPress={() => void Linking.openURL(GROQ_CONSOLE_URL)}
+          accessibilityRole="link"
+          accessibilityLabel="Open Groq console to create an API key"
         >
           <View style={[s.groqHelpIcon, { backgroundColor: `${t.accentBlue}1A` }]}>
             <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
