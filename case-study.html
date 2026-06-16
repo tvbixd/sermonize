@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scribe - Case Study | Courage Egbude</title>
+  <style>
+    :root {
+      --bg: #0C0A09;
+      --surface: #1C1917;
+      --raised: #292524;
+      --text: #F5F0EB;
+      --text-secondary: rgba(245,240,235,0.55);
+      --text-tertiary: rgba(245,240,235,0.28);
+      --accent-blue: #4DA3FF;
+      --accent-red: #FF5A67;
+      --accent-gold: #F0B95A;
+      --accent-purple: #9B7EFF;
+      --accent-green: #5ABF78;
+      --accent-orange: #F5A05A;
+      --separator: rgba(245,240,235,0.08);
+      --card-border: rgba(245,240,235,0.06);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 17px;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ---- NAV ---- */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(12,10,9,0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--separator);
+    }
+    nav .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    nav .nav-brand {
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--text-secondary);
+      letter-spacing: 0.3px;
+    }
+    nav .nav-brand span { color: var(--text); }
+    nav .nav-links { display: flex; gap: 28px; }
+    nav .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    nav .nav-links a:hover { color: var(--text); }
+
+    /* ---- HERO ---- */
+    .hero {
+      padding: 100px 0 80px;
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--card-border);
+      border-radius: 100px;
+      padding: 6px 16px 6px 8px;
+      margin-bottom: 32px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    .hero-badge .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-gold);
+    }
+    .hero h1 {
+      font-size: clamp(40px, 6vw, 64px);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -1.5px;
+      margin-bottom: 20px;
+    }
+    .hero h1 .gradient {
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      font-size: 19px;
+      color: var(--text-secondary);
+      max-width: 540px;
+      margin: 0 auto 40px;
+      line-height: 1.6;
+    }
+    .hero-meta {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+    .hero-meta-item {
+      text-align: center;
+    }
+    .hero-meta-item .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-tertiary);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .hero-meta-item .value {
+      font-size: 15px;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    /* ---- SECTION SHARED ---- */
+    section {
+      padding: 80px 0;
+      border-top: 1px solid var(--separator);
+    }
+    .section-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--accent-blue);
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    section h2 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+      margin-bottom: 20px;
+    }
+    section .lead {
+      font-size: 18px;
+      color: var(--text-secondary);
+      max-width: 640px;
+      line-height: 1.65;
+      margin-bottom: 40px;
+    }
+
+    /* ---- PROBLEM ---- */
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 40px;
+    }
+    .problem-card {
+      background: var(--surface);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 28px;
+    }
+    .problem-card .icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-bottom: 16px;
+    }
+    .problem-card h3 {
+      font-size: 17px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .problem-card p {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+
+    /* ---- SOLUTION / HOW IT WORKS ---- */
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin-top: 48px;
+      position: relative;
+    }
+    .steps::before {
+      content: '';
+      position: absolute;
+      left: 19px;
+      top: 40px;
+      bottom: 40px;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--accent-blue), var(--accent-purple), var(--accent-gold));
+      border-radius: 2px;
+    }
+    .step {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+      padding: 20px 0;
+    }
+    .step-number {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 2px solid var(--accent-blue);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--accent-blue);
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+    }
+    .step-content h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .step-content p {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+    .step-content .tech-tag {
+      display: inline-block;
+      background: var(--raised);
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-purple);
+      margin-top: 8px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    /* ---- DESIGN ---- */
+    .design-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 40px;
+    }
+    .design-card {
+      background: var(--surface);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 32px;
+    }
+    .design-card.full { grid-column: 1 / -1; }
+    .design-card h3 {
+      font-size: 17px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .design-card p {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+    .color-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    .color-swatch {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--raised);
+      border-radius: 8px;
+      padding: 6px 12px 6px 6px;
+    }
+    .color-swatch .swatch {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+    }
+    .color-swatch .name {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    /* ---- ARCHITECTURE ---- */
+    .arch-diagram {
+      background: var(--surface);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 40px;
+      margin-top: 40px;
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+    }
+    .arch-layers {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .arch-layer {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .arch-layer .layer-label {
+      width: 100px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-tertiary);
+      font-weight: 700;
+      text-align: right;
+      flex-shrink: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+    }
+    .arch-layer .layer-boxes {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+    .arch-box {
+      background: var(--raised);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--text);
+      white-space: nowrap;
+      border: 1px solid var(--card-border);
+    }
+    .arch-box.blue { border-color: rgba(77,163,255,0.3); color: var(--accent-blue); }
+    .arch-box.purple { border-color: rgba(155,122,255,0.3); color: var(--accent-purple); }
+    .arch-box.gold { border-color: rgba(240,185,90,0.3); color: var(--accent-gold); }
+    .arch-box.green { border-color: rgba(90,191,120,0.3); color: var(--accent-green); }
+    .arch-box.red { border-color: rgba(255,90,103,0.3); color: var(--accent-red); }
+    .arch-connector {
+      text-align: center;
+      color: var(--text-tertiary);
+      font-size: 13px;
+      padding: 4px 0;
+      margin-left: 116px;
+    }
+
+    /* ---- CHALLENGES ---- */
+    .challenges {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-top: 40px;
+    }
+    .challenge {
+      background: var(--surface);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 32px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+    .challenge-side h4 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .challenge-side.problem-side h4 { color: var(--accent-red); }
+    .challenge-side.solution-side h4 { color: var(--accent-green); }
+    .challenge-side p {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+    .challenge h3 {
+      grid-column: 1 / -1;
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: -8px;
+    }
+
+    /* ---- STACK ---- */
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 40px;
+    }
+    .stack-item {
+      background: var(--surface);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .stack-item .stack-name {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .stack-item .stack-why {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* ---- SCREENSHOTS ---- */
+    .screenshots {
+      margin-top: 48px;
+    }
+    .screenshot-row {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .screenshot-placeholder {
+      width: 220px;
+      height: 440px;
+      background: var(--surface);
+      border: 1px dashed rgba(245,240,235,0.12);
+      border-radius: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--text-tertiary);
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .screenshot-placeholder .ph-icon {
+      font-size: 28px;
+      opacity: 0.5;
+    }
+
+    /* ---- OUTCOME ---- */
+    .outcome-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 40px;
+    }
+    .outcome-card {
+      background: var(--surface);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 28px;
+      text-align: center;
+    }
+    .outcome-card .stat {
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      margin-bottom: 4px;
+    }
+    .outcome-card .stat.blue { color: var(--accent-blue); }
+    .outcome-card .stat.purple { color: var(--accent-purple); }
+    .outcome-card .stat.gold { color: var(--accent-gold); }
+    .outcome-card .desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    /* ---- FOOTER ---- */
+    footer {
+      border-top: 1px solid var(--separator);
+      padding: 40px 0;
+      text-align: center;
+    }
+    footer p {
+      font-size: 14px;
+      color: var(--text-tertiary);
+    }
+    footer a {
+      color: var(--accent-blue);
+      text-decoration: none;
+    }
+    footer a:hover { text-decoration: underline; }
+
+    /* ---- RESPONSIVE ---- */
+    @media (max-width: 768px) {
+      .hero { padding: 64px 0 48px; }
+      section { padding: 48px 0; }
+      .hero-meta { gap: 24px; }
+      .design-grid { grid-template-columns: 1fr; }
+      .challenge { grid-template-columns: 1fr; gap: 16px; }
+      .outcome-grid { grid-template-columns: 1fr; }
+      .arch-layer { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .arch-layer .layer-label { text-align: left; width: auto; }
+      .arch-connector { margin-left: 0; }
+      .steps::before { display: none; }
+      nav .nav-links { gap: 16px; }
+    }
+    @media (max-width: 480px) {
+      .hero h1 { font-size: 32px; }
+      section h2 { font-size: 24px; }
+      .screenshot-placeholder { width: 160px; height: 320px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="container">
+    <div class="nav-brand"><span>Courage Egbude</span> / Case Study</div>
+    <div class="nav-links">
+      <a href="#problem">Problem</a>
+      <a href="#solution">Solution</a>
+      <a href="#design">Design</a>
+      <a href="#engineering">Engineering</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="container">
+    <div class="hero-badge">
+      <span class="dot"></span>
+      Pre-launch
+    </div>
+    <h1>Scribe: <span class="gradient">AI sermon notes,<br>hands-free</span></h1>
+    <p>I designed and built a mobile app that turns a live sermon into a structured outline with scripture references &mdash; so pastors, students, and churchgoers can stay present instead of scribbling notes.</p>
+    <div class="hero-meta">
+      <div class="hero-meta-item">
+        <div class="label">Role</div>
+        <div class="value">Founder, Designer &amp; Developer</div>
+      </div>
+      <div class="hero-meta-item">
+        <div class="label">Timeline</div>
+        <div class="value">2026</div>
+      </div>
+      <div class="hero-meta-item">
+        <div class="label">Platform</div>
+        <div class="value">iOS &amp; Android</div>
+      </div>
+      <div class="hero-meta-item">
+        <div class="label">Stack</div>
+        <div class="value">React Native, Expo, Groq AI</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- PROBLEM -->
+<section id="problem">
+  <div class="container">
+    <div class="section-label">The Problem</div>
+    <h2>Sermon notes shouldn't compete with the sermon</h2>
+    <p class="lead">Every Sunday, millions of people sit in church trying to simultaneously listen and write. The result is usually incomplete notes, missed context, and lost scripture references. I experienced this firsthand and kept thinking: my phone is sitting right there &mdash; why can't it just listen for me?</p>
+
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="icon" style="background: rgba(255,90,103,0.12);">
+          <span>&#9997;</span>
+        </div>
+        <h3>Divided attention</h3>
+        <p>Writing notes pulls focus away from the message. You're either listening or transcribing &mdash; rarely both.</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon" style="background: rgba(240,185,90,0.12);">
+          <span>&#128214;</span>
+        </div>
+        <h3>Lost scripture references</h3>
+        <p>Pastors reference verses quickly. By the time you find the book and chapter, they've moved on to the next point.</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon" style="background: rgba(155,122,255,0.12);">
+          <span>&#128203;</span>
+        </div>
+        <h3>Unstructured output</h3>
+        <p>Handwritten notes lack structure. Going back to review a sermon a week later often means deciphering cryptic shorthand.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SOLUTION -->
+<section id="solution">
+  <div class="container">
+    <div class="section-label">The Solution</div>
+    <h2>Tap record, get an outline</h2>
+    <p class="lead">Scribe captures audio in real-time, transcribes it with Groq's Whisper model, and uses Llama 3.3 to extract a structured outline &mdash; complete with sermon points and every scripture reference cited, looked up in your preferred Bible translation.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <h3>Record</h3>
+          <p>Audio is captured in 30-second chunks and written to disk immediately. Recording works offline, in the background, and survives app crashes.</p>
+          <span class="tech-tag">expo-av &middot; chunked recording</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <h3>Transcribe</h3>
+          <p>Each chunk is uploaded to Groq's Whisper Large v3 Turbo for fast, accurate transcription. The live transcript updates on screen as the sermon progresses.</p>
+          <span class="tech-tag">Groq Whisper API &middot; streaming</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <h3>Outline</h3>
+          <p>Every two chunks, the running transcript is analyzed by Llama 3.3 70B to produce a live outline: title, theme, summary, and key points.</p>
+          <span class="tech-tag">Groq Llama 3.3 70B &middot; JSON mode</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <h3>Scripture lookup</h3>
+          <p>Detected references are matched against API.Bible across 200+ translations. Each verse is displayed as a tappable card alongside the sermon point that cited it.</p>
+          <span class="tech-tag">API.Bible &middot; regex extraction</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">5</div>
+        <div class="step-content">
+          <h3>Review &amp; export</h3>
+          <p>The finished sermon is saved locally with tabs for outline, scriptures, and full transcript. Export as PDF or share directly.</p>
+          <span class="tech-tag">expo-print &middot; expo-sharing</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SCREENSHOTS PLACEHOLDER -->
+<section>
+  <div class="container">
+    <div class="section-label">App Screens</div>
+    <h2>Designed for focus</h2>
+    <p class="lead">A minimal, distraction-free interface that stays out of the way during a sermon and surfaces rich detail when you're ready to review.</p>
+
+    <div class="screenshots">
+      <div class="screenshot-row">
+        <div class="screenshot-placeholder">
+          <span class="ph-icon">&#127908;</span>
+          Recording
+        </div>
+        <div class="screenshot-placeholder">
+          <span class="ph-icon">&#128196;</span>
+          Live Outline
+        </div>
+        <div class="screenshot-placeholder">
+          <span class="ph-icon">&#128214;</span>
+          Scriptures
+        </div>
+        <div class="screenshot-placeholder">
+          <span class="ph-icon">&#128193;</span>
+          Library
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DESIGN -->
+<section id="design">
+  <div class="container">
+    <div class="section-label">Design Decisions</div>
+    <h2>Thoughtful choices, not defaults</h2>
+    <p class="lead">Every design decision was guided by one principle: the app should feel like it disappears while recording and resurface with value when the sermon is over.</p>
+
+    <div class="design-grid">
+      <div class="design-card">
+        <h3>One-tap recording</h3>
+        <p>No setup, no configuration before a sermon starts. Tap the red circle and you're recording. The Groq key is entered once in settings and remembered. Getting from pocket to recording takes under two seconds.</p>
+      </div>
+      <div class="design-card">
+        <h3>Progressive disclosure</h3>
+        <p>During recording, only the timer and a minimal transcript are visible. The full outline, scripture cards, and export options appear after you stop. The interface matches the user's current need.</p>
+      </div>
+      <div class="design-card">
+        <h3>Guided onboarding</h3>
+        <p>A two-step welcome carousel explains the three value props (transcription, outlining, scripture lookup) with subtle animations. The Groq key setup links directly to the console with clear instructions.</p>
+      </div>
+      <div class="design-card">
+        <h3>Resilience as UX</h3>
+        <p>Rate limits, network loss, and crashes are first-class states &mdash; not error screens. The app auto-pauses, vibrates, and presents clear options. Audio is always safe. Drafts auto-save every five minutes.</p>
+      </div>
+      <div class="design-card full">
+        <h3>Color system</h3>
+        <p>A warm dark palette with intentional accent colors: blue for actions, red for recording state, gold for warnings, green for success. Full light and dark mode support that follows system preference.</p>
+        <div class="color-row">
+          <div class="color-swatch">
+            <div class="swatch" style="background: #4DA3FF;"></div>
+            <span class="name">Action Blue</span>
+          </div>
+          <div class="color-swatch">
+            <div class="swatch" style="background: #FF5A67;"></div>
+            <span class="name">Record Red</span>
+          </div>
+          <div class="color-swatch">
+            <div class="swatch" style="background: #F0B95A;"></div>
+            <span class="name">Warning Gold</span>
+          </div>
+          <div class="color-swatch">
+            <div class="swatch" style="background: #9B7EFF;"></div>
+            <span class="name">Accent Purple</span>
+          </div>
+          <div class="color-swatch">
+            <div class="swatch" style="background: #5ABF78;"></div>
+            <span class="name">Success Green</span>
+          </div>
+          <div class="color-swatch">
+            <div class="swatch" style="background: #0C0A09;"></div>
+            <span class="name">Background</span>
+          </div>
+          <div class="color-swatch">
+            <div class="swatch" style="background: #1C1917;"></div>
+            <span class="name">Surface</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ENGINEERING -->
+<section id="engineering">
+  <div class="container">
+    <div class="section-label">Engineering</div>
+    <h2>Hard problems, solved</h2>
+    <p class="lead">Building a reliable recording app on a mobile phone is deceptively complex. Here are the engineering challenges that shaped the architecture.</p>
+
+    <div class="challenges">
+      <div class="challenge">
+        <h3>Zero data loss recording</h3>
+        <div class="challenge-side problem-side">
+          <h4>Problem</h4>
+          <p>A sermon can run over an hour. If the app crashes, the phone dies, or the user accidentally swipes away, all audio and transcription is lost.</p>
+        </div>
+        <div class="challenge-side solution-side">
+          <h4>Solution</h4>
+          <p>Audio is split into 30-second chunks and written to disk immediately. An AppState listener flushes the current chunk on background/lock. Drafts auto-save every 5 minutes. On next launch, orphaned audio directories are detected and converted into recoverable drafts.</p>
+        </div>
+      </div>
+
+      <div class="challenge">
+        <h3>Real-time rate limit detection</h3>
+        <div class="challenge-side problem-side">
+          <h4>Problem</h4>
+          <p>Groq's free tier has daily transcription limits. A user could record an entire sermon and only discover afterward that transcription stopped working midway through.</p>
+        </div>
+        <div class="challenge-side solution-side">
+          <h4>Solution</h4>
+          <p>The app parses Groq's 429 response in real time. On the first rate-limit error, recording auto-pauses, the phone vibrates, and a blocking alert offers three options: save now, switch to audio-only mode, or retry. Audio is always preserved for later re-transcription.</p>
+        </div>
+      </div>
+
+      <div class="challenge">
+        <h3>Offline-first architecture</h3>
+        <div class="challenge-side problem-side">
+          <h4>Problem</h4>
+          <p>Church buildings often have unreliable connectivity. The app can't depend on a constant internet connection for its core function.</p>
+        </div>
+        <div class="challenge-side solution-side">
+          <h4>Solution</h4>
+          <p>A connectivity check runs before recording starts. If offline, the app offers audio-only mode. All data is stored locally &mdash; no backend dependency. Saved audio can be re-transcribed later from the sermon detail screen when connectivity returns.</p>
+        </div>
+      </div>
+
+      <div class="challenge">
+        <h3>Background recording on mobile</h3>
+        <div class="challenge-side problem-side">
+          <h4>Problem</h4>
+          <p>When the user locks their phone or switches apps, the JavaScript thread freezes, but the native audio session keeps recording into the current segment.</p>
+        </div>
+        <div class="challenge-side solution-side">
+          <h4>Solution</h4>
+          <p>iOS background audio mode is configured in the native entitlements. An AppState listener detects background transitions and seals the current chunk before suspension. When the app returns to foreground, the chunk timer resumes seamlessly.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section>
+  <div class="container">
+    <div class="section-label">Architecture</div>
+    <h2>System overview</h2>
+    <p class="lead">A layered architecture designed to keep the recording pipeline reliable and the data layer independent of any backend.</p>
+
+    <div class="arch-diagram">
+      <div class="arch-layers">
+        <div class="arch-layer">
+          <div class="layer-label">Screens</div>
+          <div class="layer-boxes">
+            <div class="arch-box blue">Record</div>
+            <div class="arch-box blue">Sermon Detail</div>
+            <div class="arch-box blue">Folders</div>
+            <div class="arch-box blue">Settings</div>
+            <div class="arch-box blue">Onboarding</div>
+          </div>
+        </div>
+        <div class="arch-connector">&darr;</div>
+        <div class="arch-layer">
+          <div class="layer-label">State</div>
+          <div class="layer-boxes">
+            <div class="arch-box purple">Zustand Session Store</div>
+            <div class="arch-box purple">Supabase Auth Context</div>
+          </div>
+        </div>
+        <div class="arch-connector">&darr;</div>
+        <div class="arch-layer">
+          <div class="layer-label">Services</div>
+          <div class="layer-boxes">
+            <div class="arch-box gold">SermonRecorder</div>
+            <div class="arch-box gold">Whisper Transcription</div>
+            <div class="arch-box gold">Outline Extraction</div>
+            <div class="arch-box gold">Scripture Regex</div>
+            <div class="arch-box gold">Bible Lookup</div>
+          </div>
+        </div>
+        <div class="arch-connector">&darr;</div>
+        <div class="arch-layer">
+          <div class="layer-label">Storage</div>
+          <div class="layer-boxes">
+            <div class="arch-box green">Sermon CRUD</div>
+            <div class="arch-box green">Folder CRUD</div>
+            <div class="arch-box green">SecureStore Keys</div>
+            <div class="arch-box green">Crash Logger</div>
+          </div>
+        </div>
+        <div class="arch-connector">&darr;</div>
+        <div class="arch-layer">
+          <div class="layer-label">External</div>
+          <div class="layer-boxes">
+            <div class="arch-box red">Groq API</div>
+            <div class="arch-box red">API.Bible</div>
+            <div class="arch-box red">Supabase</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STACK -->
+<section>
+  <div class="container">
+    <div class="section-label">Tech Stack</div>
+    <h2>Why these tools</h2>
+    <p class="lead">Every dependency was chosen for a reason. No boilerplate, no framework churn.</p>
+
+    <div class="stack-grid">
+      <div class="stack-item">
+        <div class="stack-name">Expo SDK 54</div>
+        <div class="stack-why">Managed workflow means faster iteration and OTA updates without App Store review.</div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-name">React Native 0.81</div>
+        <div class="stack-why">One codebase for iOS and Android. New Architecture enabled for better performance.</div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-name">expo-router</div>
+        <div class="stack-why">File-based routing with deep linking built in. Navigation structure mirrors the folder layout.</div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-name">Zustand</div>
+        <div class="stack-why">Minimal state management for the recording session. No Redux ceremony for a focused store.</div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-name">Groq (Whisper + Llama)</div>
+        <div class="stack-why">Free-tier AI APIs with sub-second latency. Users bring their own key &mdash; zero server cost.</div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-name">API.Bible</div>
+        <div class="stack-why">200+ translations for scripture lookup. Cached locally to minimize API calls.</div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-name">Supabase</div>
+        <div class="stack-why">Auth with email OTP, Google, and Apple sign-in. Planned sync layer for cross-device access.</div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-name">TypeScript</div>
+        <div class="stack-why">End-to-end type safety. Sermon, Outline, and Scripture types enforce data shape at compile time.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- OUTCOMES -->
+<section>
+  <div class="container">
+    <div class="section-label">By the Numbers</div>
+    <h2>Project scope</h2>
+    <p class="lead">A solo project, designed and built from scratch.</p>
+
+    <div class="outcome-grid">
+      <div class="outcome-card">
+        <div class="stat blue">12</div>
+        <div class="desc">Screens with file-based routing</div>
+      </div>
+      <div class="outcome-card">
+        <div class="stat purple">0</div>
+        <div class="desc">Backend servers required</div>
+      </div>
+      <div class="outcome-card">
+        <div class="stat gold">$0</div>
+        <div class="desc">Recurring infrastructure cost</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- REFLECTIONS -->
+<section>
+  <div class="container">
+    <div class="section-label">Reflections</div>
+    <h2>What I learned</h2>
+
+    <div class="design-grid">
+      <div class="design-card">
+        <h3>Design for failure states first</h3>
+        <p>The most important screens in Scribe aren't the happy path &mdash; they're the rate limit alert, the offline prompt, and the orphan recovery flow. Users don't remember a smooth recording, but they'll never forget a lost one.</p>
+      </div>
+      <div class="design-card">
+        <h3>Bring-your-own-key is a viable model</h3>
+        <p>By having users provide their own Groq API key, Scribe avoids backend costs entirely. The trade-off is onboarding friction, which I mitigated with an in-app setup guide and direct links to the Groq console.</p>
+      </div>
+      <div class="design-card">
+        <h3>Chunked recording solves everything</h3>
+        <p>Splitting audio into 30-second segments solved crash recovery, memory pressure, upload size limits, and incremental transcription all at once. One architectural decision, four problems eliminated.</p>
+      </div>
+      <div class="design-card">
+        <h3>Ship with real resilience, not error messages</h3>
+        <p>Early versions showed error toasts when transcription failed. The final version auto-pauses, saves audio, and offers clear next steps. Users don't need to know what went wrong &mdash; they need to know their data is safe.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <p>Case study by <strong>Courage Egbude</strong> &middot; <a href="mailto:tobiegbude@gmail.com">tobiegbude@gmail.com</a></p>
+  </div>
+</footer>
+
+</body>
+</html>
