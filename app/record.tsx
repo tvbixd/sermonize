@@ -196,6 +196,7 @@ export default function RecordScreen() {
       chunkCountRef.current += 1;
       incrementChunk();
       failedChunksRef.current = 0;
+      setChunkWarning(null);
       if (chunkCountRef.current % OUTLINE_EVERY_N_CHUNKS === 0) {
         const outline = await extractOutline(transcriptRef.current, groqKeyRef.current);
         setLiveOutline(outline);
@@ -204,14 +205,60 @@ export default function RecordScreen() {
       if (e instanceof NetworkError || e instanceof RateLimitError) {
         failedChunksRef.current += 1;
         const count = failedChunksRef.current;
-        setChunkWarning(count > 1 ? `${e.message} (${count} chunks missed)` : e.message);
+        const isRateLimit = e instanceof RateLimitError;
+
+        setChunkWarning(
+          isRateLimit
+            ? `Transcription limit reached — audio is still being saved`
+            : e.message,
+        );
         if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
-        warningTimerRef.current = setTimeout(() => setChunkWarning(null), 10000);
-        if (count >= 3) {
+        // Rate limit warnings stay visible; network errors auto-dismiss
+        if (!isRateLimit) {
+          warningTimerRef.current = setTimeout(() => setChunkWarning(null), 10000);
+        }
+
+        if (isRateLimit) {
+          heavyTap();
+          // Auto-pause on first rate limit so the user can't miss it
+          await recorderRef.current?.pause().catch(() => undefined);
+          stopTicker();
+          setStatus('paused');
+
           void logEvent('rate_limit_alert', { consecutiveFailures: count });
           Alert.alert(
             'Transcription Limit Reached',
-            'Your API rate limit has been hit. Audio is still being saved.',
+            'Your Groq API rate limit has been hit. Your audio is safe — you can save now and re-transcribe later, or keep recording audio without transcription.',
+            [
+              { text: 'Stop & Save', style: 'default', onPress: () => void saveDraftNow() },
+              {
+                text: 'Continue (Audio Only)',
+                onPress: () => {
+                  audioOnlyRef.current = true;
+                  setAudioOnlyMode(true);
+                  setChunkWarning(null);
+                  recorderRef.current?.resume().catch(() => undefined);
+                  setStatus('recording');
+                  startTicker();
+                },
+              },
+              {
+                text: 'Keep Trying',
+                style: 'cancel',
+                onPress: () => {
+                  recorderRef.current?.resume().catch(() => undefined);
+                  setStatus('recording');
+                  startTicker();
+                },
+              },
+            ],
+          );
+        } else if (count >= 3) {
+          heavyTap();
+          void logEvent('network_alert', { consecutiveFailures: count });
+          Alert.alert(
+            'Connection Lost',
+            'Unable to reach the transcription server. Audio is still being saved.',
             [
               { text: 'Stop & Save', onPress: () => void saveDraftNow() },
               { text: 'Continue (Audio Only)', onPress: () => { audioOnlyRef.current = true; setAudioOnlyMode(true); setChunkWarning(null); } },
