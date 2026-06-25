@@ -63,7 +63,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     apiBibleKey: process.env.API_BIBLE_KEY ?? '',
     eas: {
-      projectId: process.env.EAS_PROJECT_ID ?? '',
+      projectId: '8ccfc5d3-c6d1-4c67-bd3b-0306b737cae2',
     },
   },
 });
