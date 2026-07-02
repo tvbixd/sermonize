@@ -1,6 +1,9 @@
 import type { Session, User } from '@supabase/supabase-js';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+
+const NOT_CONFIGURED =
+  'Sign-in is not available in this build (auth service not configured). You can still use the app without an account.';
 
 type AuthResult = { error: string | null };
 type AuthResultWithUser = { error: string | null; isNewUser: boolean; userName: string | null };
@@ -56,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithIdToken = async (provider: 'google' | 'apple', idToken: string, nonce?: string): Promise<AuthResultWithUser> => {
+    if (!isSupabaseConfigured) return { error: NOT_CONFIGURED, isNewUser: false, userName: null };
     const { data, error } = await supabase.auth.signInWithIdToken({
       provider,
       token: idToken,
@@ -67,11 +71,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const sendOtp = async (email: string): Promise<AuthResult> => {
+    if (!isSupabaseConfigured) return { error: NOT_CONFIGURED };
     const { error } = await supabase.auth.signInWithOtp({ email });
     return { error: error?.message ?? null };
   };
 
   const verifyOtp = async (email: string, token: string): Promise<AuthResultWithUser> => {
+    if (!isSupabaseConfigured) return { error: NOT_CONFIGURED, isNewUser: false, userName: null };
     const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
     if (error) return { error: error.message, isNewUser: false, userName: null };
     const userName = data.user?.user_metadata?.display_name ?? null;
