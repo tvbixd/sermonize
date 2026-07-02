@@ -513,7 +513,7 @@ function EmailView({
           </View>
         </View>
         <Text style={[s.hintText, error ? { color: t.statusError } : { color: t.textSecondary }]}>
-          {error || "You'll get a 6-digit code from no-reply@scribe.app"}
+          {error || "You'll get a 6-digit code by email — check spam if you don't see it"}
         </Text>
       </View>
 
@@ -789,7 +789,7 @@ function MicSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: Retu
         <Text style={s.setupSub}>
           {granted
             ? 'Microphone access granted.'
-            : 'Scribe needs microphone access to record your sermons. Audio stays on your phone.'}
+            : 'Scribe needs microphone access to record your sermons. Recordings are saved on your device and sent to Groq only for transcription.'}
         </Text>
       </View>
       <View style={s.bottomAction}>

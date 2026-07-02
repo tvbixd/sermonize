@@ -10,7 +10,7 @@ ACCOUNT (OPTIONAL)
 - Profile fields (display name, role, church) are stored with your account if you sign in.
 
 THIRD PARTIES
-- Audio chunks are sent to Groq's transcription API for processing. Groq does not retain audio after transcription. See Groq's privacy policy for details.
+- Audio chunks are sent to Groq's transcription API for processing, under your own API key. Audio handling and retention are governed by Groq's data policy — see groq.com for details.
 - Scripture text is fetched on demand from public Bible APIs (api.scripture.api.bible and bible-api.com).
 - We do not use third-party analytics or advertising.
 

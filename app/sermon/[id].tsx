@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AudioPlayer } from '@/components/AudioPlayer';
 import { ScriptureCard } from '@/components/ScriptureCard';
 import { Skeleton } from '@/components/Skeleton';
 import { BackChevronIcon, CloseIcon, ExportIcon, PlusIcon, RegenIcon } from '@/components/icons';
@@ -48,12 +49,24 @@ export default function SermonDetail() {
   const [draftPoints, setDraftPoints] = useState<Outline['points']>([]);
   const [newScriptureRef, setNewScriptureRef] = useState('');
   const [addingScripture, setAddingScripture] = useState(false);
+  const [audioFileUris, setAudioFileUris] = useState<string[]>([]);
 
   useEffect(() => {
     void (async () => {
       if (!id) return;
-      const s = await getSermon(id);
-      if (s) { setSermon(s); seedDraft(s); }
+      const s = await getSermon(id).catch(() => null);
+      if (s) {
+        setSermon(s);
+        seedDraft(s);
+        // List the audio dir directly — stored URIs can go stale after app
+        // updates, but the files themselves live under the sermon's id.
+        const dir = audioDir(s.id);
+        const entries = await FileSystem.readDirectoryAsync(dir).catch(() => [] as string[]);
+        const files = entries
+          .filter((f) => f.endsWith('.m4a') || f.endsWith('.mp4') || f.endsWith('.webm'))
+          .sort();
+        setAudioFileUris(files.map((f) => `${dir}${f}`));
+      }
     })();
   }, [id]);
 
@@ -232,27 +245,37 @@ export default function SermonDetail() {
 
   const onExport = () => {
     if (!sermon) return;
+    const run = (fn: () => Promise<void>) => async () => {
+      setBusy(true);
+      try {
+        await fn();
+      } catch (e) {
+        Alert.alert('Export failed', e instanceof Error ? e.message : 'Could not export.');
+      } finally {
+        setBusy(false);
+      }
+    };
     Alert.alert('Export', 'Choose a format', [
       {
         text: 'Markdown',
-        onPress: async () => {
+        onPress: run(async () => {
           const md = sermonToMarkdown(sermon);
           const path = `${FileSystem.cacheDirectory}${sanitize(sermon.title)}.md`;
           await FileSystem.writeAsStringAsync(path, md);
           if (await Sharing.isAvailableAsync()) {
             await Sharing.shareAsync(path, { mimeType: 'text/markdown', dialogTitle: 'Share sermon notes' });
           }
-        },
+        }),
       },
       {
         text: 'PDF',
-        onPress: async () => {
+        onPress: run(async () => {
           const html = sermonToHtml(sermon);
           const { uri } = await Print.printToFileAsync({ html });
           if (await Sharing.isAvailableAsync()) {
             await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Share sermon PDF' });
           }
-        },
+        }),
       },
       { text: 'Cancel', style: 'cancel' },
     ]);
@@ -317,6 +340,11 @@ export default function SermonDetail() {
         <Text style={styles.sermonMeta}>
           {sermon.isDraft ? 'Draft · ' : ''}{formatDate(sermon.createdAt)} · {formatElapsed(sermon.durationMs)}
         </Text>
+        {audioFileUris.length > 0 && (
+          <View style={{ marginTop: 10 }}>
+            <AudioPlayer uris={audioFileUris} totalDurationMs={sermon.durationMs} />
+          </View>
+        )}
       </View>
 
       {/* Segmented tabs */}
@@ -496,7 +524,7 @@ export default function SermonDetail() {
 
       {/* Footer */}
       <View style={styles.footer}>
-        {sermon.isDraft || sermon.audioUris.length > 0 ? (
+        {sermon.isDraft || audioFileUris.length > 0 ? (
           <TouchableOpacity style={styles.regenBtn} onPress={onRetranscribe} disabled={busy}>
             {busy
               ? <ActivityIndicator color={t.textSecondary} />

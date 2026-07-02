@@ -1,4 +1,4 @@
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useNavigation, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -22,7 +22,7 @@ import { findScriptureReferences } from '@/services/scriptureRegex';
 import { NetworkError, RateLimitError, transcribeAudio } from '@/services/whisper';
 import { useSessionStore } from '@/state/sessionStore';
 import { getGroqKey, getTranslation } from '@/storage/keys';
-import { ensureAudioDir, saveSermon } from '@/storage/sermons';
+import { deleteSermon, ensureAudioDir, saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Sermon } from '@/types';
 import { newId } from '@/util/id';
@@ -67,6 +67,7 @@ function SpinnerSvg({ trackColor, arcColor }: { trackColor: string; arcColor: st
 
 export default function RecordScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const t = useTheme();
@@ -104,6 +105,14 @@ export default function RecordScreen() {
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioOnlyRef = useRef(false);
   const [audioOnlyMode, setAudioOnlyMode] = useState(false);
+  // In-flight chunk transcriptions — onStop awaits these so the final chunk's
+  // text makes it into the saved sermon.
+  const pendingChunksRef = useRef<Set<Promise<void>>>(new Set());
+  const rateLimitAlertActiveRef = useRef(false);
+  const authAlertShownRef = useRef(false);
+  const recordingStartedAtRef = useRef(0);
+  // Set before intentional navigation so the beforeRemove guard lets us leave.
+  const allowLeaveRef = useRef(false);
 
   useEffect(() => {
     reset();
@@ -137,6 +146,30 @@ export default function RecordScreen() {
     return () => sub.remove();
   }, []);
 
+  // Guard the OS back gesture / hardware back button while recording — without
+  // this, popping the screen stops the recorder and silently loses the session.
+  useEffect(() => {
+    const sub = navigation.addListener('beforeRemove', (e) => {
+      const s = useSessionStore.getState().status;
+      if (allowLeaveRef.current || (s !== 'recording' && s !== 'paused')) return;
+      e.preventDefault();
+      Alert.alert('Recording in progress', 'Save it as a draft or discard it before leaving.', [
+        { text: 'Keep Recording', style: 'cancel' },
+        { text: 'Save as Draft', onPress: () => void saveDraftNow() },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: async () => {
+            await discardRecording();
+            allowLeaveRef.current = true;
+            navigation.dispatch(e.data.action);
+          },
+        },
+      ]);
+    });
+    return sub;
+  }, [navigation]);
+
   const startTicker = () => {
     stopTicker();
     tickerRef.current = setInterval(() => {
@@ -148,6 +181,16 @@ export default function RecordScreen() {
     if (tickerRef.current) { clearInterval(tickerRef.current); tickerRef.current = null; }
   };
 
+  /** Wait (bounded) for in-flight chunk transcriptions so the final chunk's
+   *  text is included in whatever we save next. */
+  const waitForPendingChunks = async (timeoutMs = 20000) => {
+    if (pendingChunksRef.current.size === 0) return;
+    await Promise.race([
+      Promise.allSettled([...pendingChunksRef.current]),
+      new Promise((r) => setTimeout(r, timeoutMs)),
+    ]);
+  };
+
   const autoSaveDraft = async () => {
     if (!sermonIdRef.current) return;
     const uris = recorderRef.current?.getCurrentUris() ?? [];
@@ -155,7 +198,7 @@ export default function RecordScreen() {
     if (!transcriptRef.current.trim() && uris.length === 0) return;
     const sermon: Sermon = {
       id: sermonIdRef.current,
-      createdAt: Date.now(),
+      createdAt: recordingStartedAtRef.current || Date.now(),
       title: 'Draft — ' + new Date().toLocaleDateString(),
       transcript: transcriptRef.current,
       outline: useSessionStore.getState().liveOutline ?? { title: 'Draft', theme: '', summary: '', points: [] },
@@ -169,13 +212,15 @@ export default function RecordScreen() {
 
   const saveDraftNow = async () => {
     stopTicker();
+    if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
     const result = await recorderRef.current?.stop().catch(() => undefined);
+    await waitForPendingChunks(8000);
     const sermon: Sermon = {
       id: sermonIdRef.current,
-      createdAt: Date.now(),
+      createdAt: recordingStartedAtRef.current || Date.now(),
       title: 'Draft — ' + new Date().toLocaleDateString(),
       transcript: transcriptRef.current,
-      outline: liveOutline ?? { title: 'Draft', theme: '', summary: '', points: [] },
+      outline: useSessionStore.getState().liveOutline ?? { title: 'Draft', theme: '', summary: '', points: [] },
       scriptures: [],
       audioUris: result?.uris ?? [],
       durationMs: result?.durationMs ?? 0,
@@ -183,10 +228,22 @@ export default function RecordScreen() {
     };
     await saveSermon(sermon);
     reset();
+    allowLeaveRef.current = true;
     router.back();
   };
 
-  const onChunkReady = async (chunkUri: string) => {
+  /** Stop the recorder and remove everything written to disk for this session. */
+  const discardRecording = async () => {
+    stopTicker();
+    if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
+    await recorderRef.current?.stop().catch(() => undefined);
+    // Without this the sealed chunks stay on disk and orphan recovery
+    // resurrects the "discarded" recording as a draft on next launch.
+    if (sermonIdRef.current) await deleteSermon(sermonIdRef.current).catch(() => {});
+    reset();
+  };
+
+  const processChunk = async (chunkUri: string) => {
     if (audioOnlyRef.current) return;
     try {
       const text = await transcribeAudio([chunkUri], groqKeyRef.current);
@@ -202,72 +259,82 @@ export default function RecordScreen() {
         setLiveOutline(outline);
       }
     } catch (e) {
-      if (e instanceof NetworkError || e instanceof RateLimitError) {
-        failedChunksRef.current += 1;
-        const count = failedChunksRef.current;
-        const isRateLimit = e instanceof RateLimitError;
+      failedChunksRef.current += 1;
+      const count = failedChunksRef.current;
+      const isRateLimit = e instanceof RateLimitError;
+      const isNetwork = e instanceof NetworkError;
+      const msg = e instanceof Error ? e.message : String(e);
+      const isAuth = !isRateLimit && !isNetwork && /\((401|403)\)/.test(msg);
 
-        setChunkWarning(
-          isRateLimit
-            ? `Transcription limit reached — audio is still being saved`
-            : e.message,
+      setChunkWarning(
+        isRateLimit ? 'Transcription limit reached — audio is still being saved'
+          : isNetwork ? msg
+          : isAuth ? 'API key rejected — audio is still being saved'
+          : 'Transcription error — audio is still being saved',
+      );
+      if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+      // Rate-limit and auth warnings stay visible; transient errors auto-dismiss
+      if (!isRateLimit && !isAuth) {
+        warningTimerRef.current = setTimeout(() => setChunkWarning(null), 10000);
+      }
+
+      const pauseAndAlert = (title: string, message: string) => {
+        if (rateLimitAlertActiveRef.current) return;
+        rateLimitAlertActiveRef.current = true;
+        heavyTap();
+        void recorderRef.current?.pause().catch(() => undefined);
+        stopTicker();
+        setStatus('paused');
+        const resume = () => {
+          rateLimitAlertActiveRef.current = false;
+          recorderRef.current?.resume().catch(() => undefined);
+          setStatus('recording');
+          startTicker();
+        };
+        Alert.alert(title, message, [
+          { text: 'Stop & Save', style: 'default', onPress: () => { rateLimitAlertActiveRef.current = false; void saveDraftNow(); } },
+          {
+            text: 'Continue (Audio Only)',
+            onPress: () => {
+              audioOnlyRef.current = true;
+              setAudioOnlyMode(true);
+              setChunkWarning(null);
+              resume();
+            },
+          },
+          { text: 'Keep Trying', style: 'cancel', onPress: resume },
+        ]);
+      };
+
+      if (isRateLimit) {
+        void logEvent('rate_limit_alert', { consecutiveFailures: count });
+        pauseAndAlert(
+          'Transcription Limit Reached',
+          'Your Groq API rate limit has been hit. Your audio is safe — you can save now and re-transcribe later, or keep recording audio without transcription.',
         );
-        if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
-        // Rate limit warnings stay visible; network errors auto-dismiss
-        if (!isRateLimit) {
-          warningTimerRef.current = setTimeout(() => setChunkWarning(null), 10000);
-        }
-
-        if (isRateLimit) {
-          heavyTap();
-          // Auto-pause on first rate limit so the user can't miss it
-          await recorderRef.current?.pause().catch(() => undefined);
-          stopTicker();
-          setStatus('paused');
-
-          void logEvent('rate_limit_alert', { consecutiveFailures: count });
-          Alert.alert(
-            'Transcription Limit Reached',
-            'Your Groq API rate limit has been hit. Your audio is safe — you can save now and re-transcribe later, or keep recording audio without transcription.',
-            [
-              { text: 'Stop & Save', style: 'default', onPress: () => void saveDraftNow() },
-              {
-                text: 'Continue (Audio Only)',
-                onPress: () => {
-                  audioOnlyRef.current = true;
-                  setAudioOnlyMode(true);
-                  setChunkWarning(null);
-                  recorderRef.current?.resume().catch(() => undefined);
-                  setStatus('recording');
-                  startTicker();
-                },
-              },
-              {
-                text: 'Keep Trying',
-                style: 'cancel',
-                onPress: () => {
-                  recorderRef.current?.resume().catch(() => undefined);
-                  setStatus('recording');
-                  startTicker();
-                },
-              },
-            ],
-          );
-        } else if (count >= 3) {
-          heavyTap();
-          void logEvent('network_alert', { consecutiveFailures: count });
-          Alert.alert(
-            'Connection Lost',
-            'Unable to reach the transcription server. Audio is still being saved.',
-            [
-              { text: 'Stop & Save', onPress: () => void saveDraftNow() },
-              { text: 'Continue (Audio Only)', onPress: () => { audioOnlyRef.current = true; setAudioOnlyMode(true); setChunkWarning(null); } },
-              { text: 'Keep Trying', style: 'cancel' },
-            ],
-          );
-        }
+      } else if (isAuth && !authAlertShownRef.current) {
+        authAlertShownRef.current = true;
+        void logEvent('auth_error_alert', {});
+        pauseAndAlert(
+          'API Key Problem',
+          'Groq rejected your API key, so nothing is being transcribed. Your audio is safe — you can save now and fix the key in Settings, or keep recording audio only.',
+        );
+      } else if (isNetwork && count >= 3) {
+        heavyTap();
+        void logEvent('network_alert', { consecutiveFailures: count });
+        pauseAndAlert(
+          'Connection Lost',
+          'Unable to reach the transcription server. Audio is still being saved.',
+        );
       }
     }
+  };
+
+  // Sync wrapper handed to SermonRecorder: registers each chunk's async work
+  // so onStop / saveDraftNow can await in-flight transcriptions.
+  const onChunkReady = (chunkUri: string) => {
+    const p = processChunk(chunkUri).finally(() => pendingChunksRef.current.delete(p));
+    pendingChunksRef.current.add(p);
   };
 
   const onRecordPress = async () => {
@@ -276,7 +343,10 @@ export default function RecordScreen() {
       if (status === 'idle') {
         const key = await getGroqKey();
         if (!key) {
-          Alert.alert('API Key Missing', 'Go to Settings and add your Groq API key first.');
+          Alert.alert('API Key Missing', 'Add your free Groq API key in Settings to enable transcription.', [
+            { text: 'Open Settings', onPress: () => router.push('/settings') },
+            { text: 'Cancel', style: 'cancel' },
+          ]);
           return;
         }
         groqKeyRef.current = key;
@@ -289,6 +359,7 @@ export default function RecordScreen() {
           }
           const id = newId();
           sermonIdRef.current = id;
+          recordingStartedAtRef.current = Date.now();
           const dir = await ensureAudioDir(id);
           const recorder = new SermonRecorder(dir);
           await recorder.start(onChunkReady);
@@ -344,6 +415,11 @@ export default function RecordScreen() {
       audioUrisRef.current = result?.uris ?? [];
       durationRef.current = result?.durationMs ?? 0;
 
+      // The final sealed chunk's transcription is still in flight — wait for
+      // it (bounded) so the sermon doesn't lose its last 30 seconds.
+      setStep('transcribing');
+      await waitForPendingChunks();
+
       setStep('outlining');
       const transcript = transcriptRef.current;
       const outline = transcript.trim()
@@ -359,7 +435,7 @@ export default function RecordScreen() {
       setStep('saving');
       const sermon: Sermon = {
         id: sermonIdRef.current,
-        createdAt: Date.now(),
+        createdAt: recordingStartedAtRef.current || Date.now(),
         title: outline.title,
         transcript,
         outline,
@@ -370,6 +446,7 @@ export default function RecordScreen() {
       await saveSermon(sermon);
       setStatus('done');
       void logEvent('recording_completed', { durationMs: durationRef.current, chunks: chunkCountRef.current });
+      allowLeaveRef.current = true;
       router.replace(`/sermon/${sermon.id}`);
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
@@ -382,36 +459,13 @@ export default function RecordScreen() {
   const onDiscard = () => {
     Alert.alert('Discard recording?', 'You can save it as a draft to finish later.', [
       { text: 'Keep Recording', style: 'cancel' },
-      {
-        text: 'Save as Draft',
-        onPress: async () => {
-          stopTicker();
-          if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
-          const result = await recorderRef.current?.stop().catch(() => undefined);
-          const sermon: Sermon = {
-            id: sermonIdRef.current,
-            createdAt: Date.now(),
-            title: 'Draft — ' + new Date().toLocaleDateString(),
-            transcript: transcriptRef.current,
-            outline: liveOutline ?? { title: 'Draft', theme: '', summary: '', points: [] },
-            scriptures: [],
-            audioUris: result?.uris ?? [],
-            durationMs: result?.durationMs ?? 0,
-            isDraft: true,
-          };
-          await saveSermon(sermon);
-          reset();
-          router.back();
-        },
-      },
+      { text: 'Save as Draft', onPress: () => void saveDraftNow() },
       {
         text: 'Discard',
         style: 'destructive',
         onPress: async () => {
-          stopTicker();
-          if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
-          await recorderRef.current?.stop().catch(() => undefined);
-          reset();
+          await discardRecording();
+          allowLeaveRef.current = true;
           router.back();
         },
       },
@@ -421,9 +475,9 @@ export default function RecordScreen() {
   const isActive = status === 'recording' || status === 'paused';
   const isProcessing = status === 'processing';
 
-  const stepLabel: Record<string, string> = { outlining: 'Building outline…', scriptures: 'Looking up scriptures…', saving: 'Saving…' };
-  const stepIndex: Record<string, number> = { outlining: 1, scriptures: 2, saving: 3 };
-  const stepNext: Record<string, string> = { outlining: 'Looking up scriptures next', scriptures: 'Saving next', saving: '' };
+  const stepLabel: Record<string, string> = { transcribing: 'Finishing transcription…', outlining: 'Building outline…', scriptures: 'Looking up scriptures…', saving: 'Saving…' };
+  const stepIndex: Record<string, number> = { transcribing: 1, outlining: 2, scriptures: 3, saving: 4 };
+  const stepNext: Record<string, string> = { transcribing: 'Building outline next', outlining: 'Looking up scriptures next', scriptures: 'Saving next', saving: '' };
 
   const ringColor = isActive ? t.accentRed : t.textTertiary;
 
@@ -479,11 +533,11 @@ export default function RecordScreen() {
               {stepLabel[step] ?? 'Processing…'}
             </Text>
             <Text style={[styles.processingSubtitle, { color: t.textSecondary }]}>
-              Step {stepIndex[step] ?? 1} of 3 · {stepNext[step] ?? ''}
+              Step {stepIndex[step] ?? 1} of 4 · {stepNext[step] ?? ''}
             </Text>
           </View>
           <View style={styles.pips}>
-            {[1, 2, 3].map((i) => (
+            {[1, 2, 3, 4].map((i) => (
               <View
                 key={i}
                 style={[

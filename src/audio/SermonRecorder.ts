@@ -161,9 +161,21 @@ export class SermonRecorder {
     }
   }
 
+  /** Wait for an in-flight chunk rotation to finish (bounded). */
+  private async waitForRotation(): Promise<void> {
+    const deadline = Date.now() + 2000;
+    while (this.rotating && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+  }
+
   async pause(): Promise<void> {
-    if (!this.current) return;
+    // Stop the timer first so a rotation can't start after we pause, then
+    // wait out any rotation already in flight — otherwise we'd "pause" while
+    // the recorder is between segments and the new segment would keep going.
     this.stopChunkTimer();
+    await this.waitForRotation();
+    if (!this.current) return;
     try { await this.current.pauseAsync(); } catch { /* ignore */ }
     if (this.segmentStartedAt != null) {
       this.accumulatedMs += Date.now() - this.segmentStartedAt;
@@ -180,6 +192,7 @@ export class SermonRecorder {
 
   async stop(): Promise<{ uris: string[]; durationMs: number }> {
     this.stopChunkTimer();
+    await this.waitForRotation();
     await this.sealCurrentSegment();
     return { uris: [...this.files], durationMs: this.accumulatedMs };
   }

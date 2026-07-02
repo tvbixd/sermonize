@@ -10,12 +10,31 @@ async function ensureDir() {
   }
 }
 
+/** IDs come from newId() but can also arrive via deep links — never let one
+ *  containing path separators near the filesystem. */
+function assertValidId(id: string) {
+  if (!/^[A-Za-z0-9-]+$/.test(id)) throw new Error(`Invalid sermon id: ${id}`);
+}
+
 function jsonPath(id: string) {
+  assertValidId(id);
   return `${SERMONS_DIR}${id}.json`;
 }
 
 export function audioDir(id: string) {
+  assertValidId(id);
   return `${SERMONS_DIR}${id}/audio/`;
+}
+
+/**
+ * Write JSON via a temp file + rename so the app dying mid-write can never
+ * leave a truncated file at the real path.
+ */
+async function writeJsonAtomic(path: string, data: unknown): Promise<void> {
+  const tmp = `${path}.tmp`;
+  await FileSystem.writeAsStringAsync(tmp, JSON.stringify(data, null, 2));
+  await FileSystem.deleteAsync(path, { idempotent: true });
+  await FileSystem.moveAsync({ from: tmp, to: path });
 }
 
 export async function ensureAudioDir(id: string): Promise<string> {
@@ -50,6 +69,12 @@ async function loadAll(): Promise<Sermon[]> {
 export async function listSermons(): Promise<Sermon[]> {
   const all = await loadAll();
   return all.filter((s) => !s.deletedAt && !s.isDraft);
+}
+
+/** Every sermon regardless of draft/deleted state — for maintenance tasks
+ *  like clearing folder references. */
+export async function listAllSermons(): Promise<Sermon[]> {
+  return loadAll();
 }
 
 export async function listDraftSermons(): Promise<Sermon[]> {
@@ -87,7 +112,21 @@ export async function getSermon(id: string): Promise<Sermon | null> {
 
 export async function saveSermon(sermon: Sermon): Promise<void> {
   await ensureDir();
-  await FileSystem.writeAsStringAsync(jsonPath(sermon.id), JSON.stringify(sermon, null, 2));
+  // Store audio as bare filenames — absolute URIs go stale on iOS whenever
+  // the app container path changes (every app update). Resolve with
+  // resolveAudioUris() when full paths are needed.
+  const normalized: Sermon = {
+    ...sermon,
+    audioUris: (sermon.audioUris ?? []).map((u) => u.split('/').filter(Boolean).pop() ?? u),
+  };
+  await writeJsonAtomic(jsonPath(sermon.id), normalized);
+}
+
+/** Full file URIs for a sermon's audio chunks, resolved against the current
+ *  container path. Handles both legacy absolute URIs and bare filenames. */
+export function resolveAudioUris(sermon: Sermon): string[] {
+  const dir = audioDir(sermon.id);
+  return (sermon.audioUris ?? []).map((u) => `${dir}${u.split('/').filter(Boolean).pop() ?? u}`);
 }
 
 export async function softDeleteSermon(id: string): Promise<void> {
@@ -132,14 +171,16 @@ export async function getAudioStorageBytes(): Promise<number> {
 }
 
 export async function deleteAudioForSermon(id: string): Promise<void> {
-  const dir = audioDir(id);
-  await FileSystem.deleteAsync(dir, { idempotent: true });
-  await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+  // Update the JSON first — if we die between the two steps the sermon
+  // correctly shows "no audio" rather than pointing at deleted files.
   const sermon = await getSermon(id);
   if (sermon) {
     sermon.audioUris = [];
     await saveSermon(sermon);
   }
+  const dir = audioDir(id);
+  await FileSystem.deleteAsync(dir, { idempotent: true });
+  await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
 }
 
 /**
@@ -150,13 +191,27 @@ export async function deleteAudioForSermon(id: string): Promise<void> {
 export async function recoverOrphanedAudio(): Promise<string[]> {
   await ensureDir();
   const entries = await FileSystem.readDirectoryAsync(SERMONS_DIR);
-  const jsonIds = new Set(
-    entries.filter((e) => e.endsWith('.json')).map((e) => e.replace(/\.json$/, '')),
-  );
+  // Only JSON files that actually parse count as "has a sermon" — a file
+  // truncated by a crash mid-write must not shield its audio from recovery.
+  const jsonIds = new Set<string>();
+  for (const e of entries) {
+    if (!e.endsWith('.json')) continue;
+    const id = e.replace(/\.json$/, '');
+    try {
+      const raw = await FileSystem.readAsStringAsync(`${SERMONS_DIR}${e}`);
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.id === 'string' && typeof parsed.createdAt === 'number') {
+        jsonIds.add(id);
+      }
+    } catch {
+      // unreadable/corrupt — treat as missing so the audio gets recovered
+    }
+  }
   const recovered: string[] = [];
   for (const entry of entries) {
-    if (entry.endsWith('.json')) continue;
+    if (entry.endsWith('.json') || entry.endsWith('.tmp')) continue;
     if (jsonIds.has(entry)) continue;
+    if (!/^[A-Za-z0-9-]+$/.test(entry)) continue;
     const dir = `${SERMONS_DIR}${entry}/audio/`;
     const info = await FileSystem.getInfoAsync(dir);
     if (!info.exists || !info.isDirectory) continue;

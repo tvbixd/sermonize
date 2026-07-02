@@ -119,6 +119,9 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, attempts = 4): Promise<
         const retrySec = retryMatch ? parseFloat(retryMatch[1]) : 60;
         throw new RateLimitError(Math.ceil(retrySec * 1000));
       }
+      // Other 4xx errors (bad key, oversized file, malformed request) won't
+      // heal on retry — fail fast so the caller can surface them.
+      if (/\(4\d\d\)/.test(msg)) throw e;
       if (i === attempts - 1) break;
       await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, i)));
     }

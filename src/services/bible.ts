@@ -174,11 +174,15 @@ export async function lookupVerse(
       result = await lookupViaLegacy(reference, tid);
     }
 
-    if (memoryCache.size >= CACHE_MAX) {
-      const oldest = memoryCache.keys().next().value!;
-      memoryCache.delete(oldest);
+    // Only cache hits with text — caching an empty result would pin a
+    // transient API failure for the whole session.
+    if (result.text) {
+      if (memoryCache.size >= CACHE_MAX) {
+        const oldest = memoryCache.keys().next().value!;
+        memoryCache.delete(oldest);
+      }
+      memoryCache.set(cacheKey, result);
     }
-    memoryCache.set(cacheKey, result);
     return result;
   } catch {
     return { reference, translation: tid.toUpperCase() };

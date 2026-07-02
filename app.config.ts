@@ -1,5 +1,7 @@
 import type { ExpoConfig, ConfigContext } from 'expo/config';
 
+const EAS_PROJECT_ID = '8ccfc5d3-c6d1-4c67-bd3b-0306b737cae2';
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'Scribe',
@@ -23,6 +25,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       NSMicrophoneUsageDescription:
         'Scribe needs microphone access to record sermons for transcription and outlining.',
       UIBackgroundModes: ['audio'],
+      // Standard HTTPS only — skips the export-compliance question on
+      // every TestFlight upload.
+      ITSAppUsesNonExemptEncryption: false,
     },
   },
   android: {
@@ -40,7 +45,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
   },
   updates: {
-    url: `https://u.expo.dev/${process.env.EAS_PROJECT_ID ?? ''}`,
+    url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
   },
   runtimeVersion: {
     policy: 'appVersion',
@@ -63,7 +68,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     apiBibleKey: process.env.API_BIBLE_KEY ?? '',
     eas: {
-      projectId: '8ccfc5d3-c6d1-4c67-bd3b-0306b737cae2',
+      projectId: EAS_PROJECT_ID,
     },
   },
 });

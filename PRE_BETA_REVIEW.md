@@ -187,13 +187,37 @@ user's ID) go to a stranger's domain. Sign-in copy also promises the OTP comes
   collisions effectively impossible; recently-deleted/restore flows correct;
   verse cache bounded in memory.
 
-## Suggested fix order
+## Fix status (updated after the fix pass)
 
-1. C1 (build breaks otherwise) — 5 minutes
-2. H1, H2, H4, H5, M3, M11 — recording-screen fixes, one focused pass
-3. H3 (atomic writes + recovery blind spot) — storage pass
-4. H7 + M10 (support domain, .env.example) — config pass
-5. H6 (playback) — the one feature-sized item; strongly recommended before beta
-6. C2 (Android FGS or expo-audio migration) — biggest lift; decide: ship Android
-   beta with "keep app open" caveat, or hold Android until done
-7. Everything else post-beta
+**Fixed in code:**
+- ✅ C1 — packages pinned to SDK 54 versions
+- ✅ H1 — onStop awaits in-flight chunk transcriptions (new "Finishing transcription" step)
+- ✅ H2 — auth/4xx errors surfaced with auto-pause alert; whisper no longer retries 4xx
+- ✅ H3 — atomic tmp+rename writes for sermons and folders; orphan recovery now
+  treats corrupt JSON as recoverable; corrupt folders.json quarantined
+- ✅ H4 — Discard deletes the audio directory
+- ✅ H5 — beforeRemove guard on the record screen (back gesture → Save/Discard alert)
+- ✅ H6 — AudioPlayer on sermon detail (sequential chunk playback, progress bar)
+- ✅ M1 — audioUris stored as filenames; playback/re-transcribe read from the dir
+- ✅ M3 — alert-active guard prevents stacked rate-limit alerts
+- ✅ M4 — Settings validates the Groq key on Done (with Save Anyway escape)
+- ✅ M6 — deleteFolder clears folderId on drafts + trashed sermons too
+- ✅ M7 — Settings pages respect safe-area insets on Android
+- ✅ M8 — API-key-missing alert has an Open Settings button
+- ✅ M9 — updates.url uses the hardcoded project ID
+- ✅ M10 — .env.example was already committed (stale finding)
+- ✅ M11 — pause waits out in-flight chunk rotation
+- ✅ Lows — purge guard in Folders refresh, createdAt preserved across saves,
+  no negative caching in bible.ts, privacy copy corrected, export-compliance
+  flag added, export spinner, sermon-ID sanitization
+
+**Still open (need you / a decision):**
+- 🔴 C2 — Android microphone foreground service. Needs a native module or the
+  expo-audio migration + real-device testing. Ship Android beta with a
+  "keep the app open while recording" note, or hold Android.
+- 🔴 H7 — replace `scribe.app` in src/config/support.ts with a domain/inbox you
+  own (5 minutes, but only you can do it).
+- 🟡 M2 — in-app account deletion (Supabase Edge Function). Fine for TestFlight;
+  required before public App Store release.
+- 🟡 M5 — API_BIBLE_KEY embedded in binary. Acceptable for beta; proxy later.
+- 🟡 L3 — expo-audio migration (pairs with C2), post-beta.

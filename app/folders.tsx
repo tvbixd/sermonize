@@ -49,7 +49,8 @@ export default function FoldersScreen() {
   const [draftColor, setDraftColor] = useState(FOLDER_COLORS[0]);
 
   const refresh = useCallback(async () => {
-    await purgeExpiredDeleted();
+    // Best-effort — a purge failure must never block the list from loading
+    await purgeExpiredDeleted().catch(() => {});
     const [f, s] = await Promise.all([listFolders(), listSermons()]);
     setFolders(f);
     setSermons(s);

@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Circle, Path, Rect, Svg } from 'react-native-svg';
 import {
   getGroqKey,
@@ -31,6 +32,7 @@ import { FAQ } from '@/config/faq';
 import { PRIVACY_POLICY_TEXT, TERMS_TEXT } from '@/config/legal';
 import { GROQ_CONSOLE_URL, PRIVACY_POLICY_URL, SUPPORT_EMAIL, TERMS_URL } from '@/config/support';
 import { getCrashLog, clearLogs } from '@/services/logger';
+import { validateGroqKey } from '@/services/network';
 import { getAudioStorageBytes } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import { CheckIcon, EyeIcon, EyeOffIcon } from '@/components/icons';
@@ -158,6 +160,11 @@ export default function SettingsScreen() {
   const router = useRouter();
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
+  // Android renders this "modal" full-screen and edge-to-edge — without
+  // insets the nav buttons sit under the status bar and the content ends
+  // under the gesture bar. On iOS sheets the insets resolve to ~0.
+  const insets = useSafeAreaInsets();
+  const containerStyle = [s.container, { paddingTop: insets.top, paddingBottom: insets.bottom }];
   const { user, signOut, updateProfile, changeEmail } = useAuth();
 
   const [page, setPage] = useState<'root' | 'edit-profile' | 'change-email' | 'faq' | 'privacy' | 'terms'>('root');
@@ -217,8 +224,32 @@ export default function SettingsScreen() {
   if (!loaded) return null;
 
   const onDone = async () => {
-    await setGroqKey(groq.trim());
+    const key = groq.trim();
     await setTranslation(translation);
+    if (key) {
+      setKeyStatus('checking');
+      const verdict = await validateGroqKey(key);
+      if (verdict === 'invalid') {
+        setKeyStatus('invalid');
+        Alert.alert(
+          'Invalid API Key',
+          'Groq rejected this key. Check that you copied the whole key from console.groq.com.',
+          [
+            { text: 'Fix It', style: 'cancel' },
+            {
+              text: 'Save Anyway',
+              onPress: async () => {
+                await setGroqKey(key);
+                router.back();
+              },
+            },
+          ],
+        );
+        return;
+      }
+      setKeyStatus('valid');
+    }
+    await setGroqKey(key);
     router.back();
   };
 
@@ -282,7 +313,7 @@ export default function SettingsScreen() {
 
   if (page === 'edit-profile') {
     return (
-      <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={containerStyle} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
         <View style={s.grabHandle} />
         <View style={s.subNavBar}>
@@ -427,7 +458,7 @@ export default function SettingsScreen() {
     const canSubmit = valid && isDifferent;
 
     return (
-      <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={containerStyle} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
         <View style={s.grabHandle} />
         <View style={s.subNavBar}>
@@ -520,7 +551,7 @@ export default function SettingsScreen() {
 
   if (page === 'faq') {
     return (
-      <View style={s.container}>
+      <View style={containerStyle}>
         <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
         <View style={s.grabHandle} />
         <View style={s.subNavBar}>
@@ -582,7 +613,7 @@ export default function SettingsScreen() {
   if (page === 'privacy' || page === 'terms') {
     const isPrivacy = page === 'privacy';
     return (
-      <View style={s.container}>
+      <View style={containerStyle}>
         <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
         <View style={s.grabHandle} />
         <View style={s.subNavBar}>
@@ -627,7 +658,7 @@ export default function SettingsScreen() {
   const apiGroups = groupByLanguage(filteredApiBibles);
 
   return (
-    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={containerStyle} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
       <View style={s.grabHandle} />
       <View style={s.navBar}>
