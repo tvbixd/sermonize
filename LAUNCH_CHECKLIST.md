@@ -55,6 +55,14 @@ Then on each device, run through `BACKGROUND_RECORDING.md`'s test checklist:
 The buttons in the app already exist; they will start working in the dev build
 once Supabase is configured.
 
+## 4b. Email delivery via Resend (recommended for OTP sign-in)
+Supabase's built-in email is rate-limited (~2-4/hour) and lands in spam. Point
+it at Resend as the SMTP provider — no app code changes. Full steps in
+`RESEND_EMAIL_SETUP.md`; branded email template in `assets/email/otp-template.html`.
+Short version: verify a domain in Resend → put Resend's SMTP creds in Supabase
+→ Authentication → SMTP Settings → set the Magic Link template to show
+`{{ .Token }}`.
+
 ## 5. App Store / Play Store assets
 - App icon: 1024×1024 (`assets/icon.png` already exists)
 - Screenshots: iPhone 6.7", 6.1", iPad Pro 12.9"
