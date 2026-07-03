@@ -27,6 +27,8 @@ export const supabase = createClient(
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,
+      // PKCE so the OAuth browser flow can exchange a code for a session
+      flowType: 'pkce',
     },
   },
 );

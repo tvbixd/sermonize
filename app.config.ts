@@ -34,8 +34,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     package: 'com.scribe.app',
     versionCode: 1,
     adaptiveIcon: {
+      // Foreground art is the blue book mark — the background must NOT also
+      // be blue or the icon renders as a solid blue square.
       foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: '#0A84FF',
+      backgroundColor: '#FFFFFF',
     },
     permissions: [
       'RECORD_AUDIO',

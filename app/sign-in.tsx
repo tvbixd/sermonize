@@ -20,13 +20,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Circle, Path, Rect, Svg } from 'react-native-svg';
+import * as WebBrowser from 'expo-web-browser';
 import { CheckIcon, MicIcon } from '@/components/icons';
-import { PRIVACY_POLICY_URL, TERMS_URL, GROQ_CONSOLE_URL } from '@/config/support';
-import { useAuth } from '@/context/auth';
+import { GROQ_CONSOLE_URL } from '@/config/support';
+import { OAUTH_CANCELLED, useAuth } from '@/context/auth';
 import { setGroqKey, setTranslation } from '@/storage/keys';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 
 const APP_ICON = require('../assets/icon.png');
+
+// Completes any pending OAuth browser session when the app regains focus.
+WebBrowser.maybeCompleteAuthSession();
 
 const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
@@ -110,10 +114,10 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
   const router = useRouter();
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
-  const { sendOtp, verifyOtp, signInWithIdToken, updateProfile, session, setTestUser } = useAuth();
+  const { sendOtp, verifyOtp, signInWithOAuth, updateProfile, session, setTestUser } = useAuth();
 
   const [step, setStep] = useState<AuthStep>('landing');
-  const [mode] = useState<'signin' | 'signup'>(initialMode);
+  const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -165,7 +169,12 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
     setError('');
     const { error: e } = await sendOtp(email.trim());
     setLoading(false);
-    if (e) setError(e);
+    if (e) {
+      // Stay on the email step — advancing to the code screen when no code
+      // was sent strands the user.
+      setError(e);
+      return;
+    }
     setResendSeconds(45);
     setCode('');
     setOtpState('idle');
@@ -230,13 +239,27 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
     goToStep('mic');
   };
 
-  const handleApple = () => {
-    setError('Apple sign-in requires a development build.');
+  const handleOAuth = async (provider: 'google' | 'apple') => {
+    setLoading(true);
+    setError('');
+    const { error: e, isNewUser: newUser, userName } = await signInWithOAuth(provider);
+    setLoading(false);
+    if (e === OAUTH_CANCELLED) return; // user closed the browser — not an error
+    if (e) {
+      setError(e);
+      return;
+    }
+    setIsNewUser(newUser);
+    if (newUser) {
+      goToStep('name');
+    } else {
+      setDisplayName(userName || email.split('@')[0] || 'there');
+      goToStep('success');
+    }
   };
 
-  const handleGoogle = () => {
-    setError('Google sign-in requires a development build.');
-  };
+  const handleApple = () => void handleOAuth('apple');
+  const handleGoogle = () => void handleOAuth('google');
 
   const handleCodeChange = (text: string) => {
     if (otpState === 'verifying' || otpState === 'success') return;
@@ -257,6 +280,7 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
               onApple={handleApple}
               onGoogle={handleGoogle}
               onEmail={() => goToStep('email')}
+              onToggleMode={() => setMode((m) => (m === 'signin' ? 'signup' : 'signin'))}
               loading={loading}
               error={error}
               t={t}
@@ -346,17 +370,19 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
 // ─── Landing ─────────────────────────────────────────────────────────────────
 
 function LandingView({
-  mode, onApple, onGoogle, onEmail, loading, error, t, s,
+  mode, onApple, onGoogle, onEmail, onToggleMode, loading, error, t, s,
 }: {
   mode: 'signin' | 'signup';
   onApple: () => void;
   onGoogle: () => void;
   onEmail: () => void;
+  onToggleMode: () => void;
   loading: boolean;
   error: string;
   t: Colors;
   s: ReturnType<typeof makeStyles>;
 }) {
+  const router = useRouter();
   const floatAnim = useRef(new Animated.Value(0)).current;
   const textFade = useRef(new Animated.Value(0)).current;
 
@@ -393,7 +419,7 @@ function LandingView({
           <Text style={s.landingSubtitle}>
             {mode === 'signin'
               ? 'Sign in to sync your sermons across devices.'
-              : 'Sign up to back up your sermons and unlock Plus features.'}
+              : 'Sign up to back up your sermons and access them anywhere.'}
           </Text>
         </Animated.View>
       </View>
@@ -439,17 +465,26 @@ function LandingView({
           <Text style={[s.providerBtnText, { color: '#fff' }]}>Continue with email</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity onPress={onToggleMode} style={{ alignSelf: 'center', paddingVertical: 8 }} hitSlop={8}>
+          <Text style={[typography.subhead, { color: t.textSecondary }]}>
+            {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+            <Text style={{ color: t.accentBlue, fontWeight: '600' }}>
+              {mode === 'signin' ? 'Sign up' : 'Sign in'}
+            </Text>
+          </Text>
+        </TouchableOpacity>
+
         <Text style={s.termsText}>
           By continuing, you agree to our{' '}
           <Text
             style={{ color: t.accentBlue, fontWeight: '500' }}
-            onPress={() => void Linking.openURL(TERMS_URL)}
+            onPress={() => router.push('/legal/terms')}
             accessibilityRole="link"
           >Terms</Text>{' '}
           and{' '}
           <Text
             style={{ color: t.accentBlue, fontWeight: '500' }}
-            onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+            onPress={() => router.push('/legal/privacy')}
             accessibilityRole="link"
           >Privacy Policy</Text>.
         </Text>
