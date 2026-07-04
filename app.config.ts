@@ -19,7 +19,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   ios: {
     supportsTablet: true,
-    bundleIdentifier: 'com.scribe.app',
+    bundleIdentifier: 'com.breakandbuild.scribe',
     buildNumber: '1',
     infoPlist: {
       NSMicrophoneUsageDescription:
@@ -31,7 +31,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
   android: {
-    package: 'com.scribe.app',
+    package: 'com.breakandbuild.scribe',
     versionCode: 1,
     adaptiveIcon: {
       // Foreground art is the blue book mark — the background must NOT also
