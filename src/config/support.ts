@@ -3,11 +3,11 @@
  * and legal text. Update these before public launch.
  */
 
-export const SUPPORT_EMAIL = 'support@scribe.app';
+export const SUPPORT_EMAIL = 'support@scribehq.app';
 
-export const PRIVACY_POLICY_URL = 'https://scribe.app/privacy';
+export const PRIVACY_POLICY_URL = 'https://scribehq.app/privacy';
 
-export const TERMS_URL = 'https://scribe.app/terms';
+export const TERMS_URL = 'https://scribehq.app/terms';
 
 export const GROQ_CONSOLE_URL = 'https://console.groq.com/keys';
 

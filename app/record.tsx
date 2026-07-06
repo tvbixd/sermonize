@@ -31,7 +31,10 @@ import { BackChevronIcon, ChevronIcon } from '@/components/icons';
 import { logEvent, logCrash } from '@/services/logger';
 import { checkConnectivity } from '@/services/network';
 
-const OUTLINE_EVERY_N_CHUNKS = 2;
+// Every N chunks (30s each) we re-run the live outline. Each call sends the
+// full growing transcript, so this is the biggest consumer of Groq's daily
+// token budget — keep it infrequent. 4 chunks = ~every 2 minutes.
+const OUTLINE_EVERY_N_CHUNKS = 4;
 
 const IDLE_BARS = [12, 22, 16, 32, 28, 44, 38, 24, 18, 30, 14, 26, 20, 36, 10];
 
@@ -110,6 +113,9 @@ export default function RecordScreen() {
   const pendingChunksRef = useRef<Set<Promise<void>>>(new Set());
   const rateLimitAlertActiveRef = useRef(false);
   const authAlertShownRef = useRef(false);
+  // Once live outlining is rate-limited, stop attempting it — conserve the
+  // daily token budget for the one outline that matters (at Stop).
+  const liveOutlineDisabledRef = useRef(false);
   const recordingStartedAtRef = useRef(0);
   // Set before intentional navigation so the beforeRemove guard lets us leave.
   const allowLeaveRef = useRef(false);
@@ -254,9 +260,16 @@ export default function RecordScreen() {
       incrementChunk();
       failedChunksRef.current = 0;
       setChunkWarning(null);
-      if (chunkCountRef.current % OUTLINE_EVERY_N_CHUNKS === 0) {
-        const outline = await extractOutline(transcriptRef.current, groqKeyRef.current);
-        setLiveOutline(outline);
+      // Live outline is best-effort and token-hungry — run it in its own guard
+      // so a failure never disrupts transcription, and disable it after the
+      // first rate-limit so the final outline at Stop still has budget.
+      if (!liveOutlineDisabledRef.current && chunkCountRef.current % OUTLINE_EVERY_N_CHUNKS === 0) {
+        try {
+          const outline = await extractOutline(transcriptRef.current, groqKeyRef.current);
+          setLiveOutline(outline);
+        } catch (outlineErr) {
+          if (outlineErr instanceof RateLimitError) liveOutlineDisabledRef.current = true;
+        }
       }
     } catch (e) {
       failedChunksRef.current += 1;
@@ -410,27 +423,47 @@ export default function RecordScreen() {
     if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
     setStatus('processing');
 
+    // The recording itself (audio + transcript) is the irreplaceable part.
+    // Outline and scriptures are enhancements — if they fail (e.g. Groq daily
+    // token limit), we still SAVE the sermon and let the user regenerate later.
+    // A completed recording must never be thrown away.
+    const fallbackOutline = () =>
+      useSessionStore.getState().liveOutline ?? { title: 'Untitled Sermon', theme: '', summary: '', points: [] };
+
+    let result: { uris: string[]; durationMs: number } | undefined;
+    let transcript = '';
+    let degraded = false;
+
     try {
-      const result = await recorderRef.current?.stop();
+      result = await recorderRef.current?.stop();
       audioUrisRef.current = result?.uris ?? [];
       durationRef.current = result?.durationMs ?? 0;
 
-      // The final sealed chunk's transcription is still in flight — wait for
-      // it (bounded) so the sermon doesn't lose its last 30 seconds.
+      // Final sealed chunk's transcription may still be in flight — wait
+      // (bounded) so we don't lose the last 30 seconds.
       setStep('transcribing');
       await waitForPendingChunks();
+      transcript = transcriptRef.current;
 
-      setStep('outlining');
-      const transcript = transcriptRef.current;
-      const outline = transcript.trim()
-        ? await extractOutline(transcript, groqKeyRef.current)
-        : liveOutline ?? { title: 'Untitled Sermon', theme: '', summary: '', points: [] };
+      let outline = fallbackOutline();
+      try {
+        setStep('outlining');
+        if (transcript.trim()) outline = await extractOutline(transcript, groqKeyRef.current);
+      } catch {
+        // Rate-limited or failed — keep the live outline, flag the sermon.
+        degraded = true;
+      }
 
-      setStep('scriptures');
-      const translation = await getTranslation();
-      const allRefs = new Set<string>(findScriptureReferences(transcript));
-      for (const p of outline.points) for (const r of p.scriptures) allRefs.add(r);
-      const scriptures = await lookupVerses([...allRefs], translation);
+      let scriptures: Awaited<ReturnType<typeof lookupVerses>> = [];
+      try {
+        setStep('scriptures');
+        const translation = await getTranslation();
+        const allRefs = new Set<string>(findScriptureReferences(transcript));
+        for (const p of outline.points) for (const r of p.scriptures) allRefs.add(r);
+        scriptures = await lookupVerses([...allRefs], translation);
+      } catch {
+        degraded = true;
+      }
 
       setStep('saving');
       const sermon: Sermon = {
@@ -442,17 +475,50 @@ export default function RecordScreen() {
         scriptures,
         audioUris: audioUrisRef.current,
         durationMs: durationRef.current,
+        // Mark as draft when enhancement failed so the sermon surfaces a
+        // Re-transcribe/Regenerate affordance for when quota resets.
+        isDraft: degraded || undefined,
       };
       await saveSermon(sermon);
       setStatus('done');
-      void logEvent('recording_completed', { durationMs: durationRef.current, chunks: chunkCountRef.current });
+      void logEvent('recording_completed', { durationMs: durationRef.current, chunks: chunkCountRef.current, degraded });
       allowLeaveRef.current = true;
-      router.replace(`/sermon/${sermon.id}`);
+      if (degraded) {
+        Alert.alert(
+          'Sermon Saved',
+          "Your recording and transcript are saved, but the outline couldn't be generated (Groq's daily limit may be reached). Open the sermon and tap Regenerate once your limit resets.",
+          [{ text: 'OK', onPress: () => router.replace(`/sermon/${sermon.id}`) }],
+        );
+      } else {
+        router.replace(`/sermon/${sermon.id}`);
+      }
     } catch (e) {
+      // Even a hard failure here must not lose the audio — persist a draft so
+      // it's recoverable, then surface the error.
       const err = e instanceof Error ? e : new Error(String(e));
-      setError(err.message);
-      setStatus('error');
       void logCrash(err, { phase: 'processing', step });
+      try {
+        await saveSermon({
+          id: sermonIdRef.current,
+          createdAt: recordingStartedAtRef.current || Date.now(),
+          title: 'Draft — ' + new Date().toLocaleDateString(),
+          transcript: transcriptRef.current,
+          outline: fallbackOutline(),
+          scriptures: [],
+          audioUris: audioUrisRef.current.length ? audioUrisRef.current : (result?.uris ?? []),
+          durationMs: durationRef.current || result?.durationMs || 0,
+          isDraft: true,
+        });
+        allowLeaveRef.current = true;
+        Alert.alert(
+          'Saved as Draft',
+          'Something went wrong while finishing your sermon, but your recording is safe as a draft. You can re-transcribe it from the sermon list.',
+          [{ text: 'OK', onPress: () => router.replace('/sermons') }],
+        );
+      } catch {
+        setError(err.message);
+        setStatus('error');
+      }
     }
   };
 

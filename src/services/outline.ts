@@ -1,4 +1,5 @@
 import type { Outline } from '../types';
+import { RateLimitError } from './whisper';
 
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 // Llama 3.3 70B is excellent for structured-JSON outlining and free on Groq.
@@ -71,6 +72,12 @@ export async function extractOutline(
 
   if (!r.ok) {
     const errText = await r.text();
+    if (r.status === 429) {
+      const retryMatch = errText.match(/try again in (?:(\d+)m)?(\d+(?:\.\d+)?)s/i);
+      const mins = retryMatch?.[1] ? parseInt(retryMatch[1], 10) : 0;
+      const secs = retryMatch?.[2] ? parseFloat(retryMatch[2]) : 60;
+      throw new RateLimitError(Math.ceil((mins * 60 + secs) * 1000));
+    }
     throw new Error(`Groq outline request failed (${r.status}): ${errText.slice(0, 300)}`);
   }
 
