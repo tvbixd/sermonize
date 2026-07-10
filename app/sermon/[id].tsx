@@ -23,8 +23,9 @@ import { BackChevronIcon, CloseIcon, ExportIcon, PlusIcon, RegenIcon } from '@/c
 import { lookupVerse, lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
-import { transcribeAudio } from '@/services/whisper';
-import { getGroqKey, getTranslation } from '@/storage/keys';
+import { transcribeChunks } from '@/services/transcription';
+import { isModelDownloaded } from '@/services/localWhisper';
+import { getGroqKey, getTranscriptionMode, getTranslation } from '@/storage/keys';
 import { audioDir, getSermon, saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Outline, Sermon } from '@/types';
@@ -208,12 +209,20 @@ export default function SermonDetail() {
           onPress: async () => {
             setBusy(true);
             try {
-              const key = await getGroqKey();
-              if (!key) throw new Error('Groq API key not set.');
+              const mode = await getTranscriptionMode();
+              const key = (await getGroqKey()) ?? '';
+              if (mode === 'local' && !(await isModelDownloaded())) {
+                throw new Error('On-device model not downloaded. Download it in Settings first.');
+              }
+              if (mode === 'groq' && !key) {
+                throw new Error('Groq API key not set. Add it in Settings, or switch to on-device transcription.');
+              }
               const uris = audioFiles.map((f) => `${dir}${f}`);
-              const transcript = await transcribeAudio(uris, key);
+              const transcript = await transcribeChunks(uris, key, mode);
               const translation = await getTranslation();
-              const outline = transcript.trim()
+              // Outline needs a Groq key (LLM). Without one, keep the transcript
+              // and leave the existing outline in place.
+              const outline = transcript.trim() && key
                 ? await extractOutline(transcript, key)
                 : sermon.outline;
               const refs = new Set(findScriptureReferences(transcript));

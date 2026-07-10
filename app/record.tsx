@@ -19,9 +19,11 @@ import { SermonRecorder } from '@/audio/SermonRecorder';
 import { lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
-import { NetworkError, RateLimitError, transcribeAudio } from '@/services/whisper';
+import { NetworkError, RateLimitError } from '@/services/whisper';
+import { transcribeChunks } from '@/services/transcription';
+import { isModelDownloaded, releaseWhisper } from '@/services/localWhisper';
 import { useSessionStore } from '@/state/sessionStore';
-import { getGroqKey, getTranslation } from '@/storage/keys';
+import { getGroqKey, getTranscriptionMode, getTranslation, type TranscriptionMode } from '@/storage/keys';
 import { deleteSermon, ensureAudioDir, saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Sermon } from '@/types';
@@ -116,6 +118,7 @@ export default function RecordScreen() {
   // Once live outlining is rate-limited, stop attempting it — conserve the
   // daily token budget for the one outline that matters (at Stop).
   const liveOutlineDisabledRef = useRef(false);
+  const transcriptionModeRef = useRef<TranscriptionMode>('groq');
   const recordingStartedAtRef = useRef(0);
   // Set before intentional navigation so the beforeRemove guard lets us leave.
   const allowLeaveRef = useRef(false);
@@ -127,6 +130,8 @@ export default function RecordScreen() {
       if (autoSaveRef.current) clearInterval(autoSaveRef.current);
       if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
       void recorderRef.current?.stop().catch(() => undefined);
+      // Free the native Whisper context (no-op in Groq mode).
+      void releaseWhisper().catch(() => undefined);
     };
   }, []);
 
@@ -252,7 +257,7 @@ export default function RecordScreen() {
   const processChunk = async (chunkUri: string) => {
     if (audioOnlyRef.current) return;
     try {
-      const text = await transcribeAudio([chunkUri], groqKeyRef.current);
+      const text = await transcribeChunks([chunkUri], groqKeyRef.current, transcriptionModeRef.current);
       if (!text.trim()) return;
       transcriptRef.current = transcriptRef.current ? transcriptRef.current + ' ' + text : text;
       appendTranscript(text);
@@ -260,10 +265,15 @@ export default function RecordScreen() {
       incrementChunk();
       failedChunksRef.current = 0;
       setChunkWarning(null);
-      // Live outline is best-effort and token-hungry — run it in its own guard
-      // so a failure never disrupts transcription, and disable it after the
+      // Live outline needs a Groq key (LLM). Skip entirely when the user has
+      // no key (e.g. on-device transcription with no cloud outline). Otherwise
+      // run it in its own guard — it's token-hungry, so disable it after the
       // first rate-limit so the final outline at Stop still has budget.
-      if (!liveOutlineDisabledRef.current && chunkCountRef.current % OUTLINE_EVERY_N_CHUNKS === 0) {
+      if (
+        groqKeyRef.current &&
+        !liveOutlineDisabledRef.current &&
+        chunkCountRef.current % OUTLINE_EVERY_N_CHUNKS === 0
+      ) {
         try {
           const outline = await extractOutline(transcriptRef.current, groqKeyRef.current);
           setLiveOutline(outline);
@@ -354,17 +364,36 @@ export default function RecordScreen() {
     mediumTap();
     try {
       if (status === 'idle') {
-        const key = await getGroqKey();
-        if (!key) {
-          Alert.alert('API Key Missing', 'Add your free Groq API key in Settings to enable transcription.', [
+        const mode = await getTranscriptionMode();
+        transcriptionModeRef.current = mode;
+        const key = (await getGroqKey()) ?? '';
+        groqKeyRef.current = key;
+
+        if (mode === 'local') {
+          // On-device: no key needed. The model must be downloaded first
+          // (one-time ~142MB) — do that deliberately in Settings, not inline
+          // right before a recording.
+          if (!(await isModelDownloaded())) {
+            Alert.alert(
+              'Download Required',
+              'On-device transcription needs a one-time model download (~142MB). Open Settings to download it, ideally on Wi-Fi.',
+              [
+                { text: 'Open Settings', onPress: () => router.push('/settings') },
+                { text: 'Cancel', style: 'cancel' },
+              ],
+            );
+            return;
+          }
+        } else if (!key) {
+          Alert.alert('API Key Missing', 'Add your free Groq API key in Settings, or switch to on-device transcription in Settings.', [
             { text: 'Open Settings', onPress: () => router.push('/settings') },
             { text: 'Cancel', style: 'cancel' },
           ]);
           return;
         }
-        groqKeyRef.current = key;
 
-        const online = await checkConnectivity(key);
+        // Local transcription needs no network; only the cloud path checks.
+        const online = mode === 'local' ? true : await checkConnectivity(key);
         const beginRecording = async (audioOnly: boolean) => {
           if (audioOnly) {
             audioOnlyRef.current = true;
