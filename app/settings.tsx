@@ -187,6 +187,7 @@ export default function SettingsScreen() {
   // Translation state
   const [translation, setTrans] = useState('web');
   const [apiBibles, setApiBibles] = useState<TranslationEntry[]>([]);
+  const [apiBibleStatus, setApiBibleStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const [bibleSearch, setBibleSearch] = useState('');
 
   // Profile state
@@ -213,7 +214,10 @@ export default function SettingsScreen() {
       try {
         const bibles = await fetchApiBibleTranslations();
         setApiBibles(bibles);
-      } catch {}
+        setApiBibleStatus('ready');
+      } catch {
+        setApiBibleStatus('unavailable');
+      }
       const bytes = await getAudioStorageBytes().catch(() => 0);
       setAudioStorageMb((bytes / (1024 * 1024)).toFixed(1));
       const crashes = await getCrashLog().catch(() => []);
@@ -909,6 +913,16 @@ export default function SettingsScreen() {
             </React.Fragment>
           ))}
         </View>
+
+        {apiBibles.length === 0 && (
+          <View style={[s.card, { marginHorizontal: 16, marginTop: 8 }]}>
+            <Text style={s.helpText}>
+              {apiBibleStatus === 'loading'
+                ? 'Loading more translations…'
+                : 'Additional translations (200+) are currently unavailable. This needs the API.Bible key to be configured in the build, and an internet connection. The versions above always work.'}
+            </Text>
+          </View>
+        )}
 
         {apiBibles.length > 0 && (
           <>
