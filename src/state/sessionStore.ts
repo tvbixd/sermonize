@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Outline, ProcessingStep, RecordingStatus } from '../types';
+import type { Outline, ProcessingStep, RecordingStatus, Scripture } from '../types';
 
 type SessionState = {
   status: RecordingStatus;
@@ -7,10 +7,12 @@ type SessionState = {
   elapsedMs: number;
   errorMessage: string | null;
 
-  // Live transcript built up as chunks arrive
+  // Transcript built up as chunks arrive — internal only, not shown/stored
   liveTranscript: string;
   // Live outline regenerated every ~2 chunks
   liveOutline: Outline | null;
+  // Scriptures detected + resolved live as the sermon is preached
+  liveScriptures: Scripture[];
   // Count of chunks transcribed so far
   chunkCount: number;
 
@@ -20,6 +22,7 @@ type SessionState = {
   setError: (msg: string | null) => void;
   appendTranscript: (text: string) => void;
   setLiveOutline: (o: Outline) => void;
+  addLiveScriptures: (s: Scripture[]) => void;
   incrementChunk: () => void;
   reset: () => void;
 };
@@ -31,6 +34,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   errorMessage: null,
   liveTranscript: '',
   liveOutline: null,
+  liveScriptures: [],
   chunkCount: 0,
 
   setStatus: (status) => set({ status }),
@@ -42,6 +46,13 @@ export const useSessionStore = create<SessionState>((set) => ({
       liveTranscript: s.liveTranscript ? s.liveTranscript + ' ' + text : text,
     })),
   setLiveOutline: (liveOutline) => set({ liveOutline }),
+  addLiveScriptures: (incoming) =>
+    set((s) => {
+      const seen = new Set(s.liveScriptures.map((x) => x.reference));
+      const merged = [...s.liveScriptures];
+      for (const sc of incoming) if (!seen.has(sc.reference)) { merged.push(sc); seen.add(sc.reference); }
+      return { liveScriptures: merged };
+    }),
   incrementChunk: () => set((s) => ({ chunkCount: s.chunkCount + 1 })),
   reset: () =>
     set({
@@ -51,6 +62,7 @@ export const useSessionStore = create<SessionState>((set) => ({
       errorMessage: null,
       liveTranscript: '',
       liveOutline: null,
+      liveScriptures: [],
       chunkCount: 0,
     }),
 }));
