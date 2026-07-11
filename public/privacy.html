@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Scribe</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      max-width: 720px; margin: 0 auto; padding: 40px 24px 80px;
+      line-height: 1.65; color: #1c1917; background: #fff;
+    }
+    @media (prefers-color-scheme: dark) { body { color: #f5f0eb; background: #0c0a09; } }
+    header { border-bottom: 1px solid rgba(128,128,128,0.25); padding-bottom: 20px; margin-bottom: 28px; }
+    .brand { display: inline-block; background: #0A84FF; color: #fff; font-weight: 700;
+      padding: 4px 12px; border-radius: 8px; font-size: 15px; letter-spacing: -0.3px; }
+    h1 { font-size: 28px; margin: 18px 0 4px; letter-spacing: -0.5px; }
+    .updated { color: #7a7e80; font-size: 14px; margin: 0; }
+    h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px;
+      color: #0A84FF; margin: 32px 0 8px; }
+    ul { padding-left: 20px; margin: 8px 0; }
+    li { margin: 6px 0; }
+    a { color: #0A84FF; }
+    footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid rgba(128,128,128,0.25);
+      font-size: 14px; color: #7a7e80; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="brand">Scribe</span>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: 2026</p>
+  </header>
+
+  <p>Scribe is designed to keep your sermon content on your device.</p>
+
+  <h2>What we store</h2>
+  <ul>
+    <li>Sermons, drafts, folders, and audio recordings are saved to your device's local storage only.</li>
+    <li>Your Groq API key and Bible translation preference are saved in your device's secure keychain.</li>
+    <li>We do not operate a server that stores your sermons or audio.</li>
+  </ul>
+
+  <h2>Account (optional)</h2>
+  <ul>
+    <li>If you sign in with email, Google, or Apple, your email address is stored by our authentication provider (Supabase) so we can identify you across devices.</li>
+    <li>Profile fields (display name, role, church) are stored with your account if you sign in.</li>
+    <li>You may delete your account at any time from Settings.</li>
+  </ul>
+
+  <h2>Transcription</h2>
+  <ul>
+    <li><strong>On-device mode:</strong> audio is transcribed entirely on your phone and never leaves the device.</li>
+    <li><strong>Cloud mode:</strong> audio chunks are sent to Groq's transcription API for processing, under your own API key. Audio handling and retention are governed by Groq's data policy — see <a href="https://groq.com">groq.com</a>.</li>
+  </ul>
+
+  <h2>Third parties</h2>
+  <ul>
+    <li>Scripture text is fetched on demand from public Bible APIs (api.scripture.api.bible and bible-api.com).</li>
+    <li>We do not use third-party analytics or advertising.</li>
+  </ul>
+
+  <h2>Crash logs</h2>
+  <ul>
+    <li>A crash log is stored locally on your device to help diagnose problems. It is not transmitted anywhere. You can clear it any time from Settings.</li>
+  </ul>
+
+  <h2>Your control</h2>
+  <ul>
+    <li>All sermons can be exported as Markdown or PDF.</li>
+    <li>Sermons can be permanently deleted from Recently Deleted.</li>
+    <li>You can delete your account from Settings, which removes your authentication record.</li>
+  </ul>
+
+  <p>This policy applies to the current version of Scribe. We will notify you in-app if it changes.</p>
+
+  <footer>
+    Questions? Contact <a href="mailto:support@scribehq.app">support@scribehq.app</a> ·
+    <a href="/terms">Terms of Use</a>
+  </footer>
+</body>
+</html>
