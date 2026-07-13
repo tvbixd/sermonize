@@ -5,12 +5,17 @@ scripture references, transcripts, and exports.
 
 ## How it works
 1. Tap record. Audio is captured in 30-second chunks, written to disk.
-2. Each chunk is transcribed by **Groq's Whisper Large v3 Turbo** (free tier).
-3. Every ~2 chunks, the running transcript is sent to **Groq's Llama 3.3 70B**
-   for a live outline (title, theme, summary, points, scripture references).
-4. Detected scripture references are looked up against **API.Bible** (200+ translations)
-   or **bible-api.com** (legacy fallback).
-5. Everything is stored locally. No backend. Optional Supabase auth for cross-device sync (planned).
+2. Each chunk is transcribed — **on-device** (whisper.rn, no key/limits) or via
+   **Groq's Whisper** if a key is set. The transcript is internal plumbing; it is
+   never shown or stored as a user-facing artifact.
+3. Scripture references are detected in real time and shown as **live scripture
+   cards** during the sermon, looked up against **API.Bible** (200+ translations)
+   or **bible-api.com** (fallback).
+4. When you stop, an **outline** is generated (title, theme, summary, points):
+   the free on-device extractive outline by default, or **Groq's Llama 3.3 70B**
+   for higher quality when a key is present.
+5. Everything is stored locally. No backend required. Optional Supabase auth for
+   cross-device sync (planned).
 
 ## Resilience
 - Recording continues offline (audio-only mode) when there's no internet.

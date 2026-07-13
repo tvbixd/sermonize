@@ -18,10 +18,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Circle, Path, Rect, Svg } from 'react-native-svg';
 import {
   getGroqKey,
+  getTranscriptionMode,
   getTranslation,
   setGroqKey,
+  setTranscriptionMode,
   setTranslation,
+  type TranscriptionMode,
 } from '@/storage/keys';
+import { ensureModelDownloaded, getModelInfo, isModelDownloaded } from '@/services/localWhisper';
 import {
   type TranslationEntry,
   LEGACY_TRANSLATIONS,
@@ -175,9 +179,15 @@ export default function SettingsScreen() {
   const [showGroqKey, setShowGroqKey] = useState(false);
   const [keyStatus, setKeyStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
 
+  // Transcription engine state
+  const [transcriptionMode, setTranscriptionModeState] = useState<TranscriptionMode>('groq');
+  const [modelReady, setModelReady] = useState(false);
+  const [modelProgress, setModelProgress] = useState<number | null>(null);
+
   // Translation state
   const [translation, setTrans] = useState('web');
   const [apiBibles, setApiBibles] = useState<TranslationEntry[]>([]);
+  const [apiBibleStatus, setApiBibleStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const [bibleSearch, setBibleSearch] = useState('');
 
   // Profile state
@@ -195,14 +205,19 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     void (async () => {
-      const [gk, tr] = await Promise.all([getGroqKey(), getTranslation()]);
+      const [gk, tr, tm] = await Promise.all([getGroqKey(), getTranslation(), getTranscriptionMode()]);
       setGroq(gk ?? '');
       setTrans(tr);
+      setTranscriptionModeState(tm);
+      setModelReady(await isModelDownloaded().catch(() => false));
       setLoaded(true);
       try {
         const bibles = await fetchApiBibleTranslations();
         setApiBibles(bibles);
-      } catch {}
+        setApiBibleStatus('ready');
+      } catch {
+        setApiBibleStatus('unavailable');
+      }
       const bytes = await getAudioStorageBytes().catch(() => 0);
       setAudioStorageMb((bytes / (1024 * 1024)).toFixed(1));
       const crashes = await getCrashLog().catch(() => []);
@@ -251,6 +266,34 @@ export default function SettingsScreen() {
     }
     await setGroqKey(key);
     router.back();
+  };
+
+  const onDownloadModel = async () => {
+    if (modelProgress !== null) return;
+    setModelProgress(0);
+    try {
+      await ensureModelDownloaded((f) => setModelProgress(f));
+      setModelReady(true);
+      setModelProgress(null);
+    } catch (e) {
+      setModelProgress(null);
+      Alert.alert('Download failed', e instanceof Error ? e.message : 'Could not download the model. Check your connection and try again.');
+    }
+  };
+
+  const onSelectMode = async (mode: TranscriptionMode) => {
+    setTranscriptionModeState(mode);
+    await setTranscriptionMode(mode);
+    if (mode === 'local' && !modelReady && modelProgress === null) {
+      Alert.alert(
+        'Download Transcription Model',
+        `On-device transcription needs a one-time ~${getModelInfo().approxMb}MB download. Use Wi-Fi if you can. It then works offline with no key and no limits.`,
+        [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Download Now', onPress: () => void onDownloadModel() },
+        ],
+      );
+    }
   };
 
   const onSignOut = async () => {
@@ -730,8 +773,77 @@ export default function SettingsScreen() {
           </>
         )}
 
+        {/* Transcription engine */}
+        <Text style={s.sectionLabel}>TRANSCRIPTION</Text>
+        <View style={[s.card, { marginHorizontal: 16 }]}>
+          <TouchableOpacity
+            style={s.modeRow}
+            onPress={() => void onSelectMode('groq')}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: transcriptionMode === 'groq' }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={[typography.body, { color: t.textPrimary }]}>Cloud (Groq)</Text>
+              <Text style={[typography.footnote, { color: t.textSecondary }]}>
+                Best accuracy. Needs a free API key and has a daily limit.
+              </Text>
+            </View>
+            {transcriptionMode === 'groq' && <CheckIcon size={18} color={t.accentBlue} />}
+          </TouchableOpacity>
+          <Divider indent={16} />
+          <TouchableOpacity
+            style={s.modeRow}
+            onPress={() => void onSelectMode('local')}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: transcriptionMode === 'local' }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={[typography.body, { color: t.textPrimary }]}>On-device</Text>
+              <Text style={[typography.footnote, { color: t.textSecondary }]}>
+                No key, no limits, works offline. One-time ~{getModelInfo().approxMb}MB download.
+              </Text>
+            </View>
+            {transcriptionMode === 'local' && <CheckIcon size={18} color={t.accentBlue} />}
+          </TouchableOpacity>
+
+          {transcriptionMode === 'local' && (
+            <>
+              <Divider indent={16} />
+              <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+                {modelProgress !== null ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <ActivityIndicator size="small" color={t.accentBlue} />
+                    <Text style={[typography.footnote, { color: t.textSecondary }]}>
+                      Downloading model… {Math.round(modelProgress * 100)}%
+                    </Text>
+                  </View>
+                ) : modelReady ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <CheckIcon size={14} color={t.statusSuccess} />
+                    <Text style={[typography.footnote, { color: t.statusSuccess }]}>
+                      Model ready — transcription works offline
+                    </Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity onPress={() => void onDownloadModel()} accessibilityRole="button">
+                    <Text style={[typography.footnote, { color: t.accentBlue, fontWeight: '600' }]}>
+                      Download model (~{getModelInfo().approxMb}MB) →
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </>
+          )}
+          <Divider indent={16} />
+          <Text style={[s.helpText, { paddingTop: 12 }]}>
+            {transcriptionMode === 'local'
+              ? 'Outlines still need a Groq key (below) or an internet connection. Without one, you get the transcript only.'
+              : 'A Groq key powers both transcription and outlines.'}
+          </Text>
+        </View>
+
         {/* Groq API Key */}
-        <Text style={s.sectionLabel}>GROQ API KEY</Text>
+        <Text style={s.sectionLabel}>GROQ API KEY {transcriptionMode === 'local' ? '(OPTIONAL — FOR OUTLINES)' : ''}</Text>
         <View style={[s.card, { marginHorizontal: 16 }]}>
           <Text style={s.helpText}>
             Scribe uses Groq for fast transcription and outlining. The free tier covers about 2 hours of recording per day.
@@ -801,6 +913,16 @@ export default function SettingsScreen() {
             </React.Fragment>
           ))}
         </View>
+
+        {apiBibles.length === 0 && (
+          <View style={[s.card, { marginHorizontal: 16, marginTop: 8 }]}>
+            <Text style={s.helpText}>
+              {apiBibleStatus === 'loading'
+                ? 'Loading more translations…'
+                : 'Additional translations (200+) are currently unavailable. This needs the API.Bible key to be configured in the build, and an internet connection. The versions above always work.'}
+            </Text>
+          </View>
+        )}
 
         {apiBibles.length > 0 && (
           <>
@@ -1031,6 +1153,7 @@ function makeStyles(t: Colors) {
     },
     keyInput: { ...typography.body, flex: 1, paddingVertical: 8 },
     keyStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8 },
+    modeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
 
     // Translation row
     translationRow: {

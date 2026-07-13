@@ -21,6 +21,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: true,
     bundleIdentifier: 'com.breakandbuild.scribe',
     buildNumber: '1',
+    // iOS 26 Liquid Glass icon from Apple's Icon Composer (SDK 54+). Overrides
+    // the top-level PNG on iOS; Android still uses the adaptiveIcon PNG below.
+    icon: './assets/Scribe.icon',
     infoPlist: {
       NSMicrophoneUsageDescription:
         'Scribe needs microphone access to record sermons for transcription and outlining.',

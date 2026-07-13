@@ -22,15 +22,17 @@ import { Skeleton } from '@/components/Skeleton';
 import { BackChevronIcon, CloseIcon, ExportIcon, PlusIcon, RegenIcon } from '@/components/icons';
 import { lookupVerse, lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
+import { buildLocalOutline } from '@/services/localOutline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
-import { transcribeAudio } from '@/services/whisper';
-import { getGroqKey, getTranslation } from '@/storage/keys';
+import { transcribeChunks } from '@/services/transcription';
+import { isModelDownloaded } from '@/services/localWhisper';
+import { getGroqKey, getTranscriptionMode, getTranslation } from '@/storage/keys';
 import { audioDir, getSermon, saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Outline, Sermon } from '@/types';
 import { formatDate, formatElapsed, sermonToMarkdown } from '@/util/format';
 
-type Tab = 'outline' | 'scriptures' | 'transcript';
+type Tab = 'outline' | 'scriptures';
 
 export default function SermonDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -168,13 +170,18 @@ export default function SermonDetail() {
   };
 
   const onRegenerate = async () => {
-    if (!sermon?.transcript.trim()) return;
+    if (!sermon?.transcript.trim()) {
+      Alert.alert('Nothing to rebuild', 'This sermon has no saved text. Use Re-transcribe to rebuild from the audio.');
+      return;
+    }
     setBusy(true);
     try {
       const key = await getGroqKey();
-      if (!key) throw new Error('Groq API key not set.');
       const translation = await getTranslation();
-      const outline = await extractOutline(sermon.transcript, key);
+      // Groq LLM outline when a key exists, otherwise the free on-device one.
+      const outline = key
+        ? await extractOutline(sermon.transcript, key)
+        : buildLocalOutline(sermon.transcript);
       const refs = new Set(findScriptureReferences(sermon.transcript));
       for (const p of outline.points) for (const r of p.scriptures) refs.add(r);
       const scriptures = await lookupVerses([...refs], translation);
@@ -208,14 +215,24 @@ export default function SermonDetail() {
           onPress: async () => {
             setBusy(true);
             try {
-              const key = await getGroqKey();
-              if (!key) throw new Error('Groq API key not set.');
+              const mode = await getTranscriptionMode();
+              const key = (await getGroqKey()) ?? '';
+              if (mode === 'local' && !(await isModelDownloaded())) {
+                throw new Error('On-device model not downloaded. Download it in Settings first.');
+              }
+              if (mode === 'groq' && !key) {
+                throw new Error('Groq API key not set. Add it in Settings, or switch to on-device transcription.');
+              }
               const uris = audioFiles.map((f) => `${dir}${f}`);
-              const transcript = await transcribeAudio(uris, key);
+              const transcript = await transcribeChunks(uris, key, mode);
               const translation = await getTranslation();
-              const outline = transcript.trim()
-                ? await extractOutline(transcript, key)
-                : sermon.outline;
+              // Groq LLM outline when a key exists; otherwise the free
+              // on-device extractive outline.
+              const outline = !transcript.trim()
+                ? sermon.outline
+                : key
+                  ? await extractOutline(transcript, key)
+                  : buildLocalOutline(transcript);
               const refs = new Set(findScriptureReferences(transcript));
               for (const p of outline.points) for (const r of p.scriptures) refs.add(r);
               const scriptures = await lookupVerses([...refs], translation);
@@ -349,14 +366,14 @@ export default function SermonDetail() {
 
       {/* Segmented tabs */}
       <View style={styles.tabs}>
-        {(['outline', 'scriptures', 'transcript'] as Tab[]).map((tb) => (
+        {(['outline', 'scriptures'] as Tab[]).map((tb) => (
           <TouchableOpacity
             key={tb}
             onPress={() => setTab(tb)}
             style={[styles.tab, tab === tb && styles.tabActive]}
           >
             <Text style={[styles.tabText, tab === tb && styles.tabTextActive]}>
-              {tb === 'outline' ? 'Outline' : tb === 'scriptures' ? 'Scriptures' : 'Transcript'}
+              {tb === 'outline' ? 'Outline' : 'Scriptures'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -513,10 +530,6 @@ export default function SermonDetail() {
                 ))
               )}
             </View>
-          )}
-
-          {tab === 'transcript' && (
-            <Text style={styles.transcript}>{sermon.transcript || '(no transcript)'}</Text>
           )}
 
         </ScrollView>

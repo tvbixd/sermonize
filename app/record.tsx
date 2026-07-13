@@ -18,23 +18,22 @@ import { Svg, Circle, Path } from 'react-native-svg';
 import { SermonRecorder } from '@/audio/SermonRecorder';
 import { lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
+import { buildLocalOutline } from '@/services/localOutline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
-import { NetworkError, RateLimitError, transcribeAudio } from '@/services/whisper';
+import { ScriptureCard } from '@/components/ScriptureCard';
+import { NetworkError, RateLimitError } from '@/services/whisper';
+import { transcribeChunks } from '@/services/transcription';
+import { isModelDownloaded, releaseWhisper } from '@/services/localWhisper';
 import { useSessionStore } from '@/state/sessionStore';
-import { getGroqKey, getTranslation } from '@/storage/keys';
+import { getGroqKey, getTranscriptionMode, getTranslation, type TranscriptionMode } from '@/storage/keys';
 import { deleteSermon, ensureAudioDir, saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Sermon } from '@/types';
 import { newId } from '@/util/id';
 import { heavyTap, mediumTap } from '@/util/haptics';
-import { BackChevronIcon, ChevronIcon } from '@/components/icons';
+import { BackChevronIcon } from '@/components/icons';
 import { logEvent, logCrash } from '@/services/logger';
 import { checkConnectivity } from '@/services/network';
-
-// Every N chunks (30s each) we re-run the live outline. Each call sends the
-// full growing transcript, so this is the biggest consumer of Groq's daily
-// token budget — keep it infrequent. 4 chunks = ~every 2 minutes.
-const OUTLINE_EVERY_N_CHUNKS = 4;
 
 const IDLE_BARS = [12, 22, 16, 32, 28, 44, 38, 24, 18, 30, 14, 26, 20, 36, 10];
 
@@ -80,8 +79,7 @@ export default function RecordScreen() {
   const step           = useSessionStore((s) => s.step);
   const elapsedMs      = useSessionStore((s) => s.elapsedMs);
   const errorMessage   = useSessionStore((s) => s.errorMessage);
-  const liveTranscript = useSessionStore((s) => s.liveTranscript);
-  const liveOutline    = useSessionStore((s) => s.liveOutline);
+  const liveScriptures = useSessionStore((s) => s.liveScriptures);
   const chunkCount     = useSessionStore((s) => s.chunkCount);
 
   const setStatus        = useSessionStore((s) => s.setStatus);
@@ -89,7 +87,7 @@ export default function RecordScreen() {
   const setElapsed       = useSessionStore((s) => s.setElapsed);
   const setError         = useSessionStore((s) => s.setError);
   const appendTranscript = useSessionStore((s) => s.appendTranscript);
-  const setLiveOutline   = useSessionStore((s) => s.setLiveOutline);
+  const addLiveScriptures = useSessionStore((s) => s.addLiveScriptures);
   const incrementChunk   = useSessionStore((s) => s.incrementChunk);
   const reset            = useSessionStore((s) => s.reset);
 
@@ -101,7 +99,6 @@ export default function RecordScreen() {
   const groqKeyRef    = useRef<string>('');
   const transcriptRef = useRef<string>('');
   const chunkCountRef = useRef<number>(0);
-  const [showOutline, setShowOutline] = useState(false);
   const [chunkWarning, setChunkWarning] = useState<string | null>(null);
   const failedChunksRef = useRef(0);
   const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -115,7 +112,9 @@ export default function RecordScreen() {
   const authAlertShownRef = useRef(false);
   // Once live outlining is rate-limited, stop attempting it — conserve the
   // daily token budget for the one outline that matters (at Stop).
-  const liveOutlineDisabledRef = useRef(false);
+  const transcriptionModeRef = useRef<TranscriptionMode>('groq');
+  // References already surfaced live, so we don't re-look-up or duplicate them.
+  const seenRefsRef = useRef<Set<string>>(new Set());
   const recordingStartedAtRef = useRef(0);
   // Set before intentional navigation so the beforeRemove guard lets us leave.
   const allowLeaveRef = useRef(false);
@@ -127,10 +126,11 @@ export default function RecordScreen() {
       if (autoSaveRef.current) clearInterval(autoSaveRef.current);
       if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
       void recorderRef.current?.stop().catch(() => undefined);
+      // Free the native Whisper context (no-op in Groq mode).
+      void releaseWhisper().catch(() => undefined);
     };
   }, []);
 
-  useEffect(() => { transcriptRef.current = liveTranscript; }, [liveTranscript]);
 
   // When the app is backgrounded or the phone is locked mid-recording, the JS
   // thread freezes. The native recorder keeps capturing into the current
@@ -252,23 +252,29 @@ export default function RecordScreen() {
   const processChunk = async (chunkUri: string) => {
     if (audioOnlyRef.current) return;
     try {
-      const text = await transcribeAudio([chunkUri], groqKeyRef.current);
+      const text = await transcribeChunks([chunkUri], groqKeyRef.current, transcriptionModeRef.current);
       if (!text.trim()) return;
+      // Transcript is internal plumbing — it feeds scripture detection and the
+      // final outline, but is never shown or stored.
       transcriptRef.current = transcriptRef.current ? transcriptRef.current + ' ' + text : text;
       appendTranscript(text);
       chunkCountRef.current += 1;
       incrementChunk();
       failedChunksRef.current = 0;
       setChunkWarning(null);
-      // Live outline is best-effort and token-hungry — run it in its own guard
-      // so a failure never disrupts transcription, and disable it after the
-      // first rate-limit so the final outline at Stop still has budget.
-      if (!liveOutlineDisabledRef.current && chunkCountRef.current % OUTLINE_EVERY_N_CHUNKS === 0) {
+
+      // Live scripture views: detect references in this chunk, look up any
+      // new ones, and surface them as the preacher cites them.
+      const refs = findScriptureReferences(text).filter((r) => !seenRefsRef.current.has(r));
+      if (refs.length > 0) {
+        refs.forEach((r) => seenRefsRef.current.add(r));
         try {
-          const outline = await extractOutline(transcriptRef.current, groqKeyRef.current);
-          setLiveOutline(outline);
-        } catch (outlineErr) {
-          if (outlineErr instanceof RateLimitError) liveOutlineDisabledRef.current = true;
+          const translation = await getTranslation();
+          const verses = await lookupVerses(refs, translation);
+          addLiveScriptures(verses);
+        } catch {
+          // Offline or lookup failed — still show the reference without text.
+          addLiveScriptures(refs.map((reference) => ({ reference })));
         }
       }
     } catch (e) {
@@ -354,17 +360,36 @@ export default function RecordScreen() {
     mediumTap();
     try {
       if (status === 'idle') {
-        const key = await getGroqKey();
-        if (!key) {
-          Alert.alert('API Key Missing', 'Add your free Groq API key in Settings to enable transcription.', [
+        const mode = await getTranscriptionMode();
+        transcriptionModeRef.current = mode;
+        const key = (await getGroqKey()) ?? '';
+        groqKeyRef.current = key;
+
+        if (mode === 'local') {
+          // On-device: no key needed. The model must be downloaded first
+          // (one-time ~142MB) — do that deliberately in Settings, not inline
+          // right before a recording.
+          if (!(await isModelDownloaded())) {
+            Alert.alert(
+              'Download Required',
+              'On-device transcription needs a one-time model download (~142MB). Open Settings to download it, ideally on Wi-Fi.',
+              [
+                { text: 'Open Settings', onPress: () => router.push('/settings') },
+                { text: 'Cancel', style: 'cancel' },
+              ],
+            );
+            return;
+          }
+        } else if (!key) {
+          Alert.alert('API Key Missing', 'Add your free Groq API key in Settings, or switch to on-device transcription in Settings.', [
             { text: 'Open Settings', onPress: () => router.push('/settings') },
             { text: 'Cancel', style: 'cancel' },
           ]);
           return;
         }
-        groqKeyRef.current = key;
 
-        const online = await checkConnectivity(key);
+        // Local transcription needs no network; only the cloud path checks.
+        const online = mode === 'local' ? true : await checkConnectivity(key);
         const beginRecording = async (audioOnly: boolean) => {
           if (audioOnly) {
             audioOnlyRef.current = true;
@@ -432,7 +457,6 @@ export default function RecordScreen() {
 
     let result: { uris: string[]; durationMs: number } | undefined;
     let transcript = '';
-    let degraded = false;
 
     try {
       result = await recorderRef.current?.stop();
@@ -445,24 +469,34 @@ export default function RecordScreen() {
       await waitForPendingChunks();
       transcript = transcriptRef.current;
 
-      let outline = fallbackOutline();
-      try {
-        setStep('outlining');
-        if (transcript.trim()) outline = await extractOutline(transcript, groqKeyRef.current);
-      } catch {
-        // Rate-limited or failed — keep the live outline, flag the sermon.
-        degraded = true;
+      // Outline: use Groq's LLM when a key is present (best quality), otherwise
+      // the free on-device extractive outline. The extractive path is a normal
+      // outcome, not a degraded one.
+      setStep('outlining');
+      let outline = transcript.trim() ? buildLocalOutline(transcript) : fallbackOutline();
+      if (transcript.trim() && groqKeyRef.current) {
+        try {
+          outline = await extractOutline(transcript, groqKeyRef.current);
+        } catch {
+          // Groq failed (rate limit/network) — keep the extractive outline.
+        }
       }
 
-      let scriptures: Awaited<ReturnType<typeof lookupVerses>> = [];
+      // Merge live-detected scriptures with any the outline references.
+      let scriptures: Awaited<ReturnType<typeof lookupVerses>> =
+        useSessionStore.getState().liveScriptures;
       try {
         setStep('scriptures');
-        const translation = await getTranslation();
-        const allRefs = new Set<string>(findScriptureReferences(transcript));
-        for (const p of outline.points) for (const r of p.scriptures) allRefs.add(r);
-        scriptures = await lookupVerses([...allRefs], translation);
+        const have = new Set(scriptures.map((s) => s.reference));
+        const extra = new Set<string>();
+        for (const r of findScriptureReferences(transcript)) if (!have.has(r)) extra.add(r);
+        for (const p of outline.points) for (const r of p.scriptures) if (!have.has(r)) extra.add(r);
+        if (extra.size > 0) {
+          const translation = await getTranslation();
+          scriptures = [...scriptures, ...await lookupVerses([...extra], translation)];
+        }
       } catch {
-        degraded = true;
+        // keep whatever we resolved live
       }
 
       setStep('saving');
@@ -470,28 +504,19 @@ export default function RecordScreen() {
         id: sermonIdRef.current,
         createdAt: recordingStartedAtRef.current || Date.now(),
         title: outline.title,
+        // Transcript is not surfaced to the user, but kept internally so the
+        // outline can be regenerated later without re-transcribing.
         transcript,
         outline,
         scriptures,
         audioUris: audioUrisRef.current,
         durationMs: durationRef.current,
-        // Mark as draft when enhancement failed so the sermon surfaces a
-        // Re-transcribe/Regenerate affordance for when quota resets.
-        isDraft: degraded || undefined,
       };
       await saveSermon(sermon);
       setStatus('done');
-      void logEvent('recording_completed', { durationMs: durationRef.current, chunks: chunkCountRef.current, degraded });
+      void logEvent('recording_completed', { durationMs: durationRef.current, chunks: chunkCountRef.current });
       allowLeaveRef.current = true;
-      if (degraded) {
-        Alert.alert(
-          'Sermon Saved',
-          "Your recording and transcript are saved, but the outline couldn't be generated (Groq's daily limit may be reached). Open the sermon and tap Regenerate once your limit resets.",
-          [{ text: 'OK', onPress: () => router.replace(`/sermon/${sermon.id}`) }],
-        );
-      } else {
-        router.replace(`/sermon/${sermon.id}`);
-      }
+      router.replace(`/sermon/${sermon.id}`);
     } catch (e) {
       // Even a hard failure here must not lose the audio — persist a draft so
       // it's recoverable, then surface the error.
@@ -657,10 +682,7 @@ export default function RecordScreen() {
                 ))}
               </View>
               <Text style={[styles.hintText, { color: t.textSecondary }]}>
-                {'Recording will transcribe and outline\nyour sermon automatically.'}
-              </Text>
-              <Text style={[styles.limitHint, { color: t.textTertiary }]}>
-                Free tier: ~2 hours of transcription per day
+                {'Scriptures appear live as they\'re mentioned.\nYou get a full outline when you finish.'}
               </Text>
             </View>
           )}
@@ -674,30 +696,22 @@ export default function RecordScreen() {
               )}
               {audioOnlyMode && (
                 <View style={[styles.warningBanner, { backgroundColor: t.accentBlue }]}>
-                  <Text style={styles.warningText}>Audio only mode — transcription paused</Text>
+                  <Text style={styles.warningText}>Audio only mode — scripture detection paused</Text>
                 </View>
               )}
-              {liveTranscript.length > 0 && (
+              <Text style={[styles.panelLabel, { color: t.textSecondary, paddingHorizontal: 4 }]}>
+                SCRIPTURES {liveScriptures.length > 0 ? `(${liveScriptures.length})` : ''}
+              </Text>
+              {liveScriptures.length === 0 ? (
                 <View style={[styles.panel, { backgroundColor: t.bgSurface }]}>
-                  <Text style={[styles.panelLabel, { color: t.textSecondary }]}>LIVE TRANSCRIPT</Text>
-                  <Text style={[styles.panelText, { color: t.textPrimary }]}>{liveTranscript}</Text>
+                  <Text style={[styles.panelText, { color: t.textSecondary }]}>
+                    Scriptures will appear here as they're mentioned.
+                  </Text>
                 </View>
-              )}
-              {liveOutline && liveOutline.points.length > 0 && (
-                <View style={[styles.panel, { backgroundColor: t.bgSurface }]}>
-                  <TouchableOpacity
-                    style={styles.panelHeader}
-                    onPress={() => setShowOutline((v) => !v)}
-                  >
-                    <Text style={[styles.panelLabel, { color: t.textSecondary }]}>LIVE OUTLINE</Text>
-                    <ChevronIcon dir={showOutline ? 'up' : 'down'} size={10} color={t.textTertiary} />
-                  </TouchableOpacity>
-                  {showOutline && liveOutline.points.map((p, i) => (
-                    <Text key={i} style={[styles.panelText, { color: t.textPrimary, marginTop: 2 }]}>
-                      {i + 1}. {p.heading}
-                    </Text>
-                  ))}
-                </View>
+              ) : (
+                [...liveScriptures].reverse().map((sc, i) => (
+                  <ScriptureCard key={`${sc.reference}-${i}`} scripture={sc} />
+                ))
               )}
             </ScrollView>
           )}

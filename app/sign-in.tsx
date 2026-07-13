@@ -887,7 +887,7 @@ function GroqSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: Ret
         </View>
         <Text style={s.stepTitle}>Add your Groq key.</Text>
         <Text style={[s.stepSubtitle, { marginBottom: 24 }]}>
-          Scribe uses Groq for fast, private transcription. The free tier covers most preachers.
+          Optional. A free Groq key gives the best transcription and AI outlines. You can skip this and switch to free on-device transcription in Settings anytime.
         </Text>
 
         <View style={[s.groqCard, { backgroundColor: t.bgSurface }]}>
