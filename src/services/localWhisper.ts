@@ -77,7 +77,15 @@ async function getContext(): Promise<WhisperContext> {
       if (!(await isModelDownloaded())) {
         throw new Error('Transcription model not downloaded yet.');
       }
-      return initWhisper({ filePath: MODEL_PATH });
+      // Force the most compatible path: no CoreML (we don't ship the .mlmodelc
+      // variant, and that path was aborting native-side on iOS) and CPU-only.
+      // Slower but far more stable across devices.
+      return initWhisper({
+        filePath: MODEL_PATH,
+        useCoreMLIos: false,
+        useGpu: false,
+        useFlashAttn: false,
+      });
     })();
     // If init fails, clear the cached promise so a later call can retry.
     contextPromise.catch(() => { contextPromise = null; });

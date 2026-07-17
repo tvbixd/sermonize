@@ -788,9 +788,11 @@ export default function SettingsScreen() {
             accessibilityState={{ selected: transcriptionMode === 'local' }}
           >
             <View style={{ flex: 1 }}>
-              <Text style={[typography.body, { color: t.textPrimary }]}>On-device</Text>
+              <Text style={[typography.body, { color: t.textPrimary }]}>
+                On-device <Text style={{ color: t.accentOrange }}>· Experimental</Text>
+              </Text>
               <Text style={[typography.footnote, { color: t.textSecondary }]}>
-                No key, no limits, works offline. One-time ~{getModelInfo().approxMb}MB download.
+                No key, no limits, works offline. One-time ~{getModelInfo().approxMb}MB download. Still being stabilized — may not work on all devices yet.
               </Text>
             </View>
             {transcriptionMode === 'local' && <CheckIcon size={18} color={t.accentBlue} />}

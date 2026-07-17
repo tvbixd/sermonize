@@ -24,6 +24,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // iOS 26 Liquid Glass icon from Apple's Icon Composer (SDK 54+). Overrides
     // the top-level PNG on iOS; Android still uses the adaptiveIcon PNG below.
     icon: './assets/Scribe.icon',
+    // On-device Whisper loads a large model — these let it use the memory it
+    // needs instead of being killed mid-inference.
+    entitlements: {
+      'com.apple.developer.kernel.increased-memory-limit': true,
+      'com.apple.developer.kernel.extended-virtual-addressing': true,
+    },
     infoPlist: {
       NSMicrophoneUsageDescription:
         'Scribe needs microphone access to record sermons for transcription and outlining.',
