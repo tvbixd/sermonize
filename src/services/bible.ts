@@ -109,6 +109,19 @@ export function clearApiBibleCache(): void {
   activeApiBibleBase = null;
 }
 
+/** Remove duplicate references, keeping the first (and preferring one that has
+ *  resolved verse text over a bare reference). */
+export function dedupeScriptures(list: Scripture[]): Scripture[] {
+  const byRef = new Map<string, Scripture>();
+  for (const s of list) {
+    const key = s.reference.trim().toLowerCase().replace(/\s+/g, ' ');
+    const existing = byRef.get(key);
+    if (!existing) byRef.set(key, s);
+    else if (!existing.text && s.text) byRef.set(key, s); // upgrade to one with text
+  }
+  return [...byRef.values()];
+}
+
 function findTranslation(id: string): TranslationEntry | undefined {
   return LEGACY_TRANSLATIONS.find((t) => t.id === id)
     ?? cachedApiBibles?.find((t) => t.id === id);

@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Svg, Circle, Path } from 'react-native-svg';
 import { SermonRecorder } from '@/audio/SermonRecorder';
-import { lookupVerses } from '@/services/bible';
+import { dedupeScriptures, lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
 import { buildLocalOutline } from '@/services/localOutline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
@@ -39,10 +39,12 @@ const IDLE_BARS = [12, 22, 16, 32, 28, 44, 38, 24, 18, 30, 14, 26, 20, 36, 10];
 
 function formatTimer(ms: number): string {
   const totalSec = Math.floor(ms / 1000);
-  const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
-  const ss = String(totalSec % 60).padStart(2, '0');
-  const cs = String(Math.floor((ms % 1000) / 10)).padStart(2, '0');
-  return `${mm}:${ss}.${cs}`;
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const ss = String(s).padStart(2, '0');
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${ss}`;
+  return `${String(m).padStart(2, '0')}:${ss}`;
 }
 
 function SpinnerSvg({ trackColor, arcColor }: { trackColor: string; arcColor: string }) {
@@ -498,6 +500,8 @@ export default function RecordScreen() {
       } catch {
         // keep whatever we resolved live
       }
+      // Final guard: never save duplicate references (keep the first occurrence).
+      scriptures = dedupeScriptures(scriptures);
 
       setStep('saving');
       const sermon: Sermon = {
@@ -709,7 +713,7 @@ export default function RecordScreen() {
                   </Text>
                 </View>
               ) : (
-                [...liveScriptures].reverse().map((sc, i) => (
+                dedupeScriptures([...liveScriptures]).reverse().map((sc, i) => (
                   <ScriptureCard key={`${sc.reference}-${i}`} scripture={sc} />
                 ))
               )}

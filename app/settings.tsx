@@ -168,7 +168,13 @@ export default function SettingsScreen() {
   // insets the nav buttons sit under the status bar and the content ends
   // under the gesture bar. On iOS sheets the insets resolve to ~0.
   const insets = useSafeAreaInsets();
-  const containerStyle = [s.container, { paddingTop: insets.top, paddingBottom: insets.bottom }];
+  // iOS modal sheets already inset for the notch (and show a grab handle), so
+  // only add top padding on Android edge-to-edge. Adding it on iOS too was
+  // stacking and leaving a big gap at the top.
+  const containerStyle = [
+    s.container,
+    { paddingTop: Platform.OS === 'android' ? insets.top : 0, paddingBottom: insets.bottom },
+  ];
   const { user, signOut, updateProfile, changeEmail } = useAuth();
 
   const [page, setPage] = useState<'root' | 'edit-profile' | 'change-email' | 'faq' | 'privacy' | 'terms'>('root');
@@ -239,33 +245,17 @@ export default function SettingsScreen() {
   if (!loaded) return null;
 
   const onDone = async () => {
+    // Save and close immediately — never block the Done button on a network
+    // round-trip. Validate the key in the background and just flag it if bad.
     const key = groq.trim();
-    await setTranslation(translation);
-    if (key) {
-      setKeyStatus('checking');
-      const verdict = await validateGroqKey(key);
-      if (verdict === 'invalid') {
-        setKeyStatus('invalid');
-        Alert.alert(
-          'Invalid API Key',
-          'Groq rejected this key. Check that you copied the whole key from console.groq.com.',
-          [
-            { text: 'Fix It', style: 'cancel' },
-            {
-              text: 'Save Anyway',
-              onPress: async () => {
-                await setGroqKey(key);
-                router.back();
-              },
-            },
-          ],
-        );
-        return;
-      }
-      setKeyStatus('valid');
-    }
     await setGroqKey(key);
+    await setTranslation(translation);
     router.back();
+    if (key) {
+      void validateGroqKey(key).then((verdict) => {
+        if (verdict === 'invalid') setKeyStatus('invalid');
+      });
+    }
   };
 
   const onDownloadModel = async () => {

@@ -20,7 +20,7 @@ import { AudioPlayer } from '@/components/AudioPlayer';
 import { ScriptureCard } from '@/components/ScriptureCard';
 import { Skeleton } from '@/components/Skeleton';
 import { BackChevronIcon, CloseIcon, ExportIcon, PlusIcon, RegenIcon } from '@/components/icons';
-import { lookupVerse, lookupVerses } from '@/services/bible';
+import { dedupeScriptures, lookupVerse, lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
 import { buildLocalOutline } from '@/services/localOutline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
@@ -58,6 +58,8 @@ export default function SermonDetail() {
       if (!id) return;
       const s = await getSermon(id).catch(() => null);
       if (s) {
+        // Collapse any duplicate references from older saves.
+        s.scriptures = dedupeScriptures(s.scriptures);
         setSermon(s);
         seedDraft(s);
         // List the audio dir directly — stored URIs can go stale after app
