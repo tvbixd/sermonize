@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import * as WebBrowser from 'expo-web-browser';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -838,16 +839,16 @@ export default function SettingsScreen() {
         <Text style={s.sectionLabel}>GROQ API KEY {transcriptionMode === 'local' ? '(OPTIONAL — FOR OUTLINES)' : ''}</Text>
         <View style={[s.card, { marginHorizontal: 16 }]}>
           <Text style={s.helpText}>
-            Scribe uses Groq for fast transcription and outlining. The free tier covers about 2 hours of recording per day.
+            Scribe uses Groq's free AI to transcribe and outline your sermons. Tap below to get a free key — sign up with Google, tap "Create API Key", copy it, and paste it here.
           </Text>
           <TouchableOpacity
-            onPress={() => void Linking.openURL(GROQ_CONSOLE_URL)}
+            onPress={() => void WebBrowser.openBrowserAsync(GROQ_CONSOLE_URL)}
             style={{ paddingHorizontal: 16, paddingBottom: 12 }}
-            accessibilityRole="link"
-            accessibilityLabel="Open Groq console to create an API key"
+            accessibilityRole="button"
+            accessibilityLabel="Get a free Groq key"
           >
             <Text style={[typography.footnote, { color: t.accentBlue, fontWeight: '600' }]}>
-              Create a free key at console.groq.com →
+              Get my free key →
             </Text>
           </TouchableOpacity>
           <Divider indent={16} />

@@ -885,11 +885,41 @@ function GroqSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: Ret
             <Circle cx="12" cy="16.5" r="1.5" fill={t.accentBlue} />
           </Svg>
         </View>
-        <Text style={s.stepTitle}>Add your Groq key.</Text>
-        <Text style={[s.stepSubtitle, { marginBottom: 24 }]}>
-          Optional. A free Groq key gives the best transcription and AI outlines. You can skip this and switch to free on-device transcription in Settings anytime.
+        <Text style={s.stepTitle}>Connect to Groq (free).</Text>
+        <Text style={[s.stepSubtitle, { marginBottom: 20 }]}>
+          Scribe uses Groq's free AI to transcribe and outline your sermons. You just need a free key — it takes about two minutes and stays on your device.
         </Text>
 
+        {/* Numbered guide */}
+        <View style={[s.groqCard, { backgroundColor: t.bgSurface, flexDirection: 'column', alignItems: 'stretch', padding: 16, marginBottom: 16 }]}>
+          {[
+            'Tap "Get my free key" below — it opens right here in the app.',
+            'Sign up with Google (fastest) or email.',
+            'On the page that opens, tap "Create API Key", name it "Scribe", then copy it.',
+            'Come back here and paste it in the box below.',
+          ].map((stepText, i) => (
+            <View key={i} style={{ flexDirection: 'row', gap: 10, marginBottom: i < 3 ? 12 : 0 }}>
+              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: t.accentBlue, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{i + 1}</Text>
+              </View>
+              <Text style={{ ...typography.footnote, color: t.textPrimary, flex: 1, lineHeight: 19 }}>{stepText}</Text>
+            </View>
+          ))}
+        </View>
+
+        <TouchableOpacity
+          style={[s.providerBtn, { backgroundColor: t.accentBlue, marginBottom: 20 }]}
+          activeOpacity={0.85}
+          onPress={() => void WebBrowser.openBrowserAsync(GROQ_CONSOLE_URL)}
+          accessibilityRole="button"
+          accessibilityLabel="Get my free Groq key"
+        >
+          <Text style={[s.providerBtnText, { color: '#fff' }]}>Get my free key →</Text>
+        </TouchableOpacity>
+
+        <Text style={{ ...typography.footnote, fontWeight: '600', color: t.textSecondary, marginBottom: 8 }}>
+          PASTE YOUR KEY HERE
+        </Text>
         <View style={[s.groqCard, { backgroundColor: t.bgSurface }]}>
           <TextInput
             style={s.groqInput}
@@ -916,38 +946,23 @@ function GroqSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: Ret
           {status === 'verifying' && (
             <>
               <ActivityIndicator size="small" color={t.accentBlue} />
-              <Text style={[s.groqStatusText, { color: t.textSecondary }]}>Verifying…</Text>
+              <Text style={[s.groqStatusText, { color: t.textSecondary }]}>Checking your key…</Text>
             </>
           )}
           {status === 'valid' && (
             <>
               <CheckIcon size={14} color={t.statusSuccess} />
-              <Text style={[s.groqStatusText, { color: t.statusSuccess }]}>Key looks good</Text>
+              <Text style={[s.groqStatusText, { color: t.statusSuccess }]}>Key looks good — you're all set</Text>
             </>
           )}
           {status === 'invalid' && (
-            <Text style={[s.groqStatusText, { color: t.statusError }]}>That key didn't work. Double-check and try again.</Text>
+            <Text style={[s.groqStatusText, { color: t.statusError }]}>That key didn't work. Make sure you copied the whole thing (starts with gsk_).</Text>
           )}
         </View>
 
-        <TouchableOpacity
-          style={[s.groqHelp, { backgroundColor: t.bgSurface }]}
-          activeOpacity={0.7}
-          onPress={() => void Linking.openURL(GROQ_CONSOLE_URL)}
-          accessibilityRole="link"
-          accessibilityLabel="Open Groq console to create an API key"
-        >
-          <View style={[s.groqHelpIcon, { backgroundColor: `${t.accentBlue}1A` }]}>
-            <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
-              <Circle cx="8" cy="8" r="7" stroke={t.accentBlue} strokeWidth="1.5" />
-              <Path d="M6 6a2 2 0 1 1 3 1.6c-.6.4-1 .6-1 1.2M8 11.5v.01" stroke={t.accentBlue} strokeWidth="1.5" strokeLinecap="round" />
-            </Svg>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ ...typography.subhead, fontWeight: '500', color: t.textPrimary, marginBottom: 2 }}>Don't have a key?</Text>
-            <Text style={{ ...typography.footnote, color: t.textSecondary }}>Open console.groq.com — takes two minutes.</Text>
-          </View>
-        </TouchableOpacity>
+        <Text style={{ ...typography.caption, color: t.textTertiary, textAlign: 'center', marginTop: 8 }}>
+          You can also skip this and add it later in Settings.
+        </Text>
       </ScrollView>
 
       <View style={s.bottomAction}>
