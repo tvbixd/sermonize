@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '@/context/auth';
+import { RecordingBar } from '@/components/RecordingBar';
 import { logCrash, logEvent } from '@/services/logger';
 import { purgeExpiredDeleted, recoverOrphanedAudio } from '@/storage/sermons';
 import { useTheme } from '@/theme';
@@ -54,6 +55,8 @@ function RootLayout() {
           <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
           <Stack.Screen name="sermon/[id]" />
         </Stack>
+        {/* Persistent recording indicator shown on every screen except record */}
+        <RecordingBar />
       </SafeAreaProvider>
     </AuthProvider>
   );
