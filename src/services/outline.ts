@@ -36,6 +36,23 @@ const EMPTY_OUTLINE: Outline = {
   points: [],
 };
 
+// Groq's free tier caps tokens-per-minute, so a very long sermon transcript
+// sent whole can trip a 429. ~24k characters ≈ 6k tokens stays safely under it.
+// For longer sermons we keep the opening (intro/theme/early points) and the
+// closing (conclusion) — the parts that carry the outline's shape.
+const MAX_OUTLINE_CHARS = 24000;
+
+function trimForOutline(t: string): string {
+  if (t.length <= MAX_OUTLINE_CHARS) return t;
+  const head = Math.floor(MAX_OUTLINE_CHARS * 0.65);
+  const tail = MAX_OUTLINE_CHARS - head;
+  return (
+    t.slice(0, head) +
+    '\n\n[…middle portion omitted for length…]\n\n' +
+    t.slice(t.length - tail)
+  );
+}
+
 /**
  * Extract a structured sermon outline from a transcript using Groq's free-tier
  * Llama 3.3 70B endpoint (OpenAI-compatible chat-completions API).
@@ -56,7 +73,7 @@ export async function extractOutline(
       { role: 'system' as const, content: SYSTEM_PROMPT },
       {
         role: 'user' as const,
-        content: `Here is the sermon transcript. Produce the outline JSON:\n\n<transcript>\n${transcript}\n</transcript>`,
+        content: `Here is the sermon transcript. Produce the outline JSON:\n\n<transcript>\n${trimForOutline(transcript)}\n</transcript>`,
       },
     ],
   };
