@@ -11,8 +11,9 @@ const TRANSCRIPTION_MODE_KEY = 'scribe.transcriptionMode';
 export type TranscriptionMode = 'groq' | 'local';
 
 export async function getTranscriptionMode(): Promise<TranscriptionMode> {
-  const v = await SecureStore.getItemAsync(TRANSCRIPTION_MODE_KEY);
-  return v === 'local' ? 'local' : 'groq';
+  // On-device transcription is disabled for now — the app always uses the Groq
+  // cloud API. (The local path is kept in the codebase but not user-selectable.)
+  return 'groq';
 }
 
 export async function setTranscriptionMode(mode: TranscriptionMode): Promise<void> {
