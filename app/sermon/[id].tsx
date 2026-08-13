@@ -25,8 +25,7 @@ import { extractOutline } from '@/services/outline';
 import { buildLocalOutline } from '@/services/localOutline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
 import { transcribeChunks } from '@/services/transcription';
-import { isModelDownloaded } from '@/services/localWhisper';
-import { getGroqKey, getTranscriptionMode, getTranslation } from '@/storage/keys';
+import { getGroqKey, getTranslation } from '@/storage/keys';
 import { audioDir, getSermon, saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Outline, Sermon } from '@/types';
@@ -217,24 +216,24 @@ export default function SermonDetail() {
           onPress: async () => {
             setBusy(true);
             try {
-              const mode = await getTranscriptionMode();
               const key = (await getGroqKey()) ?? '';
-              if (mode === 'local' && !(await isModelDownloaded())) {
-                throw new Error('On-device model not downloaded. Download it in Settings first.');
-              }
-              if (mode === 'groq' && !key) {
-                throw new Error('Groq API key not set. Add it in Settings, or switch to on-device transcription.');
+              if (!key) {
+                throw new Error('Groq API key not set. Add it in Settings.');
               }
               const uris = audioFiles.map((f) => `${dir}${f}`);
-              const transcript = await transcribeChunks(uris, key, mode);
+              const transcript = await transcribeChunks(uris, key);
               const translation = await getTranslation();
-              // Groq LLM outline when a key exists; otherwise the free
-              // on-device extractive outline.
-              const outline = !transcript.trim()
-                ? sermon.outline
-                : key
-                  ? await extractOutline(transcript, key)
-                  : buildLocalOutline(transcript);
+              // Groq LLM outline; fall back to the free extractive outline if
+              // Groq fails (e.g. rate limit) so the transcription isn't lost.
+              let outline = sermon.outline;
+              if (transcript.trim()) {
+                outline = buildLocalOutline(transcript);
+                try {
+                  outline = await extractOutline(transcript, key);
+                } catch {
+                  // keep the extractive outline
+                }
+              }
               const refs = new Set(findScriptureReferences(transcript));
               for (const p of outline.points) for (const r of p.scriptures) refs.add(r);
               const scriptures = await lookupVerses([...refs], translation);

@@ -150,7 +150,7 @@ export default function FoldersScreen() {
         {allCount === 0 && (
           <TouchableOpacity
             style={styles.welcomeCard}
-            onPress={() => router.push('/record')}
+            onPress={() => router.navigate('/record')}
             activeOpacity={0.85}
           >
             <View style={styles.welcomeIcon}>
@@ -238,7 +238,7 @@ export default function FoldersScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.micBtn}
-          onPress={() => router.push('/record')}
+          onPress={() => router.navigate('/record')}
           activeOpacity={0.85}
         >
           <MicIcon size={22} color="#fff" />

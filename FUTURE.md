@@ -8,11 +8,13 @@ real user need pushes for it.
 ## On-device transcription (revisit)
 Goal: remove the Groq key + daily-limit dependency entirely.
 
-- **First attempt (`whisper.rn`)** — shelved. On iOS it crashed in
-  `hostInitWhisperContext` (native SIGABRT, uncatchable in JS), and it needs
-  WAV input while our recorder produces `.m4a`. Code is still in the tree
-  (`src/services/localWhisper.ts`, `transcription.ts`) but unreachable —
-  `getTranscriptionMode()` is hard-forced to `'groq'`.
+- **First attempt (`whisper.rn`)** — tried and **fully removed** (production
+  review). On iOS it crashed in `hostInitWhisperContext` (native SIGABRT,
+  uncatchable in JS), and it needs WAV input while our recorder produces
+  `.m4a`. The dependency, `localWhisper.ts`, the transcription-mode toggle, and
+  the tsconfig shim were all removed to shed Android AAB bloat + a native crash
+  surface. `transcription.ts` now calls Groq directly. Re-adding on-device
+  starts fresh.
 - **Better candidate: WhisperKit (Argmax)** — native CoreML Whisper for
   iOS/macOS. Likely avoids the init crash + format issues. Surfaced via the
   `speaktype` macOS app (github.com/karansinghgit/speaktype), which uses it.

@@ -50,7 +50,7 @@ export function RecordingBar() {
   return (
     <TouchableOpacity
       activeOpacity={0.9}
-      onPress={() => router.push('/record')}
+      onPress={() => router.navigate('/record')}
       style={[styles.bar, { backgroundColor: t.accentRed, paddingTop: insets.top + 6 }]}
       accessibilityRole="button"
       accessibilityLabel={`Recording in progress, ${formatTimer(elapsedMs)}. Tap to return.`}

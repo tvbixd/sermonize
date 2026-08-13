@@ -10,14 +10,18 @@ import * as FileSystem from 'expo-file-system/legacy';
  *
  * Background behaviour:
  *   When the app is backgrounded or the phone is locked, the JS thread is
- *   frozen, so the chunk timer stops firing. On iOS (with UIBackgroundModes:
- *   audio) and Android (with a mic foreground service) the *native* recorder
- *   keeps writing into the current segment, so no audio is lost — the segment
- *   simply grows until the app returns to the foreground.
+ *   frozen, so the chunk timer stops firing.
+ *   - iOS (UIBackgroundModes: audio): the native recorder keeps writing into
+ *     the current segment, so no audio is lost — the segment grows until the
+ *     app returns to the foreground.
+ *   - Android: expo-av runs NO foreground service, so once backgrounded/locked
+ *     capture stops. Recording is effectively foreground-only on Android until
+ *     we migrate to expo-audio + a mic foreground service (see FUTURE.md /
+ *     BACKGROUND_RECORDING.md).
  *
- *   Callers should invoke `flushCurrentChunk()` on the AppState 'background'
- *   transition so the in-progress segment is sealed to disk *before* the OS
- *   suspends us — that way nothing is lost even if the OS later kills the app.
+ *   Either way, callers invoke `flushCurrentChunk()` on the AppState
+ *   'background' transition so audio captured up to that moment is sealed to
+ *   disk before the OS can suspend/kill us.
  *
  * Pause / Resume suspend / restart both the audio and the chunk timer.
  * Stop seals the final partial segment and returns all URIs + duration.

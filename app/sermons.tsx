@@ -298,7 +298,7 @@ export default function SermonsScreen() {
         <TouchableOpacity
           style={styles.fab}
           activeOpacity={0.85}
-          onPress={() => router.push('/record')}
+          onPress={() => router.navigate('/record')}
           accessibilityRole="button"
           accessibilityLabel="Record new sermon"
         >

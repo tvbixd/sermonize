@@ -48,10 +48,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#FFFFFF',
     },
+    // No FOREGROUND_SERVICE* here: expo-av runs no foreground service, and
+    // declaring the permission without one risks Play Store rejection. Android
+    // recording is foreground-only for now (see BACKGROUND_RECORDING.md).
     permissions: [
       'RECORD_AUDIO',
-      'FOREGROUND_SERVICE',
-      'FOREGROUND_SERVICE_MICROPHONE',
       'WAKE_LOCK',
     ],
   },

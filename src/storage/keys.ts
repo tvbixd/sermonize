@@ -2,22 +2,16 @@ import * as SecureStore from 'expo-secure-store';
 
 const GROQ_KEY = 'scribe.groqApiKey';
 const TRANSLATION_KEY = 'scribe.bibleTranslation';
-const TRANSCRIPTION_MODE_KEY = 'scribe.transcriptionMode';
+const ONBOARDED_KEY = 'scribe.onboarded';
 
-/**
- * 'groq'  — cloud transcription via the user's Groq key (best quality, has limits)
- * 'local' — on-device Whisper (no key, no limits, offline; needs model download)
- */
-export type TranscriptionMode = 'groq' | 'local';
-
-export async function getTranscriptionMode(): Promise<TranscriptionMode> {
-  // On-device transcription is disabled for now — the app always uses the Groq
-  // cloud API. (The local path is kept in the codebase but not user-selectable.)
-  return 'groq';
+/** True once the user has finished onboarding (with or without an account), so
+ *  guests aren't forced back through onboarding on every launch. */
+export async function getOnboarded(): Promise<boolean> {
+  return (await SecureStore.getItemAsync(ONBOARDED_KEY)) === '1';
 }
 
-export async function setTranscriptionMode(mode: TranscriptionMode): Promise<void> {
-  await SecureStore.setItemAsync(TRANSCRIPTION_MODE_KEY, mode);
+export async function setOnboarded(): Promise<void> {
+  await SecureStore.setItemAsync(ONBOARDED_KEY, '1');
 }
 
 export async function getGroqKey(): Promise<string | null> {

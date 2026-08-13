@@ -19,9 +19,6 @@ type SessionState = {
   chunkWarning: string | null;
   // True once the user chose to keep recording without transcription
   audioOnlyMode: boolean;
-  // Bumped by the engine when a session ends on its own (e.g. rate-limit
-  // "Stop & Save") so a mounted record screen can navigate away.
-  sessionClosedAt: number | null;
 
   setStatus: (s: RecordingStatus) => void;
   setStep: (s: ProcessingStep) => void;
@@ -33,7 +30,6 @@ type SessionState = {
   incrementChunk: () => void;
   setChunkWarning: (msg: string | null) => void;
   setAudioOnlyMode: (v: boolean) => void;
-  closeSession: () => void;
   reset: () => void;
 };
 
@@ -48,7 +44,6 @@ export const useSessionStore = create<SessionState>((set) => ({
   chunkCount: 0,
   chunkWarning: null,
   audioOnlyMode: false,
-  sessionClosedAt: null,
 
   setStatus: (status) => set({ status }),
   setStep: (step) => set({ step }),
@@ -56,7 +51,6 @@ export const useSessionStore = create<SessionState>((set) => ({
   setError: (errorMessage) => set({ errorMessage }),
   setChunkWarning: (chunkWarning) => set({ chunkWarning }),
   setAudioOnlyMode: (audioOnlyMode) => set({ audioOnlyMode }),
-  closeSession: () => set({ sessionClosedAt: Date.now() }),
   appendTranscript: (text) =>
     set((s) => ({
       liveTranscript: s.liveTranscript ? s.liveTranscript + ' ' + text : text,
@@ -82,6 +76,5 @@ export const useSessionStore = create<SessionState>((set) => ({
       chunkCount: 0,
       chunkWarning: null,
       audioOnlyMode: false,
-      sessionClosedAt: null,
     }),
 }));

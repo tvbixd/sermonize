@@ -20,9 +20,8 @@ import { extractOutline } from '@/services/outline';
 import { buildLocalOutline } from '@/services/localOutline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
 import { ScriptureCard } from '@/components/ScriptureCard';
-import { isModelDownloaded } from '@/services/localWhisper';
 import { useSessionStore } from '@/state/sessionStore';
-import { getGroqKey, getTranscriptionMode, getTranslation } from '@/storage/keys';
+import { getGroqKey, getTranslation } from '@/storage/keys';
 import { saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Sermon } from '@/types';
@@ -79,7 +78,6 @@ export default function RecordScreen() {
   const liveScriptures = useSessionStore((s) => s.liveScriptures);
   const chunkWarning   = useSessionStore((s) => s.chunkWarning);
   const audioOnlyMode  = useSessionStore((s) => s.audioOnlyMode);
-  const sessionClosedAt = useSessionStore((s) => s.sessionClosedAt);
 
   const setStatus = useSessionStore((s) => s.setStatus);
   const setStep   = useSessionStore((s) => s.setStep);
@@ -88,49 +86,26 @@ export default function RecordScreen() {
 
   const finalizingRef = useRef(false);
 
-  // The engine ends a session on its own (e.g. rate-limit "Stop & Save"). When
-  // it does, leave the record screen if we're still on it.
-  useEffect(() => {
-    if (sessionClosedAt) {
-      reset();
-      if (router.canGoBack()) router.back();
-    }
-  }, [sessionClosedAt]);
-
   const onRecordPress = async () => {
     mediumTap();
     try {
       if (status === 'idle') {
-        const mode = await getTranscriptionMode();
         const key = (await getGroqKey()) ?? '';
-
-        if (mode === 'local') {
-          if (!(await isModelDownloaded())) {
-            Alert.alert(
-              'Download Required',
-              'On-device transcription needs a one-time model download (~142MB). Open Settings to download it, ideally on Wi-Fi.',
-              [
-                { text: 'Open Settings', onPress: () => router.push('/settings') },
-                { text: 'Cancel', style: 'cancel' },
-              ],
-            );
-            return;
-          }
-        } else if (!key) {
-          Alert.alert('API Key Missing', 'Add your free Groq API key in Settings, or switch to on-device transcription in Settings.', [
+        if (!key) {
+          Alert.alert('API Key Missing', 'Add your free Groq API key in Settings to enable transcription.', [
             { text: 'Open Settings', onPress: () => router.push('/settings') },
             { text: 'Cancel', style: 'cancel' },
           ]);
           return;
         }
 
-        const online = mode === 'local' ? true : await checkConnectivity(key);
+        const online = await checkConnectivity(key);
         if (!online) {
           Alert.alert(
             'No Internet Connection',
             'You can still record audio. Transcription will be available later via Re-transcribe.',
             [
-              { text: 'Record Audio Only', onPress: () => void recordingEngine.start({ mode, groqKey: key, audioOnly: true }).catch((e) => {
+              { text: 'Record Audio Only', onPress: () => void recordingEngine.start({ groqKey: key, audioOnly: true }).catch((e) => {
                 setError(e instanceof Error ? e.message : String(e));
                 setStatus('error');
               }) },
@@ -139,7 +114,7 @@ export default function RecordScreen() {
           );
           return;
         }
-        await recordingEngine.start({ mode, groqKey: key, audioOnly: false });
+        await recordingEngine.start({ groqKey: key, audioOnly: false });
       } else if (status === 'recording') {
         await recordingEngine.pause();
       } else if (status === 'paused') {

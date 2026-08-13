@@ -24,7 +24,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { CheckIcon, MicIcon } from '@/components/icons';
 import { GROQ_CONSOLE_URL } from '@/config/support';
 import { OAUTH_CANCELLED, useAuth } from '@/context/auth';
-import { setGroqKey, setTranslation } from '@/storage/keys';
+import { setGroqKey, setOnboarded, setTranslation } from '@/storage/keys';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 
 const APP_ICON = require('../assets/icon.png');
@@ -281,6 +281,7 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
               onGoogle={handleGoogle}
               onEmail={() => goToStep('email')}
               onToggleMode={() => setMode((m) => (m === 'signin' ? 'signup' : 'signin'))}
+              onSkip={() => goToStep('mic')}
               loading={loading}
               error={error}
               t={t}
@@ -356,7 +357,7 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
             <SuccessView
               displayName={displayName}
               isNewUser={isNewUser}
-              onContinue={() => router.replace('/folders')}
+              onContinue={async () => { await setOnboarded(); router.replace('/folders'); }}
               t={t}
               s={s}
             />
@@ -370,13 +371,14 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
 // ─── Landing ─────────────────────────────────────────────────────────────────
 
 function LandingView({
-  mode, onApple, onGoogle, onEmail, onToggleMode, loading, error, t, s,
+  mode, onApple, onGoogle, onEmail, onToggleMode, onSkip, loading, error, t, s,
 }: {
   mode: 'signin' | 'signup';
   onApple: () => void;
   onGoogle: () => void;
   onEmail: () => void;
   onToggleMode: () => void;
+  onSkip: () => void;
   loading: boolean;
   error: string;
   t: Colors;
@@ -471,6 +473,12 @@ function LandingView({
             <Text style={{ color: t.accentBlue, fontWeight: '600' }}>
               {mode === 'signin' ? 'Sign up' : 'Sign in'}
             </Text>
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={onSkip} style={{ alignSelf: 'center', paddingVertical: 8 }} hitSlop={8} accessibilityRole="button">
+          <Text style={[typography.subhead, { color: t.textSecondary, fontWeight: '600' }]}>
+            Continue without an account
           </Text>
         </TouchableOpacity>
 

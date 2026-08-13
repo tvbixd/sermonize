@@ -27,14 +27,62 @@ export function audioDir(id: string) {
 }
 
 /**
- * Write JSON via a temp file + rename so the app dying mid-write can never
- * leave a truncated file at the real path.
+ * Write JSON durably. moveAsync can't overwrite an existing file, so we can't
+ * just rename tmp→path. Instead: write tmp, move the current file aside to
+ * .bak, move tmp into place, then drop .bak. If the app dies mid-write, the
+ * data survives as either .tmp (new) or .bak (old), and recoverInterruptedWrites
+ * (run on load) restores it — so an overwrite can never leave nothing at path.
  */
 async function writeJsonAtomic(path: string, data: unknown): Promise<void> {
   const tmp = `${path}.tmp`;
+  const bak = `${path}.bak`;
+  await FileSystem.deleteAsync(tmp, { idempotent: true });
   await FileSystem.writeAsStringAsync(tmp, JSON.stringify(data, null, 2));
-  await FileSystem.deleteAsync(path, { idempotent: true });
+  await FileSystem.deleteAsync(bak, { idempotent: true });
+  const cur = await FileSystem.getInfoAsync(path);
+  if (cur.exists) await FileSystem.moveAsync({ from: path, to: bak });
   await FileSystem.moveAsync({ from: tmp, to: path });
+  await FileSystem.deleteAsync(bak, { idempotent: true });
+}
+
+/**
+ * Restore any sermon JSON left in limbo by a write interrupted between the
+ * .bak/.tmp shuffle. Prefers the new content (.tmp) over the old (.bak), and
+ * cleans up stray .tmp/.bak once the committed file is present.
+ */
+async function recoverInterruptedWrites(): Promise<void> {
+  const entries = await FileSystem.readDirectoryAsync(SERMONS_DIR).catch(() => [] as string[]);
+  const jsonSet = new Set(entries.filter((e) => e.endsWith('.json')));
+  const bases = new Set<string>();
+  for (const e of entries) {
+    if (e.endsWith('.json.tmp')) bases.add(e.slice(0, -'.tmp'.length));
+    else if (e.endsWith('.json.bak')) bases.add(e.slice(0, -'.bak'.length));
+  }
+  for (const base of bases) {
+    const target = `${SERMONS_DIR}${base}`;
+    const tmp = `${target}.tmp`;
+    const bak = `${target}.bak`;
+    if (jsonSet.has(base)) {
+      // Committed file exists — the .tmp/.bak are stale leftovers.
+      await FileSystem.deleteAsync(tmp, { idempotent: true });
+      await FileSystem.deleteAsync(bak, { idempotent: true });
+      continue;
+    }
+    // No committed file — restore from .tmp (new) if it parses, else .bak (old).
+    for (const src of [tmp, bak]) {
+      const info = await FileSystem.getInfoAsync(src);
+      if (!info.exists) continue;
+      try {
+        JSON.parse(await FileSystem.readAsStringAsync(src));
+      } catch {
+        continue; // corrupt/truncated — try the next source
+      }
+      await FileSystem.moveAsync({ from: src, to: target }).catch(() => {});
+      break;
+    }
+    await FileSystem.deleteAsync(tmp, { idempotent: true });
+    await FileSystem.deleteAsync(bak, { idempotent: true });
+  }
 }
 
 export async function ensureAudioDir(id: string): Promise<string> {
@@ -48,6 +96,7 @@ export async function ensureAudioDir(id: string): Promise<string> {
 
 async function loadAll(): Promise<Sermon[]> {
   await ensureDir();
+  await recoverInterruptedWrites().catch(() => {});
   const entries = await FileSystem.readDirectoryAsync(SERMONS_DIR);
   const jsonFiles = entries.filter((e) => e.endsWith('.json'));
   const sermons: Sermon[] = [];

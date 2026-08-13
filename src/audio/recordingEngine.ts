@@ -5,7 +5,7 @@ import { findScriptureReferences } from '@/services/scriptureRegex';
 import { NetworkError, RateLimitError } from '@/services/whisper';
 import { transcribeChunks } from '@/services/transcription';
 import { useSessionStore } from '@/state/sessionStore';
-import { getTranslation, type TranscriptionMode } from '@/storage/keys';
+import { getTranslation } from '@/storage/keys';
 import { deleteSermon, ensureAudioDir, saveSermon } from '@/storage/sermons';
 import type { Sermon } from '@/types';
 import { newId } from '@/util/id';
@@ -30,7 +30,6 @@ class RecordingEngine {
   private chunkCount = 0;
   private failedChunks = 0;
   private audioOnly = false;
-  private mode: TranscriptionMode = 'groq';
   private groqKey = '';
 
   private ticker: ReturnType<typeof setInterval> | null = null;
@@ -65,8 +64,12 @@ class RecordingEngine {
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
-  async start(opts: { mode: TranscriptionMode; groqKey: string; audioOnly: boolean }): Promise<void> {
-    this.mode = opts.mode;
+  async start(opts: { groqKey: string; audioOnly: boolean }): Promise<void> {
+    // Never clobber a live recording: if one is somehow still around, tear it
+    // down first so we don't orphan a native recorder + its timers.
+    if (this.recorder) {
+      await this.discard().catch(() => undefined);
+    }
     this.groqKey = opts.groqKey;
     this.audioOnly = opts.audioOnly;
     this.transcript = '';
@@ -94,7 +97,10 @@ class RecordingEngine {
     // engine (not the record screen) owns the AppState subscription.
     this.appStateSub?.remove();
     this.appStateSub = AppState.addEventListener('change', (next) => {
-      if (next === 'background' || next === 'inactive') void this.flushForBackground();
+      // Only flush on a true suspend. iOS fires 'inactive' constantly for
+      // transient events (Control Center, notification pull, call banner);
+      // sealing a chunk on each would chop the audio and drop small slices.
+      if (next === 'background') void this.flushForBackground();
     });
     void logEvent('recording_started', { audioOnly: opts.audioOnly });
   }
@@ -125,11 +131,15 @@ class RecordingEngine {
    *  session state intact so the caller can build + save the sermon. */
   async stopForFinalize(): Promise<{ uris: string[]; durationMs: number; transcript: string }> {
     this.teardown();
+    // Snapshot chunks already persisted to disk BEFORE stop(), so a failed
+    // final-seal never drops the earlier chunks (which would orphan them).
+    const persisted = this.recorder?.getCurrentUris() ?? [];
     const result = await this.recorder?.stop().catch(() => undefined);
     await this.waitForPending();
     this.recorder = null;
+    const uris = result?.uris ?? [];
     return {
-      uris: result?.uris ?? [],
+      uris: uris.length >= persisted.length ? uris : persisted,
       durationMs: result?.durationMs ?? 0,
       transcript: this.transcript,
     };
@@ -221,7 +231,7 @@ class RecordingEngine {
   private async processChunk(chunkUri: string) {
     if (this.audioOnly) return;
     try {
-      const text = await transcribeChunks([chunkUri], this.groqKey, this.mode);
+      const text = await transcribeChunks([chunkUri], this.groqKey);
       if (!text.trim()) return;
       this.transcript = this.transcript ? this.transcript + ' ' + text : text;
       this.store.appendTranscript(text);
@@ -302,7 +312,10 @@ class RecordingEngine {
         style: 'default',
         onPress: () => {
           this.rateLimitAlertActive = false;
-          void this.saveDraft().then(() => this.store.closeSession());
+          // saveDraft() resets to idle, so the bar disappears and the record
+          // screen (if mounted) returns to its idle state. The draft is in the
+          // sermons list — no forced navigation needed.
+          void this.saveDraft();
         },
       },
       {

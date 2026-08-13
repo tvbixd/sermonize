@@ -236,16 +236,11 @@ export default function SettingsScreen() {
 
   const onDone = async () => {
     // Save and close immediately — never block the Done button on a network
-    // round-trip. Validate the key in the background and just flag it if bad.
-    const key = groq.trim();
-    await setGroqKey(key);
+    // round-trip. (We don't validate after closing: the screen is gone, so
+    // there's nowhere to show the result.)
+    await setGroqKey(groq.trim());
     await setTranslation(translation);
     router.back();
-    if (key) {
-      void validateGroqKey(key).then((verdict) => {
-        if (verdict === 'invalid') setKeyStatus('invalid');
-      });
-    }
   };
 
   const onSignOut = async () => {
@@ -747,6 +742,15 @@ export default function SettingsScreen() {
               style={[s.keyInput, { color: t.textPrimary }]}
               value={groq}
               onChangeText={(v) => { setGroq(v); setKeyStatus('idle'); }}
+              onEndEditing={() => {
+                const k = groq.trim();
+                if (!k) { setKeyStatus('idle'); return; }
+                setKeyStatus('checking');
+                void validateGroqKey(k).then((verdict) =>
+                  // 'offline' isn't a bad key — don't flag it as invalid.
+                  setKeyStatus(verdict === 'offline' ? 'idle' : verdict),
+                );
+              }}
               placeholder="gsk_..."
               placeholderTextColor={t.textTertiary}
               autoCapitalize="none"
