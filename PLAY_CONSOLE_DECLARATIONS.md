@@ -15,16 +15,17 @@ choice depends on you, it's marked **(your call)**.
 
 ## App access
 - Choose: **All or some functionality is restricted**
-- Reason: the app requires signing in (email code, Google, or Apple) before you
-  can record.
-- Add **instructions for reviewers** so they can get in:
-  - Name: `Email sign-in`
-  - Instructions: "On the welcome screen tap **Continue with email**, enter any
-    email you control, and enter the 6-digit code sent to it. No Groq API key is
-    needed — in Settings → Transcription choose **On-device** to record without
-    any key."
-  - (For a fixed test login, create one account and put its email here; codes go
-    to that inbox.)
+- Reason: no account is required (guests can use the whole app), but
+  **transcription needs a free Groq API key**, so a reviewer needs one to see
+  the core feature work.
+- Add **instructions for reviewers**:
+  - Name: `Guest + Groq key`
+  - Instructions: "On the welcome screen tap **Continue without an account**.
+    Then open **Settings**, paste the Groq API key below into the **Groq API
+    Key** field, and go back. Tap the record button to transcribe.
+    Groq key: `gsk_…` **(paste a working key here before submitting)**"
+  - No email/login is needed — the account is optional and everything is stored
+    on-device.
 
 ## Ads
 - **No**, this app does not contain ads. (Confirmed — no ad SDKs.)
@@ -52,7 +53,7 @@ Declare these data types:
 | **Email address** | Yes | No | Account management | Only if the user signs in; stored via Supabase (auth). |
 | **Name** | Yes | No | Account management | Optional profile display name. |
 | **Other personal info** (role, church) | Yes | No | Account management | Optional profile fields. |
-| **Voice or sound recordings** (Audio) | Yes | Yes | App functionality | In Cloud mode, audio is sent to Groq for transcription. In On-device mode it never leaves the phone. Declare Yes because the app is *capable* of sending it. |
+| **Voice or sound recordings** (Audio) | Yes | Yes | App functionality | Audio is sent to Groq for transcription (over HTTPS, under the user's own key). Recordings are also stored on-device. |
 | **App info & performance** (crash logs) | No | No | — | Crash/event logs are stored **only on device**, never transmitted — so per Google's definition this is not "collected." |
 
 Everything else — location, financial info, health, contacts, calendar, SMS,
@@ -93,6 +94,30 @@ photos, browsing history, device/advertising IDs — **not collected**.
 - The app does **not** use an advertising ID. If Play asks (Android 13+ target),
   declare that you do **not** use it.
 
+## Android permissions (and the foreground-service form)
+- The app requests only **RECORD_AUDIO** (microphone, for recording sermons) and
+  **WAKE_LOCK**. Both are standard and need no special declaration form.
+- **There is NO foreground-service permission.** Recording on Android is
+  **foreground-only** — it runs while the app is open on screen; if the user
+  backgrounds the app or locks the phone, capture stops (audio up to that moment
+  is saved). We intentionally do **not** declare `FOREGROUND_SERVICE` /
+  `FOREGROUND_SERVICE_MICROPHONE`, because the app runs no such service and a
+  declared-but-unused foreground-service permission triggers Play review
+  rejection.
+- **If Play's "Foreground service permissions" declaration form appears anyway:**
+  it should not, since the manifest declares none. If it does, it means a
+  dependency injected one — remove it before submitting rather than filling the
+  form. As of this build the manifest is clean.
+- **Microphone-in-background disclosure:** because the app does **not** record in
+  the background, you do **not** need the "records audio in the background"
+  disclosure. Keep the store listing/description free of any "records with the
+  screen off / in your pocket" claims on Android to stay consistent.
+
+> Roadmap note: true background recording on Android (via `expo-audio` + a mic
+> foreground service) is planned post-launch (see `FUTURE.md`). When that ships,
+> you WILL re-add `FOREGROUND_SERVICE_MICROPHONE` and must then complete Play's
+> foreground-service declaration form justifying it.
+
 ---
 
 ## Store listing minimums (for internal testing you can keep these short)
@@ -101,9 +126,9 @@ photos, browsing history, device/advertising IDs — **not collected**.
 - **Full description:** see `docs/store-listing.md` if you want a longer one, or:
   "Scribe records sermons and turns them into a structured outline — title,
   theme, key points, and every scripture reference, looked up automatically.
-  Transcribe on-device for free with no account needed, or use a free Groq key
-  for the highest quality. Everything is stored privately on your device and
-  exports to PDF or Markdown."
+  Add a free Groq API key for fast, accurate transcription. No account
+  required — everything is stored privately on your device and exports to PDF
+  or Markdown."
 - **App icon:** 512×512 (Play uses this; your `assets/icon.png` is 1024 — export a 512 too)
 - **Feature graphic:** 1024×500 (required) — **(your call)**, simple branded banner
 - **Screenshots:** at least 2 phone screenshots
