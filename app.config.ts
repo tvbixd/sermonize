@@ -20,6 +20,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.breakandbuild.scribe',
+    // Informational only. eas.json uses appVersionSource:"remote" +
+    // autoIncrement, so EAS assigns the real buildNumber/versionCode on its
+    // servers and bumps them every production build. If Play ever rejects a
+    // duplicate, run `eas build:version:set` to raise the remote counter.
     buildNumber: '1',
     // iOS 26 Liquid Glass icon from Apple's Icon Composer (SDK 54+). Overrides
     // the top-level PNG on iOS; Android still uses the adaptiveIcon PNG below.
