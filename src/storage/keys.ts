@@ -3,6 +3,17 @@ import * as SecureStore from 'expo-secure-store';
 const GROQ_KEY = 'scribe.groqApiKey';
 const TRANSLATION_KEY = 'scribe.bibleTranslation';
 const ONBOARDED_KEY = 'scribe.onboarded';
+const AVATAR_KEY = 'scribe.avatarUri';
+
+/** Local file path of the user's profile picture (stored on device). */
+export async function getAvatarUri(): Promise<string | null> {
+  return SecureStore.getItemAsync(AVATAR_KEY);
+}
+
+export async function setAvatarUri(uri: string | null): Promise<void> {
+  if (uri) await SecureStore.setItemAsync(AVATAR_KEY, uri);
+  else await SecureStore.deleteItemAsync(AVATAR_KEY);
+}
 
 /** True once the user has finished onboarding (with or without an account), so
  *  guests aren't forced back through onboarding on every launch. */

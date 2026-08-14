@@ -1,10 +1,13 @@
 import Constants from 'expo-constants';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as WebBrowser from 'expo-web-browser';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -35,6 +38,7 @@ import { GROQ_CONSOLE_URL, PRIVACY_POLICY_URL, SUPPORT_EMAIL, TERMS_URL } from '
 import { getCrashLog, clearLogs } from '@/services/logger';
 import { validateGroqKey } from '@/services/network';
 import { getAudioStorageBytes } from '@/storage/sermons';
+import { getAvatarUri, setAvatarUri } from '@/storage/keys';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import { CheckIcon, EyeIcon, EyeOffIcon } from '@/components/icons';
 
@@ -194,6 +198,7 @@ export default function SettingsScreen() {
   const [profileChurch, setProfileChurch] = useState('');
   const [profileDenom, setProfileDenom] = useState('');
   const [profileInterests, setProfileInterests] = useState<string[]>([]);
+  const [avatarUri, setAvatarUriState] = useState<string | null>(null);
   const [newEmail, setNewEmail] = useState('');
 
   const [loaded, setLoaded] = useState(false);
@@ -203,9 +208,10 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     void (async () => {
-      const [gk, tr] = await Promise.all([getGroqKey(), getTranslation()]);
+      const [gk, tr, av] = await Promise.all([getGroqKey(), getTranslation(), getAvatarUri()]);
       setGroq(gk ?? '');
       setTrans(tr);
+      setAvatarUriState(av);
       setLoaded(true);
       try {
         const bibles = await fetchApiBibleTranslations();
@@ -241,6 +247,32 @@ export default function SettingsScreen() {
     await setGroqKey(groq.trim());
     await setTranslation(translation);
     router.back();
+  };
+
+  const pickAvatar = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Photo Access Needed', 'Allow photo access in Settings to choose a profile picture.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      // Copy into the app's documents so it survives the picker's temp cache.
+      const dir = `${FileSystem.documentDirectory ?? ''}profile/`;
+      await FileSystem.makeDirectoryAsync(dir, { intermediates: true }).catch(() => {});
+      const dest = `${dir}avatar-${Date.now()}.jpg`;
+      await FileSystem.copyAsync({ from: result.assets[0].uri, to: dest });
+      await setAvatarUri(dest);
+      setAvatarUriState(dest);
+    } catch (e) {
+      Alert.alert('Could not set picture', e instanceof Error ? e.message : 'Please try again.');
+    }
   };
 
   const onSignOut = async () => {
@@ -320,14 +352,18 @@ export default function SettingsScreen() {
         <ScrollView contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Avatar */}
           <View style={{ alignItems: 'center', paddingTop: 20, paddingBottom: 8 }}>
-            <View style={{ position: 'relative' }}>
-              <View style={s.bigAvatar}>
-                <Text style={s.bigAvatarText}>{userInitials}</Text>
-              </View>
+            <TouchableOpacity style={{ position: 'relative' }} onPress={() => void pickAvatar()} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Change profile picture">
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={s.bigAvatar} />
+              ) : (
+                <View style={s.bigAvatar}>
+                  <Text style={s.bigAvatarText}>{userInitials}</Text>
+                </View>
+              )}
               <View style={s.cameraBtn}>
                 <CameraIcon color={t.accentBlue} />
               </View>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Display name */}
@@ -639,13 +675,20 @@ export default function SettingsScreen() {
 
   // ─── Settings Root ───────────────────────────────────────────────────────
 
-  const filteredApiBibles = bibleSearch.trim()
+  const isBibleSearching = bibleSearch.trim().length > 0;
+  const filteredApiBibles = isBibleSearching
     ? apiBibles.filter((b) =>
         b.label.toLowerCase().includes(bibleSearch.toLowerCase()) ||
         b.abbr.toLowerCase().includes(bibleSearch.toLowerCase()) ||
         b.language.toLowerCase().includes(bibleSearch.toLowerCase()))
     : apiBibles;
   const apiGroups = groupByLanguage(filteredApiBibles);
+  // Without a search, only show English (what most users want) and tuck the
+  // other languages behind search so the list isn't a 200-item scroll.
+  const visibleGroups = isBibleSearching
+    ? apiGroups
+    : apiGroups.filter((g) => g.language === 'English');
+  const hiddenLangCount = isBibleSearching ? 0 : apiGroups.length - visibleGroups.length;
 
   return (
     <KeyboardAvoidingView style={containerStyle} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -665,9 +708,13 @@ export default function SettingsScreen() {
         {user ? (
           <View style={[s.card, { marginHorizontal: 16, marginTop: 12 }]}>
             <TouchableOpacity onPress={() => setPage('edit-profile')} style={s.profileRow} activeOpacity={0.6}>
-              <View style={s.avatar}>
-                <Text style={s.avatarText}>{userInitials}</Text>
-              </View>
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={s.avatar} />
+              ) : (
+                <View style={s.avatar}>
+                  <Text style={s.avatarText}>{userInitials}</Text>
+                </View>
+              )}
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[s.profileName, { color: t.textPrimary }]} numberOfLines={1}>{userName || 'Set up profile'}</Text>
                 <Text style={[s.profileEmail, { color: t.textSecondary }]} numberOfLines={1}>{userEmail}</Text>
@@ -825,7 +872,7 @@ export default function SettingsScreen() {
                 autoCorrect={false}
               />
             </View>
-            {apiGroups.map((group) => (
+            {visibleGroups.map((group) => (
               <React.Fragment key={group.language}>
                 <Text style={s.langLabel}>{group.language}</Text>
                 <View style={[s.card, { marginHorizontal: 16 }]}>
@@ -844,6 +891,14 @@ export default function SettingsScreen() {
                 </View>
               </React.Fragment>
             ))}
+            {hiddenLangCount > 0 && (
+              <Text style={[s.hintText, { textAlign: 'center' }]}>
+                + {hiddenLangCount} more languages — search above to find them.
+              </Text>
+            )}
+            {isBibleSearching && visibleGroups.length === 0 && (
+              <Text style={[s.hintText, { textAlign: 'center' }]}>No translations match “{bibleSearch.trim()}”.</Text>
+            )}
           </>
         )}
 

@@ -77,6 +77,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     'expo-secure-store',
+    [
+      'expo-image-picker',
+      {
+        photosPermission: 'Scribe uses your photos so you can set a profile picture.',
+      },
+    ],
   ],
   experiments: {
     tsconfigPaths: true,
