@@ -94,9 +94,13 @@ for (const b of BOOKS) {
 const ALL_ALIASES = BOOKS.flatMap((b) => b.aliases).sort((a, b) => b.length - a.length);
 const BOOK_PATTERN = ALL_ALIASES.map(escapeRegex).join('|');
 
-// Match: <book> <chapter>[:<verse>[-<endVerse>]]
+// Match a reference in either written or spoken form. Preachers SAY
+// "Matthew chapter 12 verse 24", which Whisper transcribes literally, so we
+// accept "chapter"/"verse" words alongside the usual "Matthew 12:24".
+//   <book> [chapter] <chapter> [ (":" | "." | "verse"/"vs"/"v") <verse> ["-"<end>] ]
 const REF_REGEX = new RegExp(
-  `\\b(${BOOK_PATTERN})\\.?\\s*(\\d{1,3})(?:\\s*[:.]\\s*(\\d{1,3})(?:\\s*[-\u2013]\\s*(\\d{1,3}))?)?\\b`,
+  `\\b(${BOOK_PATTERN})\\.?\\s*(?:chapters?\\s+)?(\\d{1,3})` +
+    `(?:(?:\\s*[:.]\\s*|\\s+(?:verses?|vss?|vv?)\\.?\\s+)(\\d{1,3})(?:\\s*[-\u2013]\\s*(\\d{1,3}))?)?`,
   'gi',
 );
 

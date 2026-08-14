@@ -127,14 +127,33 @@ function findTranslation(id: string): TranslationEntry | undefined {
     ?? cachedApiBibles?.find((t) => t.id === id);
 }
 
+/**
+ * Tidy verse text coming from the Bible APIs: drop leading/inline verse
+ * numbers left behind after HTML stripping, and repair missing spaces after
+ * punctuation (e.g. "you,before" → "you, before", "apart;I" → "apart; I").
+ */
+export function cleanVerseText(raw: string): string {
+  return raw
+    .replace(/\s+/g, ' ')
+    // strip a leading verse number (optionally after an opening quote), keeping
+    // the quote: "5“Before" → "“Before", "5Before" → "Before"
+    .replace(/^(\s*["“'']?\s*)\d+\s*(?=[\p{L}"“''])/u, '$1')
+    // repair missing space after punctuation when a letter/quote follows:
+    // "you,before" → "you, before", "apart;I" → "apart; I"
+    .replace(/([,;:.!?])(?=[\p{L}"“''])/gu, '$1 ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 async function lookupViaLegacy(reference: string, translationId: string): Promise<Scripture> {
   const url = `${LEGACY_BASE}/${encodeURIComponent(reference)}?translation=${encodeURIComponent(translationId)}`;
   const r = await fetch(url);
   if (!r.ok) return { reference, translation: translationId.toUpperCase() };
   const json = (await r.json()) as { text?: string; reference?: string; translation_name?: string };
+  const text = json.text ? cleanVerseText(json.text) : undefined;
   return {
     reference: json.reference ?? reference,
-    text: json.text?.trim(),
+    text: text || undefined,
     translation: json.translation_name ?? translationId.toUpperCase(),
   };
 }
@@ -157,8 +176,14 @@ async function lookupViaApiBible(reference: string, bibleId: string, apiKey: str
   const verse = json.data?.verses?.[0];
   const passage = json.data?.passages?.[0];
 
-  const text = verse?.text?.trim()
-    || passage?.content?.replace(/<[^>]*>/g, '').trim();
+  const rawContent = passage?.content
+    // Drop verse-number labels (<span class="v">5</span>) BEFORE stripping tags,
+    // otherwise the number glues to the next word ("5Before").
+    ?.replace(/<span[^>]*class="[^"]*\bv\b[^"]*"[^>]*>[\s\S]*?<\/span>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ');
+
+  const rawText = verse?.text || rawContent;
+  const text = rawText ? cleanVerseText(rawText) : undefined;
   const ref = verse?.reference || passage?.reference || reference;
 
   return { reference: ref, text: text || undefined };
@@ -173,18 +198,29 @@ export async function lookupVerse(
   const cached = memoryCache.get(cacheKey);
   if (cached) return cached;
 
-  try {
+  const fetchOne = async (ref: string): Promise<Scripture> => {
     const entry = findTranslation(tid);
-    let result: Scripture;
-
+    let r: Scripture;
     if (entry?.source === 'apibible' && entry.bibleId) {
-      result = await lookupViaApiBible(reference, entry.bibleId, BUNDLED_BIBLE_KEY);
-      result.translation = entry.abbr || entry.label;
+      r = await lookupViaApiBible(ref, entry.bibleId, BUNDLED_BIBLE_KEY);
+      r.translation = entry.abbr || entry.label;
     } else if (tid.startsWith('apib-')) {
-      const bibleId = tid.replace('apib-', '');
-      result = await lookupViaApiBible(reference, bibleId, BUNDLED_BIBLE_KEY);
+      r = await lookupViaApiBible(ref, tid.replace('apib-', ''), BUNDLED_BIBLE_KEY);
     } else {
-      result = await lookupViaLegacy(reference, tid);
+      r = await lookupViaLegacy(ref, tid);
+    }
+    return r;
+  };
+
+  try {
+    let result = await fetchOne(reference);
+
+    // Chapter-only references ("1 Corinthians 14") sometimes return no text.
+    // Fall back to the chapter's first verse so we show something instead of
+    // "Verse text unavailable", while keeping the chapter as the label.
+    if (!result.text && !/:\d/.test(reference)) {
+      const firstVerse = await fetchOne(`${reference}:1`);
+      if (firstVerse.text) result = { ...firstVerse, reference };
     }
 
     // Only cache hits with text — caching an empty result would pin a

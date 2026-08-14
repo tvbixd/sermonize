@@ -26,6 +26,7 @@ Rules:
 - Use the preacher's own emphasis and ordering — do not editorialize or invent material.
 - Correct obvious transcription errors only when meaning is unambiguous.
 - Normalize all scripture references to "Book Chapter:Verse" or "Book Chapter:Verse-Verse" (e.g. "John 3:16", "Romans 8:28", "1 Corinthians 13:4-7"). Use full book names. For numbered books use "1 ", "2 ", or "3 " prefix.
+- Use ONLY the chapter and verse the preacher actually stated. If only a chapter was given (e.g. "Matthew 12"), write "Matthew 12" with NO verse — never invent or guess a verse number. Do not add scripture references the preacher did not cite.
 - If the transcript is too short or unclear to outline, still return valid JSON with the best title/theme/summary you can and an empty points array.
 - Output ONLY the JSON object. No code fences. No leading or trailing text.`;
 
