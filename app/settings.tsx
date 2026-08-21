@@ -10,6 +10,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -191,6 +192,7 @@ export default function SettingsScreen() {
   const [apiBibles, setApiBibles] = useState<TranslationEntry[]>([]);
   const [apiBibleStatus, setApiBibleStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const [bibleSearch, setBibleSearch] = useState('');
+  const [bibleModalOpen, setBibleModalOpen] = useState(false);
 
   // Profile state
   const [displayName, setDisplayName] = useState('');
@@ -676,19 +678,23 @@ export default function SettingsScreen() {
   // ─── Settings Root ───────────────────────────────────────────────────────
 
   const isBibleSearching = bibleSearch.trim().length > 0;
-  const filteredApiBibles = isBibleSearching
-    ? apiBibles.filter((b) =>
-        b.label.toLowerCase().includes(bibleSearch.toLowerCase()) ||
-        b.abbr.toLowerCase().includes(bibleSearch.toLowerCase()) ||
-        b.language.toLowerCase().includes(bibleSearch.toLowerCase()))
-    : apiBibles;
-  const apiGroups = groupByLanguage(filteredApiBibles);
+  // Combined pool (built-in + API) powers the translation picker popup.
+  const allTranslations = [...LEGACY_TRANSLATIONS, ...apiBibles];
+  const matchesSearch = (b: TranslationEntry) =>
+    b.label.toLowerCase().includes(bibleSearch.toLowerCase()) ||
+    b.abbr.toLowerCase().includes(bibleSearch.toLowerCase()) ||
+    b.language.toLowerCase().includes(bibleSearch.toLowerCase());
+  const filteredAll = isBibleSearching ? allTranslations.filter(matchesSearch) : allTranslations;
+  const allGroups = groupByLanguage(filteredAll);
   // Without a search, only show English (what most users want) and tuck the
   // other languages behind search so the list isn't a 200-item scroll.
-  const visibleGroups = isBibleSearching
-    ? apiGroups
-    : apiGroups.filter((g) => g.language === 'English');
-  const hiddenLangCount = isBibleSearching ? 0 : apiGroups.length - visibleGroups.length;
+  const visibleGroups = isBibleSearching ? allGroups : allGroups.filter((g) => g.language === 'English');
+  const hiddenLangCount = isBibleSearching ? 0 : allGroups.length - visibleGroups.length;
+
+  const selectedTranslation = allTranslations.find((tr) => tr.id === translation);
+  const selectedLabel = selectedTranslation
+    ? `${selectedTranslation.label} · ${selectedTranslation.abbr}`
+    : 'World English Bible · WEB';
 
   return (
     <KeyboardAvoidingView style={containerStyle} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -834,37 +840,41 @@ export default function SettingsScreen() {
         {/* Bible Translation */}
         <Text style={s.sectionLabel}>BIBLE TRANSLATION</Text>
         <View style={[s.card, { marginHorizontal: 16 }]}>
-          {LEGACY_TRANSLATIONS.map((tr, i) => (
-            <React.Fragment key={tr.id}>
-              <TouchableOpacity onPress={() => setTrans(tr.id)} style={s.translationRow} activeOpacity={0.6}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[typography.body, { color: t.textPrimary, marginBottom: 2 }]}>{tr.label}</Text>
-                  <Text style={[typography.footnote, { color: t.textSecondary }]}>{tr.abbr} — {tr.language}</Text>
-                </View>
-                {translation === tr.id && <CheckIcon size={18} color={t.accentBlue} />}
-              </TouchableOpacity>
-              {i < LEGACY_TRANSLATIONS.length - 1 && <Divider indent={16} />}
-            </React.Fragment>
-          ))}
+          <TouchableOpacity
+            style={s.settingsRow}
+            activeOpacity={0.6}
+            onPress={() => { setBibleSearch(''); setBibleModalOpen(true); }}
+            accessibilityRole="button"
+            accessibilityLabel="Choose Bible translation"
+          >
+            <Text style={[s.rowText, { color: t.textPrimary }]}>Translation</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}>
+              <Text style={[typography.body, { color: t.textSecondary }]} numberOfLines={1}>{selectedLabel}</Text>
+              <ChevronRight color={t.textTertiary} />
+            </View>
+          </TouchableOpacity>
         </View>
 
-        {apiBibles.length === 0 && (
-          <View style={[s.card, { marginHorizontal: 16, marginTop: 8 }]}>
-            <Text style={s.helpText}>
-              {apiBibleStatus === 'loading'
-                ? 'Loading more translations…'
-                : 'Additional translations (200+) are currently unavailable. This needs the API.Bible key to be configured in the build, and an internet connection. The versions above always work.'}
-            </Text>
-          </View>
-        )}
-
-        {apiBibles.length > 0 && (
-          <>
-            <Text style={[s.sectionLabel, { marginTop: 8 }]}>ALL TRANSLATIONS ({apiBibles.length})</Text>
+        {/* Translation picker popup */}
+        <Modal
+          visible={bibleModalOpen}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setBibleModalOpen(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: t.bgPrimary }}>
+            <View style={s.grabHandle} />
+            <View style={s.navBar}>
+              <View style={{ width: 60 }} />
+              <Text style={s.navTitle}>Translation</Text>
+              <TouchableOpacity onPress={() => setBibleModalOpen(false)} style={{ width: 60, alignItems: 'flex-end' }}>
+                <Text style={[s.doneText, { color: t.accentBlue }]}>Done</Text>
+              </TouchableOpacity>
+            </View>
             <View style={{ marginHorizontal: 16, marginBottom: 8 }}>
               <TextInput
                 style={[s.searchInput, { color: t.textPrimary, backgroundColor: t.bgSurface, borderColor: t.separator }]}
-                placeholder="Search by name, language..."
+                placeholder={apiBibles.length > 0 ? `Search ${allTranslations.length} translations & languages…` : 'Search translations…'}
                 placeholderTextColor={t.textTertiary}
                 value={bibleSearch}
                 onChangeText={setBibleSearch}
@@ -872,35 +882,48 @@ export default function SettingsScreen() {
                 autoCorrect={false}
               />
             </View>
-            {visibleGroups.map((group) => (
-              <React.Fragment key={group.language}>
-                <Text style={s.langLabel}>{group.language}</Text>
-                <View style={[s.card, { marginHorizontal: 16 }]}>
-                  {group.entries.map((tr, i) => (
-                    <React.Fragment key={tr.id}>
-                      <TouchableOpacity onPress={() => setTrans(tr.id)} style={s.translationRow} activeOpacity={0.6}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[typography.body, { color: t.textPrimary }]} numberOfLines={1}>{tr.label}</Text>
-                          <Text style={[typography.footnote, { color: t.textSecondary }]}>{tr.abbr}</Text>
-                        </View>
-                        {translation === tr.id && <CheckIcon size={18} color={t.accentBlue} />}
-                      </TouchableOpacity>
-                      {i < group.entries.length - 1 && <Divider indent={16} />}
-                    </React.Fragment>
-                  ))}
-                </View>
-              </React.Fragment>
-            ))}
-            {hiddenLangCount > 0 && (
-              <Text style={[s.hintText, { textAlign: 'center' }]}>
-                + {hiddenLangCount} more languages — search above to find them.
-              </Text>
-            )}
-            {isBibleSearching && visibleGroups.length === 0 && (
-              <Text style={[s.hintText, { textAlign: 'center' }]}>No translations match “{bibleSearch.trim()}”.</Text>
-            )}
-          </>
-        )}
+            <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
+              {apiBibles.length === 0 && apiBibleStatus !== 'ready' && (
+                <Text style={[s.hintText]}>
+                  {apiBibleStatus === 'loading'
+                    ? 'Loading more translations…'
+                    : 'More translations (200+) need the API.Bible key configured and an internet connection. The versions here always work.'}
+                </Text>
+              )}
+              {visibleGroups.map((group) => (
+                <React.Fragment key={group.language}>
+                  <Text style={s.langLabel}>{group.language}</Text>
+                  <View style={[s.card, { marginHorizontal: 16 }]}>
+                    {group.entries.map((tr, i) => (
+                      <React.Fragment key={tr.id}>
+                        <TouchableOpacity
+                          onPress={() => { setTrans(tr.id); setBibleModalOpen(false); }}
+                          style={s.translationRow}
+                          activeOpacity={0.6}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text style={[typography.body, { color: t.textPrimary }]} numberOfLines={1}>{tr.label}</Text>
+                            <Text style={[typography.footnote, { color: t.textSecondary }]}>{tr.abbr}</Text>
+                          </View>
+                          {translation === tr.id && <CheckIcon size={18} color={t.accentBlue} />}
+                        </TouchableOpacity>
+                        {i < group.entries.length - 1 && <Divider indent={16} />}
+                      </React.Fragment>
+                    ))}
+                  </View>
+                </React.Fragment>
+              ))}
+              {hiddenLangCount > 0 && (
+                <Text style={[s.hintText, { textAlign: 'center' }]}>
+                  + {hiddenLangCount} more languages — search to find them.
+                </Text>
+              )}
+              {isBibleSearching && visibleGroups.length === 0 && (
+                <Text style={[s.hintText, { textAlign: 'center' }]}>No translations match “{bibleSearch.trim()}”.</Text>
+              )}
+            </ScrollView>
+          </View>
+        </Modal>
 
         {/* Storage */}
         <Text style={s.sectionLabel}>STORAGE</Text>
