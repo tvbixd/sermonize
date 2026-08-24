@@ -70,7 +70,6 @@ export default function SermonsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [menuSermon, setMenuSermon] = useState<Sermon | null>(null);
   const [pickerSermon, setPickerSermon] = useState<Sermon | null>(null);
-  const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [search, setSearch] = useState('');
   const router = useRouter();
   const t = useTheme();
@@ -136,7 +135,6 @@ export default function SermonsScreen() {
 
   const onMoveToFolder = async (s: Sermon, targetFolderId: string | undefined) => {
     await saveSermon({ ...s, folderId: targetFolderId });
-    setShowFolderPicker(false);
     setPickerSermon(null);
     await refresh();
   };
@@ -275,6 +273,9 @@ export default function SermonsScreen() {
                         onPress={() => router.push(`/sermon/${item.id}`)}
                         onLongPress={() => onLongPress(item)}
                         activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${item.title}, ${formatDate(item.createdAt)}, ${formatElapsed(item.durationMs)}`}
+                        accessibilityHint="Double tap to open, long press for more options"
                       >
                         <View style={styles.rowContent}>
                           <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
@@ -294,7 +295,13 @@ export default function SermonsScreen() {
       )}
 
       {!isSpecial && (
-        <TouchableOpacity style={styles.fab} activeOpacity={0.85} onPress={() => router.push('/record')}>
+        <TouchableOpacity
+          style={styles.fab}
+          activeOpacity={0.85}
+          onPress={() => router.navigate('/record')}
+          accessibilityRole="button"
+          accessibilityLabel="Record new sermon"
+        >
           <MicIcon size={28} color="#fff" />
         </TouchableOpacity>
       )}
@@ -314,7 +321,7 @@ export default function SermonsScreen() {
               <Text style={styles.sheetRowText}>{menuSermon?.pinned ? 'Unpin' : 'Pin to Top'}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.sheetRow} onPress={() => { setPickerSermon(menuSermon); setMenuSermon(null); setTimeout(() => setShowFolderPicker(true), 350); }}>
+            <TouchableOpacity style={styles.sheetRow} onPress={() => { setPickerSermon(menuSermon); setMenuSermon(null); }}>
               <Text style={styles.sheetRowText}>Move to Folder</Text>
             </TouchableOpacity>
 
@@ -332,8 +339,8 @@ export default function SermonsScreen() {
       </Modal>
 
       {/* Folder picker sheet */}
-      <Modal visible={showFolderPicker} transparent animationType="slide" onRequestClose={() => setShowFolderPicker(false)}>
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowFolderPicker(false)}>
+      <Modal visible={!!pickerSermon && !menuSermon} transparent animationType="slide" onRequestClose={() => setPickerSermon(null)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setPickerSermon(null)}>
           <View style={styles.sheet}>
             <View style={styles.grabHandle} />
             <Text style={styles.sheetTitle}>Move to Folder</Text>
@@ -359,7 +366,7 @@ export default function SermonsScreen() {
               </TouchableOpacity>
             ))}
 
-            <TouchableOpacity style={[styles.sheetRow, styles.sheetCancel]} onPress={() => setShowFolderPicker(false)}>
+            <TouchableOpacity style={[styles.sheetRow, styles.sheetCancel]} onPress={() => setPickerSermon(null)}>
               <Text style={[styles.sheetRowText, { fontWeight: '600' }]}>Cancel</Text>
             </TouchableOpacity>
           </View>

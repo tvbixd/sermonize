@@ -14,30 +14,32 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Svg, Circle, Path } from 'react-native-svg';
-import { SermonRecorder } from '@/audio/SermonRecorder';
-import { lookupVerses } from '@/services/bible';
+import { recordingEngine } from '@/audio/recordingEngine';
+import { dedupeScriptures, lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
+import { buildLocalOutline } from '@/services/localOutline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
-import { NetworkError, RateLimitError, transcribeAudio } from '@/services/whisper';
+import { ScriptureCard } from '@/components/ScriptureCard';
 import { useSessionStore } from '@/state/sessionStore';
 import { getGroqKey, getTranslation } from '@/storage/keys';
-import { ensureAudioDir, saveSermon } from '@/storage/sermons';
+import { saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Sermon } from '@/types';
-import { newId } from '@/util/id';
 import { heavyTap, mediumTap } from '@/util/haptics';
-import { BackChevronIcon, ChevronIcon } from '@/components/icons';
-
-const OUTLINE_EVERY_N_CHUNKS = 2;
+import { BackChevronIcon } from '@/components/icons';
+import { logEvent, logCrash } from '@/services/logger';
+import { checkConnectivity } from '@/services/network';
 
 const IDLE_BARS = [12, 22, 16, 32, 28, 44, 38, 24, 18, 30, 14, 26, 20, 36, 10];
 
 function formatTimer(ms: number): string {
   const totalSec = Math.floor(ms / 1000);
-  const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
-  const ss = String(totalSec % 60).padStart(2, '0');
-  const cs = String(Math.floor((ms % 1000) / 10)).padStart(2, '0');
-  return `${mm}:${ss}.${cs}`;
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const ss = String(s).padStart(2, '0');
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${ss}`;
+  return `${String(m).padStart(2, '0')}:${ss}`;
 }
 
 function SpinnerSvg({ trackColor, arcColor }: { trackColor: string; arcColor: string }) {
@@ -73,180 +75,160 @@ export default function RecordScreen() {
   const step           = useSessionStore((s) => s.step);
   const elapsedMs      = useSessionStore((s) => s.elapsedMs);
   const errorMessage   = useSessionStore((s) => s.errorMessage);
-  const liveTranscript = useSessionStore((s) => s.liveTranscript);
-  const liveOutline    = useSessionStore((s) => s.liveOutline);
-  const chunkCount     = useSessionStore((s) => s.chunkCount);
+  const liveScriptures = useSessionStore((s) => s.liveScriptures);
+  const chunkWarning   = useSessionStore((s) => s.chunkWarning);
+  const audioOnlyMode  = useSessionStore((s) => s.audioOnlyMode);
 
-  const setStatus        = useSessionStore((s) => s.setStatus);
-  const setStep          = useSessionStore((s) => s.setStep);
-  const setElapsed       = useSessionStore((s) => s.setElapsed);
-  const setError         = useSessionStore((s) => s.setError);
-  const appendTranscript = useSessionStore((s) => s.appendTranscript);
-  const setLiveOutline   = useSessionStore((s) => s.setLiveOutline);
-  const incrementChunk   = useSessionStore((s) => s.incrementChunk);
-  const reset            = useSessionStore((s) => s.reset);
+  const setStatus = useSessionStore((s) => s.setStatus);
+  const setStep   = useSessionStore((s) => s.setStep);
+  const setError  = useSessionStore((s) => s.setError);
+  const reset     = useSessionStore((s) => s.reset);
 
-  const recorderRef   = useRef<SermonRecorder | null>(null);
-  const sermonIdRef   = useRef<string>('');
-  const audioUrisRef  = useRef<string[]>([]);
-  const durationRef   = useRef<number>(0);
-  const tickerRef     = useRef<ReturnType<typeof setInterval> | null>(null);
-  const groqKeyRef    = useRef<string>('');
-  const transcriptRef = useRef<string>('');
-  const chunkCountRef = useRef<number>(0);
-  const [showOutline, setShowOutline] = useState(false);
-  const [chunkWarning, setChunkWarning] = useState<string | null>(null);
-
-  useEffect(() => {
-    reset();
-    return () => {
-      stopTicker();
-      void recorderRef.current?.stop().catch(() => undefined);
-    };
-  }, []);
-
-  useEffect(() => { transcriptRef.current = liveTranscript; }, [liveTranscript]);
-
-  const startTicker = () => {
-    stopTicker();
-    tickerRef.current = setInterval(() => {
-      if (recorderRef.current) setElapsed(recorderRef.current.getElapsedMs());
-    }, 250);
-  };
-
-  const stopTicker = () => {
-    if (tickerRef.current) { clearInterval(tickerRef.current); tickerRef.current = null; }
-  };
-
-  const onChunkReady = async (chunkUri: string) => {
-    try {
-      const text = await transcribeAudio([chunkUri], groqKeyRef.current);
-      if (!text.trim()) return;
-      transcriptRef.current = transcriptRef.current ? transcriptRef.current + ' ' + text : text;
-      appendTranscript(text);
-      chunkCountRef.current += 1;
-      incrementChunk();
-      if (chunkCountRef.current % OUTLINE_EVERY_N_CHUNKS === 0) {
-        const outline = await extractOutline(transcriptRef.current, groqKeyRef.current);
-        setLiveOutline(outline);
-      }
-    } catch (e) {
-      if (e instanceof NetworkError || e instanceof RateLimitError) {
-        setChunkWarning(e.message);
-        setTimeout(() => setChunkWarning(null), 6000);
-      }
-    }
-  };
+  const finalizingRef = useRef(false);
 
   const onRecordPress = async () => {
     mediumTap();
     try {
       if (status === 'idle') {
-        const key = await getGroqKey();
+        const key = (await getGroqKey()) ?? '';
         if (!key) {
-          Alert.alert('API Key Missing', 'Go to Settings and add your Groq API key first.');
+          Alert.alert('API Key Missing', 'Add your free Groq API key in Settings to enable transcription.', [
+            { text: 'Open Settings', onPress: () => router.push('/settings') },
+            { text: 'Cancel', style: 'cancel' },
+          ]);
           return;
         }
-        groqKeyRef.current = key;
-        const id = newId();
-        sermonIdRef.current = id;
-        const dir = await ensureAudioDir(id);
-        const recorder = new SermonRecorder(dir);
-        await recorder.start(onChunkReady);
-        recorderRef.current = recorder;
-        setStatus('recording');
-        startTicker();
+
+        const online = await checkConnectivity(key);
+        if (!online) {
+          Alert.alert(
+            'No Internet Connection',
+            'You can still record audio. Transcription will be available later via Re-transcribe.',
+            [
+              { text: 'Record Audio Only', onPress: () => void recordingEngine.start({ groqKey: key, audioOnly: true }).catch((e) => {
+                setError(e instanceof Error ? e.message : String(e));
+                setStatus('error');
+              }) },
+              { text: 'Cancel', style: 'cancel' },
+            ],
+          );
+          return;
+        }
+        await recordingEngine.start({ groqKey: key, audioOnly: false });
       } else if (status === 'recording') {
-        await recorderRef.current?.pause();
-        stopTicker();
-        setStatus('paused');
+        await recordingEngine.pause();
       } else if (status === 'paused') {
-        await recorderRef.current?.resume();
-        setStatus('recording');
-        startTicker();
+        await recordingEngine.resume();
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus('error');
-      stopTicker();
     }
   };
 
   const onStop = async () => {
-    if (status !== 'recording' && status !== 'paused') return;
+    if ((status !== 'recording' && status !== 'paused') || finalizingRef.current) return;
+    finalizingRef.current = true;
     heavyTap();
-    stopTicker();
     setStatus('processing');
 
+    const sermonId = recordingEngine.getSermonId();
+    const startedAt = recordingEngine.getStartedAt() || Date.now();
+    const fallbackOutline = () =>
+      useSessionStore.getState().liveOutline ?? { title: 'Untitled Sermon', theme: '', summary: '', points: [] };
+
+    let captured: { uris: string[]; durationMs: number; transcript: string } | undefined;
     try {
-      const result = await recorderRef.current?.stop();
-      audioUrisRef.current = result?.uris ?? [];
-      durationRef.current = result?.durationMs ?? 0;
+      setStep('transcribing');
+      captured = await recordingEngine.stopForFinalize();
+      const transcript = captured.transcript;
 
+      // Outline: Groq's LLM when a key is present, otherwise the free on-device
+      // extractive outline. The extractive path is a normal outcome.
       setStep('outlining');
-      const transcript = transcriptRef.current;
-      const outline = transcript.trim()
-        ? await extractOutline(transcript, groqKeyRef.current)
-        : liveOutline ?? { title: 'Untitled Sermon', theme: '', summary: '', points: [] };
+      const key = (await getGroqKey()) ?? '';
+      let outline = transcript.trim() ? buildLocalOutline(transcript) : fallbackOutline();
+      if (transcript.trim() && key) {
+        try {
+          outline = await extractOutline(transcript, key);
+        } catch {
+          // keep the extractive outline
+        }
+      }
 
-      setStep('scriptures');
-      const translation = await getTranslation();
-      const allRefs = new Set<string>(findScriptureReferences(transcript));
-      for (const p of outline.points) for (const r of p.scriptures) allRefs.add(r);
-      const scriptures = await lookupVerses([...allRefs], translation);
+      let scriptures: Awaited<ReturnType<typeof lookupVerses>> =
+        useSessionStore.getState().liveScriptures;
+      try {
+        setStep('scriptures');
+        const have = new Set(scriptures.map((s) => s.reference));
+        const extra = new Set<string>();
+        for (const r of findScriptureReferences(transcript)) if (!have.has(r)) extra.add(r);
+        for (const p of outline.points) for (const r of p.scriptures) if (!have.has(r)) extra.add(r);
+        if (extra.size > 0) {
+          const translation = await getTranslation();
+          scriptures = [...scriptures, ...await lookupVerses([...extra], translation)];
+        }
+      } catch {
+        // keep whatever we resolved live
+      }
+      scriptures = dedupeScriptures(scriptures);
 
       setStep('saving');
       const sermon: Sermon = {
-        id: sermonIdRef.current,
-        createdAt: Date.now(),
+        id: sermonId,
+        createdAt: startedAt,
         title: outline.title,
         transcript,
         outline,
         scriptures,
-        audioUris: audioUrisRef.current,
-        durationMs: durationRef.current,
+        audioUris: captured.uris,
+        durationMs: captured.durationMs,
       };
       await saveSermon(sermon);
       setStatus('done');
+      void logEvent('recording_completed', { durationMs: captured.durationMs });
+      reset();
       router.replace(`/sermon/${sermon.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setStatus('error');
+      const err = e instanceof Error ? e : new Error(String(e));
+      void logCrash(err, { phase: 'processing', step });
+      try {
+        await saveSermon({
+          id: sermonId,
+          createdAt: startedAt,
+          title: 'Draft — ' + new Date().toLocaleDateString(),
+          transcript: captured?.transcript ?? '',
+          outline: fallbackOutline(),
+          scriptures: [],
+          audioUris: captured?.uris ?? [],
+          durationMs: captured?.durationMs ?? 0,
+          isDraft: true,
+        });
+        reset();
+        Alert.alert(
+          'Saved as Draft',
+          'Something went wrong while finishing your sermon, but your recording is safe as a draft. You can re-transcribe it from the sermon list.',
+          [{ text: 'OK', onPress: () => router.replace('/sermons') }],
+        );
+      } catch {
+        setError(err.message);
+        setStatus('error');
+      }
+    } finally {
+      finalizingRef.current = false;
     }
   };
 
   const onDiscard = () => {
     Alert.alert('Discard recording?', 'You can save it as a draft to finish later.', [
       { text: 'Keep Recording', style: 'cancel' },
-      {
-        text: 'Save as Draft',
-        onPress: async () => {
-          stopTicker();
-          const result = await recorderRef.current?.stop().catch(() => undefined);
-          const sermon: Sermon = {
-            id: sermonIdRef.current,
-            createdAt: Date.now(),
-            title: 'Draft — ' + new Date().toLocaleDateString(),
-            transcript: transcriptRef.current,
-            outline: liveOutline ?? { title: 'Draft', theme: '', summary: '', points: [] },
-            scriptures: [],
-            audioUris: result?.uris ?? [],
-            durationMs: result?.durationMs ?? 0,
-            isDraft: true,
-          };
-          await saveSermon(sermon);
-          reset();
-          router.back();
-        },
-      },
+      { text: 'Save as Draft', onPress: async () => { await recordingEngine.saveDraft(); if (router.canGoBack()) router.back(); } },
       {
         text: 'Discard',
         style: 'destructive',
         onPress: async () => {
-          stopTicker();
-          await recorderRef.current?.stop().catch(() => undefined);
-          reset();
-          router.back();
+          await recordingEngine.discard();
+          if (router.canGoBack()) router.back();
         },
       },
     ]);
@@ -255,9 +237,9 @@ export default function RecordScreen() {
   const isActive = status === 'recording' || status === 'paused';
   const isProcessing = status === 'processing';
 
-  const stepLabel: Record<string, string> = { outlining: 'Building outline…', scriptures: 'Looking up scriptures…', saving: 'Saving…' };
-  const stepIndex: Record<string, number> = { outlining: 1, scriptures: 2, saving: 3 };
-  const stepNext: Record<string, string> = { outlining: 'Looking up scriptures next', scriptures: 'Saving next', saving: '' };
+  const stepLabel: Record<string, string> = { transcribing: 'Finishing transcription…', outlining: 'Building outline…', scriptures: 'Looking up scriptures…', saving: 'Saving…' };
+  const stepIndex: Record<string, number> = { transcribing: 1, outlining: 2, scriptures: 3, saving: 4 };
+  const stepNext: Record<string, string> = { transcribing: 'Building outline next', outlining: 'Looking up scriptures next', scriptures: 'Saving next', saving: '' };
 
   const ringColor = isActive ? t.accentRed : t.textTertiary;
 
@@ -313,11 +295,11 @@ export default function RecordScreen() {
               {stepLabel[step] ?? 'Processing…'}
             </Text>
             <Text style={[styles.processingSubtitle, { color: t.textSecondary }]}>
-              Step {stepIndex[step] ?? 1} of 3 · {stepNext[step] ?? ''}
+              Step {stepIndex[step] ?? 1} of 4 · {stepNext[step] ?? ''}
             </Text>
           </View>
           <View style={styles.pips}>
-            {[1, 2, 3].map((i) => (
+            {[1, 2, 3, 4].map((i) => (
               <View
                 key={i}
                 style={[
@@ -336,6 +318,12 @@ export default function RecordScreen() {
               onPress={onRecordPress}
               style={[styles.ring, { borderColor: ringColor }]}
               activeOpacity={0.9}
+              accessibilityRole="button"
+              accessibilityLabel={
+                status === 'idle' ? 'Start recording'
+                  : status === 'recording' ? 'Pause recording'
+                  : 'Resume recording'
+              }
             >
               <View style={[styles.innerShape, {
                 width: innerSize,
@@ -365,7 +353,7 @@ export default function RecordScreen() {
                 ))}
               </View>
               <Text style={[styles.hintText, { color: t.textSecondary }]}>
-                {'Recording will transcribe and outline\nyour sermon automatically.'}
+                {'Scriptures appear live as they\'re mentioned.\nYou get a full outline when you finish.'}
               </Text>
             </View>
           )}
@@ -377,27 +365,24 @@ export default function RecordScreen() {
                   <Text style={styles.warningText}>{chunkWarning}</Text>
                 </View>
               )}
-              {liveTranscript.length > 0 && (
-                <View style={[styles.panel, { backgroundColor: t.bgSurface }]}>
-                  <Text style={[styles.panelLabel, { color: t.textSecondary }]}>LIVE TRANSCRIPT</Text>
-                  <Text style={[styles.panelText, { color: t.textPrimary }]}>{liveTranscript}</Text>
+              {audioOnlyMode && (
+                <View style={[styles.warningBanner, { backgroundColor: t.accentBlue }]}>
+                  <Text style={styles.warningText}>Audio only mode — scripture detection paused</Text>
                 </View>
               )}
-              {liveOutline && liveOutline.points.length > 0 && (
+              <Text style={[styles.panelLabel, { color: t.textSecondary, paddingHorizontal: 4 }]}>
+                SCRIPTURES {liveScriptures.length > 0 ? `(${liveScriptures.length})` : ''}
+              </Text>
+              {liveScriptures.length === 0 ? (
                 <View style={[styles.panel, { backgroundColor: t.bgSurface }]}>
-                  <TouchableOpacity
-                    style={styles.panelHeader}
-                    onPress={() => setShowOutline((v) => !v)}
-                  >
-                    <Text style={[styles.panelLabel, { color: t.textSecondary }]}>LIVE OUTLINE</Text>
-                    <ChevronIcon dir={showOutline ? 'up' : 'down'} size={10} color={t.textTertiary} />
-                  </TouchableOpacity>
-                  {showOutline && liveOutline.points.map((p, i) => (
-                    <Text key={i} style={[styles.panelText, { color: t.textPrimary, marginTop: 2 }]}>
-                      {i + 1}. {p.heading}
-                    </Text>
-                  ))}
+                  <Text style={[styles.panelText, { color: t.textSecondary }]}>
+                    Scriptures will appear here as they're mentioned.
+                  </Text>
                 </View>
+              ) : (
+                dedupeScriptures([...liveScriptures]).reverse().map((sc, i) => (
+                  <ScriptureCard key={`${sc.reference}-${i}`} scripture={sc} />
+                ))
               )}
             </ScrollView>
           )}
@@ -411,6 +396,8 @@ export default function RecordScreen() {
             style={[styles.stopBtn, { backgroundColor: t.accentBlue }]}
             onPress={onStop}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Stop and save sermon"
           >
             <Text style={styles.stopText}>Stop & Save</Text>
           </TouchableOpacity>
@@ -418,6 +405,8 @@ export default function RecordScreen() {
             style={[styles.discardBtn, { backgroundColor: t.bgSurface, borderWidth: 0.5, borderColor: t.separator }]}
             onPress={onDiscard}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Discard recording"
           >
             <Text style={[styles.discardText, { color: t.accentRed }]}>Discard</Text>
           </TouchableOpacity>
@@ -485,6 +474,7 @@ function makeStyles(t: Colors) {
     idleBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 48, marginBottom: 20 },
     idleBar: { width: 3, borderRadius: 2 },
     hintText: { ...typography.footnote, textAlign: 'center', lineHeight: 20 },
+    limitHint: { ...typography.caption, textAlign: 'center', marginTop: 8 },
 
     livePanels: { flex: 1, marginTop: 18, paddingHorizontal: spacing.md },
     warningBanner: {

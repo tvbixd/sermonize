@@ -49,7 +49,8 @@ export default function FoldersScreen() {
   const [draftColor, setDraftColor] = useState(FOLDER_COLORS[0]);
 
   const refresh = useCallback(async () => {
-    await purgeExpiredDeleted();
+    // Best-effort — a purge failure must never block the list from loading
+    await purgeExpiredDeleted().catch(() => {});
     const [f, s] = await Promise.all([listFolders(), listSermons()]);
     setFolders(f);
     setSermons(s);
@@ -149,7 +150,7 @@ export default function FoldersScreen() {
         {allCount === 0 && (
           <TouchableOpacity
             style={styles.welcomeCard}
-            onPress={() => router.push('/record')}
+            onPress={() => router.navigate('/record')}
             activeOpacity={0.85}
           >
             <View style={styles.welcomeIcon}>
@@ -189,6 +190,9 @@ export default function FoldersScreen() {
                     onPress={() => router.push({ pathname: '/sermons', params: { folderId: f.id, folderName: f.name } })}
                     onLongPress={() => onLongPressFolder(folders.find((x) => x.id === f.id)!)}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${f.name} folder, ${f.count} sermons`}
+                    accessibilityHint="Double tap to open, long press to rename or delete"
                   >
                     <FolderIcon kind="folder" color={f.color} size={28} />
                     <Text style={styles.rowLabel}>{f.name}</Text>
@@ -234,7 +238,7 @@ export default function FoldersScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.micBtn}
-          onPress={() => router.push('/record')}
+          onPress={() => router.navigate('/record')}
           activeOpacity={0.85}
         >
           <MicIcon size={22} color="#fff" />

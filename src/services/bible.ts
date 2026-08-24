@@ -8,8 +8,9 @@ const APIBIBLE_ENDPOINTS = [
   'https://api.scripture.api.bible/v1',
 ];
 const BUNDLED_BIBLE_KEY: string =
-  (Constants.expoConfig?.extra?.apiBibleKey as string) || 'G3soqKoVXwubGLo0odCn1';
+  (Constants.expoConfig?.extra?.apiBibleKey as string) || '';
 
+const CACHE_MAX = 500;
 const memoryCache = new Map<string, Scripture>();
 let activeApiBibleBase: string | null = null;
 
@@ -108,9 +109,40 @@ export function clearApiBibleCache(): void {
   activeApiBibleBase = null;
 }
 
+/** Remove duplicate references, keeping the first (and preferring one that has
+ *  resolved verse text over a bare reference). */
+export function dedupeScriptures(list: Scripture[]): Scripture[] {
+  const byRef = new Map<string, Scripture>();
+  for (const s of list) {
+    const key = s.reference.trim().toLowerCase().replace(/\s+/g, ' ');
+    const existing = byRef.get(key);
+    if (!existing) byRef.set(key, s);
+    else if (!existing.text && s.text) byRef.set(key, s); // upgrade to one with text
+  }
+  return [...byRef.values()];
+}
+
 function findTranslation(id: string): TranslationEntry | undefined {
   return LEGACY_TRANSLATIONS.find((t) => t.id === id)
     ?? cachedApiBibles?.find((t) => t.id === id);
+}
+
+/**
+ * Tidy verse text coming from the Bible APIs: drop leading/inline verse
+ * numbers left behind after HTML stripping, and repair missing spaces after
+ * punctuation (e.g. "you,before" → "you, before", "apart;I" → "apart; I").
+ */
+export function cleanVerseText(raw: string): string {
+  return raw
+    .replace(/\s+/g, ' ')
+    // strip a leading verse number (optionally after an opening quote), keeping
+    // the quote: "5“Before" → "“Before", "5Before" → "Before"
+    .replace(/^(\s*["“'']?\s*)\d+\s*(?=[\p{L}"“''])/u, '$1')
+    // repair missing space after punctuation when a letter/quote follows:
+    // "you,before" → "you, before", "apart;I" → "apart; I"
+    .replace(/([,;:.!?])(?=[\p{L}"“''])/gu, '$1 ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 async function lookupViaLegacy(reference: string, translationId: string): Promise<Scripture> {
@@ -118,9 +150,10 @@ async function lookupViaLegacy(reference: string, translationId: string): Promis
   const r = await fetch(url);
   if (!r.ok) return { reference, translation: translationId.toUpperCase() };
   const json = (await r.json()) as { text?: string; reference?: string; translation_name?: string };
+  const text = json.text ? cleanVerseText(json.text) : undefined;
   return {
     reference: json.reference ?? reference,
-    text: json.text?.trim(),
+    text: text || undefined,
     translation: json.translation_name ?? translationId.toUpperCase(),
   };
 }
@@ -143,8 +176,14 @@ async function lookupViaApiBible(reference: string, bibleId: string, apiKey: str
   const verse = json.data?.verses?.[0];
   const passage = json.data?.passages?.[0];
 
-  const text = verse?.text?.trim()
-    || passage?.content?.replace(/<[^>]*>/g, '').trim();
+  const rawContent = passage?.content
+    // Drop verse-number labels (<span class="v">5</span>) BEFORE stripping tags,
+    // otherwise the number glues to the next word ("5Before").
+    ?.replace(/<span[^>]*class="[^"]*\bv\b[^"]*"[^>]*>[\s\S]*?<\/span>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ');
+
+  const rawText = verse?.text || rawContent;
+  const text = rawText ? cleanVerseText(rawText) : undefined;
   const ref = verse?.reference || passage?.reference || reference;
 
   return { reference: ref, text: text || undefined };
@@ -159,21 +198,40 @@ export async function lookupVerse(
   const cached = memoryCache.get(cacheKey);
   if (cached) return cached;
 
-  try {
+  const fetchOne = async (ref: string): Promise<Scripture> => {
     const entry = findTranslation(tid);
-    let result: Scripture;
-
+    let r: Scripture;
     if (entry?.source === 'apibible' && entry.bibleId) {
-      result = await lookupViaApiBible(reference, entry.bibleId, BUNDLED_BIBLE_KEY);
-      result.translation = entry.abbr || entry.label;
+      r = await lookupViaApiBible(ref, entry.bibleId, BUNDLED_BIBLE_KEY);
+      r.translation = entry.abbr || entry.label;
     } else if (tid.startsWith('apib-')) {
-      const bibleId = tid.replace('apib-', '');
-      result = await lookupViaApiBible(reference, bibleId, BUNDLED_BIBLE_KEY);
+      r = await lookupViaApiBible(ref, tid.replace('apib-', ''), BUNDLED_BIBLE_KEY);
     } else {
-      result = await lookupViaLegacy(reference, tid);
+      r = await lookupViaLegacy(ref, tid);
+    }
+    return r;
+  };
+
+  try {
+    let result = await fetchOne(reference);
+
+    // Chapter-only references ("1 Corinthians 14") sometimes return no text.
+    // Fall back to the chapter's first verse so we show something instead of
+    // "Verse text unavailable", while keeping the chapter as the label.
+    if (!result.text && !/:\d/.test(reference)) {
+      const firstVerse = await fetchOne(`${reference}:1`);
+      if (firstVerse.text) result = { ...firstVerse, reference };
     }
 
-    memoryCache.set(cacheKey, result);
+    // Only cache hits with text — caching an empty result would pin a
+    // transient API failure for the whole session.
+    if (result.text) {
+      if (memoryCache.size >= CACHE_MAX) {
+        const oldest = memoryCache.keys().next().value!;
+        memoryCache.delete(oldest);
+      }
+      memoryCache.set(cacheKey, result);
+    }
     return result;
   } catch {
     return { reference, translation: tid.toUpperCase() };

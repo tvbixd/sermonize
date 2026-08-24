@@ -20,12 +20,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Circle, Path, Rect, Svg } from 'react-native-svg';
+import * as WebBrowser from 'expo-web-browser';
 import { CheckIcon, MicIcon } from '@/components/icons';
-import { useAuth } from '@/context/auth';
-import { setGroqKey, setTranslation } from '@/storage/keys';
+import { GROQ_CONSOLE_URL } from '@/config/support';
+import { OAUTH_CANCELLED, useAuth } from '@/context/auth';
+import { setGroqKey, setOnboarded, setTranslation } from '@/storage/keys';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 
 const APP_ICON = require('../assets/icon.png');
+
+// Completes any pending OAuth browser session when the app regains focus.
+WebBrowser.maybeCompleteAuthSession();
 
 const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
@@ -109,10 +114,10 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
   const router = useRouter();
   const t = useTheme();
   const s = useMemo(() => makeStyles(t), [t]);
-  const { sendOtp, verifyOtp, signInWithIdToken, updateProfile, session, setTestUser } = useAuth();
+  const { sendOtp, verifyOtp, signInWithOAuth, updateProfile, session, setTestUser } = useAuth();
 
   const [step, setStep] = useState<AuthStep>('landing');
-  const [mode] = useState<'signin' | 'signup'>(initialMode);
+  const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -164,7 +169,12 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
     setError('');
     const { error: e } = await sendOtp(email.trim());
     setLoading(false);
-    if (e) setError(e);
+    if (e) {
+      // Stay on the email step — advancing to the code screen when no code
+      // was sent strands the user.
+      setError(e);
+      return;
+    }
     setResendSeconds(45);
     setCode('');
     setOtpState('idle');
@@ -177,7 +187,7 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
     verifyingRef.current = true;
     setOtpState('verifying');
 
-    if (otpCode === '000000') {
+    if (__DEV__ && otpCode === '000000') {
       verifyingRef.current = false;
       setOtpState('success');
       Keyboard.dismiss();
@@ -229,13 +239,27 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
     goToStep('mic');
   };
 
-  const handleApple = () => {
-    setError('Apple sign-in requires a development build.');
+  const handleOAuth = async (provider: 'google' | 'apple') => {
+    setLoading(true);
+    setError('');
+    const { error: e, isNewUser: newUser, userName } = await signInWithOAuth(provider);
+    setLoading(false);
+    if (e === OAUTH_CANCELLED) return; // user closed the browser — not an error
+    if (e) {
+      setError(e);
+      return;
+    }
+    setIsNewUser(newUser);
+    if (newUser) {
+      goToStep('name');
+    } else {
+      setDisplayName(userName || email.split('@')[0] || 'there');
+      goToStep('success');
+    }
   };
 
-  const handleGoogle = () => {
-    setError('Google sign-in requires a development build.');
-  };
+  const handleApple = () => void handleOAuth('apple');
+  const handleGoogle = () => void handleOAuth('google');
 
   const handleCodeChange = (text: string) => {
     if (otpState === 'verifying' || otpState === 'success') return;
@@ -256,6 +280,8 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
               onApple={handleApple}
               onGoogle={handleGoogle}
               onEmail={() => goToStep('email')}
+              onToggleMode={() => setMode((m) => (m === 'signin' ? 'signup' : 'signin'))}
+              onSkip={() => goToStep('mic')}
               loading={loading}
               error={error}
               t={t}
@@ -331,7 +357,7 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
             <SuccessView
               displayName={displayName}
               isNewUser={isNewUser}
-              onContinue={() => router.replace('/folders')}
+              onContinue={async () => { await setOnboarded(); router.replace('/folders'); }}
               t={t}
               s={s}
             />
@@ -345,17 +371,20 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
 // ─── Landing ─────────────────────────────────────────────────────────────────
 
 function LandingView({
-  mode, onApple, onGoogle, onEmail, loading, error, t, s,
+  mode, onApple, onGoogle, onEmail, onToggleMode, onSkip, loading, error, t, s,
 }: {
   mode: 'signin' | 'signup';
   onApple: () => void;
   onGoogle: () => void;
   onEmail: () => void;
+  onToggleMode: () => void;
+  onSkip: () => void;
   loading: boolean;
   error: string;
   t: Colors;
   s: ReturnType<typeof makeStyles>;
 }) {
+  const router = useRouter();
   const floatAnim = useRef(new Animated.Value(0)).current;
   const textFade = useRef(new Animated.Value(0)).current;
 
@@ -392,7 +421,7 @@ function LandingView({
           <Text style={s.landingSubtitle}>
             {mode === 'signin'
               ? 'Sign in to sync your sermons across devices.'
-              : 'Sign up to back up your sermons and unlock Plus features.'}
+              : 'Sign up to back up your sermons and access them anywhere.'}
           </Text>
         </Animated.View>
       </View>
@@ -406,6 +435,8 @@ function LandingView({
             activeOpacity={0.85}
             onPress={onApple}
             disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel="Continue with Apple"
           >
             <AppleGlyph color="#fff" />
             <Text style={[s.providerBtnText, { color: '#fff' }]}>Continue with Apple</Text>
@@ -417,6 +448,8 @@ function LandingView({
           activeOpacity={0.85}
           onPress={onGoogle}
           disabled={loading}
+          accessibilityRole="button"
+          accessibilityLabel="Continue with Google"
         >
           <GoogleGlyph />
           <Text style={[s.providerBtnText, { color: t.textPrimary }]}>Continue with Google</Text>
@@ -427,15 +460,41 @@ function LandingView({
           activeOpacity={0.85}
           onPress={onEmail}
           disabled={loading}
+          accessibilityRole="button"
+          accessibilityLabel="Continue with email"
         >
           <MailGlyph color="#fff" />
           <Text style={[s.providerBtnText, { color: '#fff' }]}>Continue with email</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity onPress={onToggleMode} style={{ alignSelf: 'center', paddingVertical: 8 }} hitSlop={8}>
+          <Text style={[typography.subhead, { color: t.textSecondary }]}>
+            {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+            <Text style={{ color: t.accentBlue, fontWeight: '600' }}>
+              {mode === 'signin' ? 'Sign up' : 'Sign in'}
+            </Text>
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={onSkip} style={{ alignSelf: 'center', paddingVertical: 8 }} hitSlop={8} accessibilityRole="button">
+          <Text style={[typography.subhead, { color: t.textSecondary, fontWeight: '600' }]}>
+            Continue without an account
+          </Text>
+        </TouchableOpacity>
+
         <Text style={s.termsText}>
           By continuing, you agree to our{' '}
-          <Text style={{ color: t.accentBlue, fontWeight: '500' }}>Terms</Text> and{' '}
-          <Text style={{ color: t.accentBlue, fontWeight: '500' }}>Privacy Policy</Text>.
+          <Text
+            style={{ color: t.accentBlue, fontWeight: '500' }}
+            onPress={() => router.push('/legal/terms')}
+            accessibilityRole="link"
+          >Terms</Text>{' '}
+          and{' '}
+          <Text
+            style={{ color: t.accentBlue, fontWeight: '500' }}
+            onPress={() => router.push('/legal/privacy')}
+            accessibilityRole="link"
+          >Privacy Policy</Text>.
         </Text>
       </Animated.View>
     </View>
@@ -497,7 +556,7 @@ function EmailView({
           </View>
         </View>
         <Text style={[s.hintText, error ? { color: t.statusError } : { color: t.textSecondary }]}>
-          {error || "You'll get a 6-digit code from no-reply@scribe.app"}
+          {error || "You'll get a 6-digit code by email — check spam if you don't see it"}
         </Text>
       </View>
 
@@ -773,7 +832,7 @@ function MicSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: Retu
         <Text style={s.setupSub}>
           {granted
             ? 'Microphone access granted.'
-            : 'Scribe needs microphone access to record your sermons. Audio stays on your phone.'}
+            : 'Scribe needs microphone access to record your sermons. Recordings are saved on your device and sent to Groq only for transcription.'}
         </Text>
       </View>
       <View style={s.bottomAction}>
@@ -811,7 +870,7 @@ function GroqSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: Ret
       });
       setStatus(resp.ok ? 'valid' : 'invalid');
     } catch {
-      setStatus('valid');
+      setStatus('invalid');
     }
   };
 
@@ -834,11 +893,41 @@ function GroqSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: Ret
             <Circle cx="12" cy="16.5" r="1.5" fill={t.accentBlue} />
           </Svg>
         </View>
-        <Text style={s.stepTitle}>Add your Groq key.</Text>
-        <Text style={[s.stepSubtitle, { marginBottom: 24 }]}>
-          Scribe uses Groq for fast, private transcription. The free tier covers most preachers.
+        <Text style={s.stepTitle}>Connect to Groq (free).</Text>
+        <Text style={[s.stepSubtitle, { marginBottom: 20 }]}>
+          Scribe uses Groq's free AI to transcribe and outline your sermons. You just need a free key — it takes about two minutes and stays on your device.
         </Text>
 
+        {/* Numbered guide */}
+        <View style={[s.groqCard, { backgroundColor: t.bgSurface, flexDirection: 'column', alignItems: 'stretch', padding: 16, marginBottom: 16 }]}>
+          {[
+            'Tap "Get my free key" below — it opens right here in the app.',
+            'Sign up with Google (fastest) or email.',
+            'On the page that opens, tap "Create API Key", name it "Scribe", then copy it.',
+            'Come back here and paste it in the box below.',
+          ].map((stepText, i) => (
+            <View key={i} style={{ flexDirection: 'row', gap: 10, marginBottom: i < 3 ? 12 : 0 }}>
+              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: t.accentBlue, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{i + 1}</Text>
+              </View>
+              <Text style={{ ...typography.footnote, color: t.textPrimary, flex: 1, lineHeight: 19 }}>{stepText}</Text>
+            </View>
+          ))}
+        </View>
+
+        <TouchableOpacity
+          style={[s.providerBtn, { backgroundColor: t.accentBlue, marginBottom: 20 }]}
+          activeOpacity={0.85}
+          onPress={() => void WebBrowser.openBrowserAsync(GROQ_CONSOLE_URL)}
+          accessibilityRole="button"
+          accessibilityLabel="Get my free Groq key"
+        >
+          <Text style={[s.providerBtnText, { color: '#fff' }]}>Get my free key →</Text>
+        </TouchableOpacity>
+
+        <Text style={{ ...typography.footnote, fontWeight: '600', color: t.textSecondary, marginBottom: 8 }}>
+          PASTE YOUR KEY HERE
+        </Text>
         <View style={[s.groqCard, { backgroundColor: t.bgSurface }]}>
           <TextInput
             style={s.groqInput}
@@ -865,36 +954,23 @@ function GroqSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: Ret
           {status === 'verifying' && (
             <>
               <ActivityIndicator size="small" color={t.accentBlue} />
-              <Text style={[s.groqStatusText, { color: t.textSecondary }]}>Verifying…</Text>
+              <Text style={[s.groqStatusText, { color: t.textSecondary }]}>Checking your key…</Text>
             </>
           )}
           {status === 'valid' && (
             <>
               <CheckIcon size={14} color={t.statusSuccess} />
-              <Text style={[s.groqStatusText, { color: t.statusSuccess }]}>Key looks good</Text>
+              <Text style={[s.groqStatusText, { color: t.statusSuccess }]}>Key looks good — you're all set</Text>
             </>
           )}
           {status === 'invalid' && (
-            <Text style={[s.groqStatusText, { color: t.statusError }]}>That key didn't work. Double-check and try again.</Text>
+            <Text style={[s.groqStatusText, { color: t.statusError }]}>That key didn't work. Make sure you copied the whole thing (starts with gsk_).</Text>
           )}
         </View>
 
-        <TouchableOpacity
-          style={[s.groqHelp, { backgroundColor: t.bgSurface }]}
-          activeOpacity={0.7}
-          onPress={() => void Linking.openURL('https://console.groq.com')}
-        >
-          <View style={[s.groqHelpIcon, { backgroundColor: `${t.accentBlue}1A` }]}>
-            <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
-              <Circle cx="8" cy="8" r="7" stroke={t.accentBlue} strokeWidth="1.5" />
-              <Path d="M6 6a2 2 0 1 1 3 1.6c-.6.4-1 .6-1 1.2M8 11.5v.01" stroke={t.accentBlue} strokeWidth="1.5" strokeLinecap="round" />
-            </Svg>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ ...typography.subhead, fontWeight: '500', color: t.textPrimary, marginBottom: 2 }}>Don't have a key?</Text>
-            <Text style={{ ...typography.footnote, color: t.textSecondary }}>Open console.groq.com — takes two minutes.</Text>
-          </View>
-        </TouchableOpacity>
+        <Text style={{ ...typography.caption, color: t.textTertiary, textAlign: 'center', marginTop: 8 }}>
+          You can also skip this and add it later in Settings.
+        </Text>
       </ScrollView>
 
       <View style={s.bottomAction}>

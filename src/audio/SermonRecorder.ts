@@ -8,6 +8,21 @@ import * as FileSystem from 'expo-file-system/legacy';
  * `onChunkReady` is called with its URI so callers can transcribe it
  * immediately. A new segment starts right away, giving seamless recording.
  *
+ * Background behaviour:
+ *   When the app is backgrounded or the phone is locked, the JS thread is
+ *   frozen, so the chunk timer stops firing.
+ *   - iOS (UIBackgroundModes: audio): the native recorder keeps writing into
+ *     the current segment, so no audio is lost — the segment grows until the
+ *     app returns to the foreground.
+ *   - Android: expo-av runs NO foreground service, so once backgrounded/locked
+ *     capture stops. Recording is effectively foreground-only on Android until
+ *     we migrate to expo-audio + a mic foreground service (see FUTURE.md /
+ *     BACKGROUND_RECORDING.md).
+ *
+ *   Either way, callers invoke `flushCurrentChunk()` on the AppState
+ *   'background' transition so audio captured up to that moment is sealed to
+ *   disk before the OS can suspend/kill us.
+ *
  * Pause / Resume suspend / restart both the audio and the chunk timer.
  * Stop seals the final partial segment and returns all URIs + duration.
  */
@@ -21,6 +36,7 @@ export class SermonRecorder {
   private segmentStartedAt: number | null = null;
 
   private chunkTimer: ReturnType<typeof setInterval> | null = null;
+  private rotating = false;
   static readonly CHUNK_MS = 30_000;
 
   constructor(targetDir: string) {
@@ -36,7 +52,7 @@ export class SermonRecorder {
         audioEncoder: Audio.AndroidAudioEncoder.AAC,
         sampleRate: 16000,
         numberOfChannels: 1,
-        bitRate: 32000,
+        bitRate: 64000,
       },
       ios: {
         extension: '.m4a',
@@ -44,7 +60,7 @@ export class SermonRecorder {
         audioQuality: Audio.IOSAudioQuality.LOW,
         sampleRate: 16000,
         numberOfChannels: 1,
-        bitRate: 32000,
+        bitRate: 64000,
         linearPCMBitDepth: 16,
         linearPCMIsBigEndian: false,
         linearPCMIsFloat: false,
@@ -88,16 +104,20 @@ export class SermonRecorder {
     }
   }
 
-  /** Seal the current segment, emit it, start a fresh one. */
-  private async rotateChunk(): Promise<void> {
-    if (!this.current || this.segmentStartedAt == null) return; // paused — skip
+  /**
+   * Seal the current segment, persist it, emit it. Does NOT start a new one.
+   * Returns the saved URI, or null if there was nothing to seal.
+   */
+  private async sealCurrentSegment(): Promise<string | null> {
+    if (!this.current) return null;
 
     let tempUri: string | null | undefined;
     try {
       await this.current.stopAndUnloadAsync();
       tempUri = this.current.getURI();
     } catch {
-      // ignore — will try again next tick
+      try { await this.current.stopAndUnloadAsync(); } catch { /* exhausted retries */ }
+      tempUri = this.current.getURI();
     }
     this.current = null;
 
@@ -106,19 +126,60 @@ export class SermonRecorder {
       this.segmentStartedAt = null;
     }
 
-    if (tempUri) {
-      const saved = await this.persistSegment(tempUri);
-      this.files.push(saved);
-      try { this.onChunkReady?.(saved); } catch { /* caller error */ }
-    }
+    if (!tempUri) return null;
+    const saved = await this.persistSegment(tempUri);
+    this.files.push(saved);
+    try { this.onChunkReady?.(saved); } catch { /* caller error */ }
+    return saved;
+  }
 
-    // Start the next segment immediately
-    await this.beginNewSegment();
+  /** Seal the current segment, emit it, start a fresh one. */
+  private async rotateChunk(): Promise<void> {
+    if (this.rotating) return;
+    if (!this.current || this.segmentStartedAt == null) return; // paused — skip
+    this.rotating = true;
+    try {
+      await this.sealCurrentSegment();
+      await this.beginNewSegment();
+    } finally {
+      this.rotating = false;
+    }
+  }
+
+  /**
+   * Force-seal the in-progress segment immediately and start a new one.
+   * Call this on the AppState 'background' transition so audio captured up to
+   * this moment is safely on disk before the OS suspends the JS thread.
+   */
+  async flushCurrentChunk(): Promise<void> {
+    if (this.rotating) return;
+    if (!this.current || this.segmentStartedAt == null) return;
+    this.rotating = true;
+    try {
+      await this.sealCurrentSegment();
+      await this.beginNewSegment();
+    } catch {
+      // best-effort: prior segment is already persisted by sealCurrentSegment
+    } finally {
+      this.rotating = false;
+    }
+  }
+
+  /** Wait for an in-flight chunk rotation to finish (bounded). */
+  private async waitForRotation(): Promise<void> {
+    const deadline = Date.now() + 2000;
+    while (this.rotating && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
   }
 
   async pause(): Promise<void> {
-    if (!this.current) return;
+    // Stop the timer first so a rotation can't start after we pause, then
+    // wait out any rotation already in flight — otherwise we'd "pause" while
+    // the recorder is between segments and the new segment would keep going.
     this.stopChunkTimer();
+    await this.waitForRotation();
+    if (!this.current) return;
     try { await this.current.pauseAsync(); } catch { /* ignore */ }
     if (this.segmentStartedAt != null) {
       this.accumulatedMs += Date.now() - this.segmentStartedAt;
@@ -135,34 +196,19 @@ export class SermonRecorder {
 
   async stop(): Promise<{ uris: string[]; durationMs: number }> {
     this.stopChunkTimer();
-
-    if (this.current) {
-      let tempUri: string | null | undefined;
-      try {
-        await this.current.stopAndUnloadAsync();
-        tempUri = this.current.getURI();
-      } catch { /* ignore */ }
-
-      if (this.segmentStartedAt != null) {
-        this.accumulatedMs += Date.now() - this.segmentStartedAt;
-        this.segmentStartedAt = null;
-      }
-      this.current = null;
-
-      if (tempUri) {
-        const saved = await this.persistSegment(tempUri);
-        this.files.push(saved);
-        // Emit final partial chunk for transcription too
-        try { this.onChunkReady?.(saved); } catch { /* caller error */ }
-      }
-    }
-
+    await this.waitForRotation();
+    await this.sealCurrentSegment();
     return { uris: [...this.files], durationMs: this.accumulatedMs };
   }
 
   getElapsedMs(): number {
     const live = this.segmentStartedAt != null ? Date.now() - this.segmentStartedAt : 0;
     return this.accumulatedMs + live;
+  }
+
+  /** Snapshot of all segments persisted so far (for mid-recording drafts). */
+  getCurrentUris(): string[] {
+    return [...this.files];
   }
 
   private async persistSegment(tempUri: string): Promise<string> {

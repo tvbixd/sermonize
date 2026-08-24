@@ -16,19 +16,22 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AudioPlayer } from '@/components/AudioPlayer';
 import { ScriptureCard } from '@/components/ScriptureCard';
 import { Skeleton } from '@/components/Skeleton';
 import { BackChevronIcon, CloseIcon, ExportIcon, PlusIcon, RegenIcon } from '@/components/icons';
-import { lookupVerse, lookupVerses } from '@/services/bible';
+import { dedupeScriptures, lookupVerse, lookupVerses } from '@/services/bible';
 import { extractOutline } from '@/services/outline';
+import { buildLocalOutline } from '@/services/localOutline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
+import { transcribeChunks } from '@/services/transcription';
 import { getGroqKey, getTranslation } from '@/storage/keys';
-import { getSermon, saveSermon } from '@/storage/sermons';
+import { audioDir, getSermon, saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Outline, Sermon } from '@/types';
 import { formatDate, formatElapsed, sermonToMarkdown } from '@/util/format';
 
-type Tab = 'outline' | 'scriptures' | 'transcript';
+type Tab = 'outline' | 'scriptures';
 
 export default function SermonDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -47,12 +50,26 @@ export default function SermonDetail() {
   const [draftPoints, setDraftPoints] = useState<Outline['points']>([]);
   const [newScriptureRef, setNewScriptureRef] = useState('');
   const [addingScripture, setAddingScripture] = useState(false);
+  const [audioFileUris, setAudioFileUris] = useState<string[]>([]);
 
   useEffect(() => {
     void (async () => {
       if (!id) return;
-      const s = await getSermon(id);
-      if (s) { setSermon(s); seedDraft(s); }
+      const s = await getSermon(id).catch(() => null);
+      if (s) {
+        // Collapse any duplicate references from older saves.
+        s.scriptures = dedupeScriptures(s.scriptures);
+        setSermon(s);
+        seedDraft(s);
+        // List the audio dir directly — stored URIs can go stale after app
+        // updates, but the files themselves live under the sermon's id.
+        const dir = audioDir(s.id);
+        const entries = await FileSystem.readDirectoryAsync(dir).catch(() => [] as string[]);
+        const files = entries
+          .filter((f) => f.endsWith('.m4a') || f.endsWith('.mp4') || f.endsWith('.webm'))
+          .sort();
+        setAudioFileUris(files.map((f) => `${dir}${f}`));
+      }
     })();
   }, [id]);
 
@@ -154,13 +171,18 @@ export default function SermonDetail() {
   };
 
   const onRegenerate = async () => {
-    if (!sermon?.transcript.trim()) return;
+    if (!sermon?.transcript.trim()) {
+      Alert.alert('Nothing to rebuild', 'This sermon has no saved text. Use Re-transcribe to rebuild from the audio.');
+      return;
+    }
     setBusy(true);
     try {
       const key = await getGroqKey();
-      if (!key) throw new Error('Groq API key not set.');
       const translation = await getTranslation();
-      const outline = await extractOutline(sermon.transcript, key);
+      // Groq LLM outline when a key exists, otherwise the free on-device one.
+      const outline = key
+        ? await extractOutline(sermon.transcript, key)
+        : buildLocalOutline(sermon.transcript);
       const refs = new Set(findScriptureReferences(sermon.transcript));
       for (const p of outline.points) for (const r of p.scriptures) refs.add(r);
       const scriptures = await lookupVerses([...refs], translation);
@@ -175,29 +197,103 @@ export default function SermonDetail() {
     }
   };
 
+  const onRetranscribe = async () => {
+    if (!sermon) return;
+    const dir = audioDir(sermon.id);
+    const entries = await FileSystem.readDirectoryAsync(dir).catch(() => [] as string[]);
+    const audioFiles = entries.filter((f) => f.endsWith('.m4a') || f.endsWith('.mp4') || f.endsWith('.webm')).sort();
+    if (audioFiles.length === 0) {
+      Alert.alert('No Audio', 'No saved audio files found for this sermon.');
+      return;
+    }
+    Alert.alert(
+      'Re-transcribe',
+      `Found ${audioFiles.length} audio chunks. This will replace the current transcript and rebuild the outline.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Re-transcribe',
+          onPress: async () => {
+            setBusy(true);
+            try {
+              const key = (await getGroqKey()) ?? '';
+              if (!key) {
+                throw new Error('Groq API key not set. Add it in Settings.');
+              }
+              const uris = audioFiles.map((f) => `${dir}${f}`);
+              const transcript = await transcribeChunks(uris, key);
+              const translation = await getTranslation();
+              // Groq LLM outline; fall back to the free extractive outline if
+              // Groq fails (e.g. rate limit) so the transcription isn't lost.
+              let outline = sermon.outline;
+              if (transcript.trim()) {
+                outline = buildLocalOutline(transcript);
+                try {
+                  outline = await extractOutline(transcript, key);
+                } catch {
+                  // keep the extractive outline
+                }
+              }
+              const refs = new Set(findScriptureReferences(transcript));
+              for (const p of outline.points) for (const r of p.scriptures) refs.add(r);
+              const scriptures = await lookupVerses([...refs], translation);
+              const updated: Sermon = {
+                ...sermon,
+                transcript,
+                title: outline.title,
+                outline,
+                scriptures,
+                audioUris: uris,
+                isDraft: false,
+              };
+              await saveSermon(updated);
+              setSermon(updated);
+              seedDraft(updated);
+              Alert.alert('Done', 'Sermon re-transcribed successfully.');
+            } catch (e) {
+              Alert.alert('Error', e instanceof Error ? e.message : 'Re-transcription failed.');
+            } finally {
+              setBusy(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const onExport = () => {
     if (!sermon) return;
+    const run = (fn: () => Promise<void>) => async () => {
+      setBusy(true);
+      try {
+        await fn();
+      } catch (e) {
+        Alert.alert('Export failed', e instanceof Error ? e.message : 'Could not export.');
+      } finally {
+        setBusy(false);
+      }
+    };
     Alert.alert('Export', 'Choose a format', [
       {
         text: 'Markdown',
-        onPress: async () => {
+        onPress: run(async () => {
           const md = sermonToMarkdown(sermon);
           const path = `${FileSystem.cacheDirectory}${sanitize(sermon.title)}.md`;
           await FileSystem.writeAsStringAsync(path, md);
           if (await Sharing.isAvailableAsync()) {
             await Sharing.shareAsync(path, { mimeType: 'text/markdown', dialogTitle: 'Share sermon notes' });
           }
-        },
+        }),
       },
       {
         text: 'PDF',
-        onPress: async () => {
+        onPress: run(async () => {
           const html = sermonToHtml(sermon);
           const { uri } = await Print.printToFileAsync({ html });
           if (await Sharing.isAvailableAsync()) {
             await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Share sermon PDF' });
           }
-        },
+        }),
       },
       { text: 'Cancel', style: 'cancel' },
     ]);
@@ -260,20 +356,25 @@ export default function SermonDetail() {
           <Text style={styles.sermonTitle} numberOfLines={3}>{sermon.title}</Text>
         )}
         <Text style={styles.sermonMeta}>
-          {formatDate(sermon.createdAt)} · {formatElapsed(sermon.durationMs)}
+          {sermon.isDraft ? 'Draft · ' : ''}{formatDate(sermon.createdAt)} · {formatElapsed(sermon.durationMs)}
         </Text>
+        {audioFileUris.length > 0 && (
+          <View style={{ marginTop: 10 }}>
+            <AudioPlayer uris={audioFileUris} totalDurationMs={sermon.durationMs} />
+          </View>
+        )}
       </View>
 
       {/* Segmented tabs */}
       <View style={styles.tabs}>
-        {(['outline', 'scriptures', 'transcript'] as Tab[]).map((tb) => (
+        {(['outline', 'scriptures'] as Tab[]).map((tb) => (
           <TouchableOpacity
             key={tb}
             onPress={() => setTab(tb)}
             style={[styles.tab, tab === tb && styles.tabActive]}
           >
             <Text style={[styles.tabText, tab === tb && styles.tabTextActive]}>
-              {tb === 'outline' ? 'Outline' : tb === 'scriptures' ? 'Scriptures' : 'Transcript'}
+              {tb === 'outline' ? 'Outline' : 'Scriptures'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -432,25 +533,34 @@ export default function SermonDetail() {
             </View>
           )}
 
-          {tab === 'transcript' && (
-            <Text style={styles.transcript}>{sermon.transcript || '(no transcript)'}</Text>
-          )}
-
         </ScrollView>
       </KeyboardAvoidingView>
 
       {/* Footer */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.regenBtn} onPress={onRegenerate} disabled={busy}>
-          {busy
-            ? <ActivityIndicator color={t.textSecondary} />
-            : (
-              <>
-                <RegenIcon color={t.textPrimary} size={18} />
-                <Text style={styles.regenText}>Regenerate</Text>
-              </>
-            )}
-        </TouchableOpacity>
+        {sermon.isDraft || audioFileUris.length > 0 ? (
+          <TouchableOpacity style={styles.regenBtn} onPress={onRetranscribe} disabled={busy}>
+            {busy
+              ? <ActivityIndicator color={t.textSecondary} />
+              : (
+                <>
+                  <RegenIcon color={t.textPrimary} size={18} />
+                  <Text style={styles.regenText}>Re-transcribe</Text>
+                </>
+              )}
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.regenBtn} onPress={onRegenerate} disabled={busy}>
+            {busy
+              ? <ActivityIndicator color={t.textSecondary} />
+              : (
+                <>
+                  <RegenIcon color={t.textPrimary} size={18} />
+                  <Text style={styles.regenText}>Regenerate</Text>
+                </>
+              )}
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={styles.exportBtn} onPress={onExport}>
           <ExportIcon color="#fff" size={18} />
           <Text style={styles.exportText}>Export</Text>
