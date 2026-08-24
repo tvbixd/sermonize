@@ -1,5 +1,4 @@
 import { Alert, AppState, type NativeEventSubscription } from 'react-native';
-import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { SermonRecorder } from '@/audio/SermonRecorder';
 import { lookupVerses } from '@/services/bible';
 import { findScriptureReferences } from '@/services/scriptureRegex';
@@ -92,9 +91,6 @@ class RecordingEngine {
     this.recorder = recorder;
 
     this.store.setStatus('recording');
-    // Keep the screen awake while recording. Auto-lock backgrounds the app and
-    // freezes chunk rotation/transcription — the "it pauses after a while" bug.
-    void activateKeepAwakeAsync('scribe-recording').catch(() => undefined);
     this.startTicker();
     this.autoSave = setInterval(() => void this.autoSaveDraft(), 5 * 60 * 1000);
     // Background-flush must work regardless of which screen is showing, so the
@@ -119,7 +115,6 @@ class RecordingEngine {
     if (this.warningTimer) { clearTimeout(this.warningTimer); this.warningTimer = null; }
     this.appStateSub?.remove();
     this.appStateSub = null;
-    try { deactivateKeepAwake('scribe-recording'); } catch { /* not active */ }
   }
 
   async pause(): Promise<void> {
