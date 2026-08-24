@@ -52,7 +52,7 @@ export class SermonRecorder {
         audioEncoder: Audio.AndroidAudioEncoder.AAC,
         sampleRate: 16000,
         numberOfChannels: 1,
-        bitRate: 32000,
+        bitRate: 64000,
       },
       ios: {
         extension: '.m4a',
@@ -60,7 +60,7 @@ export class SermonRecorder {
         audioQuality: Audio.IOSAudioQuality.LOW,
         sampleRate: 16000,
         numberOfChannels: 1,
-        bitRate: 32000,
+        bitRate: 64000,
         linearPCMBitDepth: 16,
         linearPCMIsBigEndian: false,
         linearPCMIsFloat: false,

@@ -1,4 +1,5 @@
 import { Alert, AppState, type NativeEventSubscription } from 'react-native';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { SermonRecorder } from '@/audio/SermonRecorder';
 import { lookupVerses } from '@/services/bible';
 import { findScriptureReferences } from '@/services/scriptureRegex';
@@ -91,16 +92,23 @@ class RecordingEngine {
     this.recorder = recorder;
 
     this.store.setStatus('recording');
+    // Keep the screen awake while recording. Auto-lock backgrounds the app and
+    // freezes chunk rotation/transcription — the "it pauses after a while" bug.
+    void activateKeepAwakeAsync('scribe-recording').catch(() => undefined);
     this.startTicker();
     this.autoSave = setInterval(() => void this.autoSaveDraft(), 5 * 60 * 1000);
     // Background-flush must work regardless of which screen is showing, so the
     // engine (not the record screen) owns the AppState subscription.
     this.appStateSub?.remove();
     this.appStateSub = AppState.addEventListener('change', (next) => {
-      // Only flush on a true suspend. iOS fires 'inactive' constantly for
-      // transient events (Control Center, notification pull, call banner);
-      // sealing a chunk on each would chop the audio and drop small slices.
-      if (next === 'background') void this.flushForBackground();
+      // On background: do NOT stop/restart the recorder — that heavy native
+      // work at the moment iOS is suspending us can leave the audio session
+      // broken and crash the recording. iOS keeps capturing into the current
+      // segment via background-audio mode; we just persist a cheap draft.
+      if (next === 'background') void this.onBackground();
+      // Back in the foreground (full JS time again): seal the long segment
+      // recorded while backgrounded so it gets transcribed, and resume rotation.
+      else if (next === 'active') void this.onForeground();
     });
     void logEvent('recording_started', { audioOnly: opts.audioOnly });
   }
@@ -111,6 +119,7 @@ class RecordingEngine {
     if (this.warningTimer) { clearTimeout(this.warningTimer); this.warningTimer = null; }
     this.appStateSub?.remove();
     this.appStateSub = null;
+    try { deactivateKeepAwake('scribe-recording'); } catch { /* not active */ }
   }
 
   async pause(): Promise<void> {
@@ -164,11 +173,21 @@ class RecordingEngine {
     this.store.reset();
   }
 
-  /** Called from the AppState background listener — seal the current chunk and
-   *  persist a draft before the OS can suspend/kill us. */
-  async flushForBackground(): Promise<void> {
+  /** App went to background. Keep the recorder running (iOS background audio
+   *  keeps capturing); just save a cheap draft of what's already sealed. We do
+   *  NOT seal/restart here — doing native recorder work during the suspend
+   *  transition is what was destabilizing long recordings. */
+  private async onBackground(): Promise<void> {
     if (!this.isActive()) return;
     void logEvent('recording_backgrounded');
+    await this.autoSaveDraft();
+  }
+
+  /** App returned to the foreground with full JS time. Seal the (possibly very
+   *  long) segment captured while backgrounded so it gets transcribed, and let
+   *  normal rotation resume. */
+  private async onForeground(): Promise<void> {
+    if (!this.isActive()) return;
     await this.recorder?.flushCurrentChunk().catch(() => undefined);
     await this.autoSaveDraft();
   }
