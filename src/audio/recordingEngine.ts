@@ -65,10 +65,12 @@ class RecordingEngine {
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   async start(opts: { groqKey: string; audioOnly: boolean }): Promise<void> {
-    // Never clobber a live recording: if one is somehow still around, tear it
-    // down first so we don't orphan a native recorder + its timers.
+    // Never clobber / leak a recorder: if a stale one is still around (e.g. a
+    // prior crashed attempt), force-release its native recorder so it can't
+    // block the new one with "recorder not prepared".
     if (this.recorder) {
-      await this.discard().catch(() => undefined);
+      await this.recorder.dispose().catch(() => undefined);
+      this.recorder = null;
     }
     this.groqKey = opts.groqKey;
     this.audioOnly = opts.audioOnly;

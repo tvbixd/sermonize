@@ -86,11 +86,45 @@ export class SermonRecorder {
   }
 
   private async beginNewSegment(): Promise<void> {
-    const rec = new Audio.Recording();
-    await rec.prepareToRecordAsync(SermonRecorder.recordingOptions());
-    await rec.startAsync();
-    this.current = rec;
-    this.segmentStartedAt = Date.now();
+    const attempt = async () => {
+      const rec = new Audio.Recording();
+      try {
+        await rec.prepareToRecordAsync(SermonRecorder.recordingOptions());
+        await rec.startAsync();
+      } catch (e) {
+        // A half-prepared recorder must be unloaded, or expo-av (which allows
+        // only ONE prepared recorder at a time) rejects every future prepare
+        // with "recorder not prepared".
+        try { await rec.stopAndUnloadAsync(); } catch { /* already unloaded */ }
+        throw e;
+      }
+      this.current = rec;
+      this.segmentStartedAt = Date.now();
+    };
+
+    try {
+      await attempt();
+    } catch {
+      // Most often a stale recorder left by a prior crash. Reset the audio
+      // session and retry once — this clears the "not prepared" state.
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: true,
+      }).catch(() => undefined);
+      await new Promise((r) => setTimeout(r, 400));
+      await attempt();
+    }
+  }
+
+  /** Force-release the native recorder without sealing/persisting — used to
+   *  clear a stale recorder before starting a fresh session. */
+  async dispose(): Promise<void> {
+    this.stopChunkTimer();
+    try { await this.current?.stopAndUnloadAsync(); } catch { /* already gone */ }
+    this.current = null;
+    this.segmentStartedAt = null;
   }
 
   private startChunkTimer(): void {
