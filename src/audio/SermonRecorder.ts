@@ -52,7 +52,9 @@ export class SermonRecorder {
         audioEncoder: Audio.AndroidAudioEncoder.AAC,
         sampleRate: 16000,
         numberOfChannels: 1,
-        bitRate: 64000,
+        // 32 kbps is the proven-safe ceiling for 16 kHz mono AAC — higher
+        // values (e.g. 64k) make iOS reject prepare with "recorder not prepared".
+        bitRate: 32000,
       },
       ios: {
         extension: '.m4a',
@@ -60,7 +62,9 @@ export class SermonRecorder {
         audioQuality: Audio.IOSAudioQuality.LOW,
         sampleRate: 16000,
         numberOfChannels: 1,
-        bitRate: 64000,
+        // 32 kbps is the proven-safe ceiling for 16 kHz mono AAC — higher
+        // values (e.g. 64k) make iOS reject prepare with "recorder not prepared".
+        bitRate: 32000,
         linearPCMBitDepth: 16,
         linearPCMIsBigEndian: false,
         linearPCMIsFloat: false,
