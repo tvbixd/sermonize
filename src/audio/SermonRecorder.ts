@@ -1,33 +1,36 @@
-import { Audio } from 'expo-av';
+import {
+  AudioModule,
+  AudioQuality,
+  IOSOutputFormat,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  setIsAudioActiveAsync,
+  type AudioRecorder,
+  type RecordingOptions,
+} from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 
 /**
- * SermonRecorder — chunk-based recorder for real-time transcription.
+ * SermonRecorder — chunk-based recorder for real-time transcription, built on
+ * expo-audio (expo-av's maintained successor).
  *
- * Every CHUNK_MS (default 30s) the current segment is sealed and
- * `onChunkReady` is called with its URI so callers can transcribe it
- * immediately. A new segment starts right away, giving seamless recording.
+ * Every CHUNK_MS (default 30s) the current segment is sealed and `onChunkReady`
+ * is called with its URI so callers can transcribe it immediately. A new
+ * segment starts right away, giving seamless recording.
  *
  * Background behaviour:
- *   When the app is backgrounded or the phone is locked, the JS thread is
- *   frozen, so the chunk timer stops firing.
- *   - iOS (UIBackgroundModes: audio): the native recorder keeps writing into
- *     the current segment, so no audio is lost — the segment grows until the
- *     app returns to the foreground.
- *   - Android: expo-av runs NO foreground service, so once backgrounded/locked
- *     capture stops. Recording is effectively foreground-only on Android until
- *     we migrate to expo-audio + a mic foreground service (see FUTURE.md /
- *     BACKGROUND_RECORDING.md).
+ *   `setAudioModeAsync({ shouldPlayInBackground: true })` + UIBackgroundModes
+ *   'audio' keeps the iOS audio session alive when the app is backgrounded or
+ *   the phone is locked, so the native recorder keeps writing into the current
+ *   segment. The JS chunk timer freezes while backgrounded, so that segment
+ *   simply grows until the app returns to the foreground, where the caller
+ *   seals it via `flushCurrentChunk()`.
  *
- *   Either way, callers invoke `flushCurrentChunk()` on the AppState
- *   'background' transition so audio captured up to that moment is sealed to
- *   disk before the OS can suspend/kill us.
- *
- * Pause / Resume suspend / restart both the audio and the chunk timer.
+ * Pause / Resume suspend / restart the audio and the chunk timer.
  * Stop seals the final partial segment and returns all URIs + duration.
  */
 export class SermonRecorder {
-  private current: Audio.Recording | null = null;
+  private current: AudioRecorder | null = null;
   private files: string[] = [];
   private targetDir: string;
   private onChunkReady: ((uri: string) => void) | null = null;
@@ -43,24 +46,23 @@ export class SermonRecorder {
     this.targetDir = targetDir;
   }
 
-  private static recordingOptions(): Audio.RecordingOptions {
+  // 16 kHz mono, 32 kbps AAC — small files, and what Whisper transcribes from.
+  // (32 kbps is the safe ceiling for 16 kHz mono AAC; higher fails to prepare.)
+  private static recordingOptions(): RecordingOptions {
     return {
       isMeteringEnabled: false,
+      extension: '.m4a',
+      sampleRate: 16000,
+      numberOfChannels: 1,
+      bitRate: 32000,
       android: {
         extension: '.m4a',
-        outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-        audioEncoder: Audio.AndroidAudioEncoder.AAC,
-        sampleRate: 16000,
-        numberOfChannels: 1,
-        bitRate: 64000,
+        outputFormat: 'mpeg4',
+        audioEncoder: 'aac',
       },
       ios: {
-        extension: '.m4a',
-        outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-        audioQuality: Audio.IOSAudioQuality.LOW,
-        sampleRate: 16000,
-        numberOfChannels: 1,
-        bitRate: 64000,
+        audioQuality: AudioQuality.MEDIUM,
+        outputFormat: IOSOutputFormat.MPEG4AAC,
         linearPCMBitDepth: 16,
         linearPCMIsBigEndian: false,
         linearPCMIsFloat: false,
@@ -69,28 +71,43 @@ export class SermonRecorder {
     };
   }
 
-  async start(onChunkReady: (uri: string) => void): Promise<void> {
-    const perm = await Audio.requestPermissionsAsync();
-    if (!perm.granted) throw new Error('Microphone permission denied');
-
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-      shouldDuckAndroid: true,
+  private static async configureSession(): Promise<void> {
+    await setAudioModeAsync({
+      allowsRecording: true,
+      playsInSilentMode: true,
+      // The key to recording while backgrounded / screen-locked: keep the
+      // audio session active in the background.
+      shouldPlayInBackground: true,
+      interruptionMode: 'doNotMix',
     });
+    await setIsAudioActiveAsync(true).catch(() => undefined);
+  }
 
+  async start(onChunkReady: (uri: string) => void): Promise<void> {
+    const perm = await requestRecordingPermissionsAsync();
+    if (!perm.granted) throw new Error('Microphone permission denied');
+    await SermonRecorder.configureSession();
     this.onChunkReady = onChunkReady;
     await this.beginNewSegment();
     this.startChunkTimer();
   }
 
   private async beginNewSegment(): Promise<void> {
-    const rec = new Audio.Recording();
-    await rec.prepareToRecordAsync(SermonRecorder.recordingOptions());
-    await rec.startAsync();
-    this.current = rec;
-    this.segmentStartedAt = Date.now();
+    const attempt = async () => {
+      const rec = new AudioModule.AudioRecorder(SermonRecorder.recordingOptions());
+      await rec.prepareToRecordAsync();
+      rec.record();
+      this.current = rec;
+      this.segmentStartedAt = Date.now();
+    };
+    try {
+      await attempt();
+    } catch {
+      // Reset the session and retry once — clears a wedged audio session.
+      await SermonRecorder.configureSession().catch(() => undefined);
+      await new Promise((r) => setTimeout(r, 400));
+      await attempt();
+    }
   }
 
   private startChunkTimer(): void {
@@ -113,11 +130,10 @@ export class SermonRecorder {
 
     let tempUri: string | null | undefined;
     try {
-      await this.current.stopAndUnloadAsync();
-      tempUri = this.current.getURI();
+      await this.current.stop();
+      tempUri = this.current.uri;
     } catch {
-      try { await this.current.stopAndUnloadAsync(); } catch { /* exhausted retries */ }
-      tempUri = this.current.getURI();
+      tempUri = this.current.uri;
     }
     this.current = null;
 
@@ -148,8 +164,8 @@ export class SermonRecorder {
 
   /**
    * Force-seal the in-progress segment immediately and start a new one.
-   * Call this on the AppState 'background' transition so audio captured up to
-   * this moment is safely on disk before the OS suspends the JS thread.
+   * Called when returning to the foreground so audio captured while
+   * backgrounded/locked is sealed and transcribed.
    */
   async flushCurrentChunk(): Promise<void> {
     if (this.rotating) return;
@@ -174,13 +190,10 @@ export class SermonRecorder {
   }
 
   async pause(): Promise<void> {
-    // Stop the timer first so a rotation can't start after we pause, then
-    // wait out any rotation already in flight — otherwise we'd "pause" while
-    // the recorder is between segments and the new segment would keep going.
     this.stopChunkTimer();
     await this.waitForRotation();
     if (!this.current) return;
-    try { await this.current.pauseAsync(); } catch { /* ignore */ }
+    try { this.current.pause(); } catch { /* ignore */ }
     if (this.segmentStartedAt != null) {
       this.accumulatedMs += Date.now() - this.segmentStartedAt;
       this.segmentStartedAt = null;
@@ -189,7 +202,7 @@ export class SermonRecorder {
 
   async resume(): Promise<void> {
     if (!this.current) return;
-    try { await this.current.startAsync(); } catch { /* ignore */ }
+    try { this.current.record(); } catch { /* ignore */ }
     this.segmentStartedAt = Date.now();
     this.startChunkTimer();
   }
@@ -198,7 +211,18 @@ export class SermonRecorder {
     this.stopChunkTimer();
     await this.waitForRotation();
     await this.sealCurrentSegment();
+    await setIsAudioActiveAsync(false).catch(() => undefined);
     return { uris: [...this.files], durationMs: this.accumulatedMs };
+  }
+
+  /** Force-release the native recorder without sealing/persisting — used to
+   *  clear a stale recorder before starting a fresh session. */
+  async dispose(): Promise<void> {
+    this.stopChunkTimer();
+    try { await this.current?.stop(); } catch { /* already gone */ }
+    this.current = null;
+    this.segmentStartedAt = null;
+    await setIsAudioActiveAsync(false).catch(() => undefined);
   }
 
   getElapsedMs(): number {

@@ -83,6 +83,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         photosPermission: 'Scribe uses your photos so you can set a profile picture.',
       },
     ],
+    [
+      'expo-audio',
+      {
+        microphonePermission:
+          'Scribe needs microphone access to record sermons for transcription and outlining.',
+      },
+    ],
   ],
   experiments: {
     tsconfigPaths: true,

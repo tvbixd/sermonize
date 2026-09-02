@@ -86,6 +86,14 @@ export default function RecordScreen() {
 
   const finalizingRef = useRef(false);
 
+  // Opening the record screen with nothing actively recording should always
+  // start from a clean slate — clears a leftover error/paused state from a
+  // previous failed attempt so the record button works again.
+  useEffect(() => {
+    if (!recordingEngine.isActive()) reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const onRecordPress = async () => {
     mediumTap();
     try {
