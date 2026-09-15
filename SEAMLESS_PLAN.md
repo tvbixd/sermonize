@@ -100,6 +100,10 @@ that path.
   accuracy and groundwork with zero visible change / zero UX risk. *~2–3 days.*
 - **Phase 2 — The visible win.** Adaptive ~8s cadence + live transcript +
   two-stage cards + real waveform. *~2–3 days + device testing.*
+  **Chosen layout: "Spotlight"** (see `design/live-recording/`) — the transcript
+  gets the room, only the current verse is shown in a rich card, and the rest tuck
+  behind a quiet "N found" pill that opens the full list. No fake status bar, one
+  primary action, serif verse text.
 - **Phase 3 — Polish.** Motion, haptics, empty states, calm light/dark pass,
   accessibility. *~2 days.*
 
