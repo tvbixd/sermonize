@@ -44,6 +44,22 @@ class RecordingEngine {
   private authAlertShown = false;
   private appStateSub: NativeEventSubscription | null = null;
 
+  // ── Transcription queue ────────────────────────────────────────────────────
+  // Chunks are transcribed through a small concurrency-limited queue and their
+  // text is emitted STRICTLY in capture order, so raising MAX_CONCURRENT later
+  // (Phase 2) can never scramble the transcript. MAX_CONCURRENT = 1 keeps today's
+  // serial behaviour exactly.
+  private static readonly MAX_CONCURRENT = 1;
+  // Detection runs over the tail of the accumulated transcript (not the isolated
+  // chunk) so references split across a chunk boundary are still caught.
+  private static readonly DETECT_WINDOW = 260;
+  private queue: { seq: number; uri: string }[] = [];
+  private enqueuedSeq = 0;
+  private nextEmit = 0;
+  private active = 0;
+  private draining = false;
+  private ready = new Map<number, string>();
+
   private get store() {
     return useSessionStore.getState();
   }
@@ -82,6 +98,12 @@ class RecordingEngine {
     this.failedChunks = 0;
     this.seenRefs = new Set();
     this.pending = new Set();
+    this.queue = [];
+    this.enqueuedSeq = 0;
+    this.nextEmit = 0;
+    this.active = 0;
+    this.draining = false;
+    this.ready = new Map();
     this.rateLimitAlertActive = false;
     this.authAlertShown = false;
 
@@ -217,12 +239,16 @@ class RecordingEngine {
     if (this.autoSave) { clearInterval(this.autoSave); this.autoSave = null; }
   }
 
+  /** Wait for every queued/in-flight chunk to finish transcribing, emitting and
+   *  resolving — including items still waiting their turn in the queue. */
   private async waitForPending(timeoutMs = 20000) {
-    if (this.pending.size === 0) return;
-    await Promise.race([
-      Promise.allSettled([...this.pending]),
-      new Promise((r) => setTimeout(r, timeoutMs)),
-    ]);
+    const deadline = Date.now() + timeoutMs;
+    while ((this.active > 0 || this.queue.length > 0 || this.pending.size > 0) && Date.now() < deadline) {
+      await Promise.race([
+        Promise.allSettled([...this.pending]),
+        new Promise((r) => setTimeout(r, 200)),
+      ]);
+    }
   }
 
   private draftSermon(uris: string[], durationMs: number): Sermon {
@@ -247,35 +273,87 @@ class RecordingEngine {
   }
 
   private onChunkReady = (chunkUri: string) => {
-    const p = this.processChunk(chunkUri).finally(() => this.pending.delete(p));
-    this.pending.add(p);
+    if (this.audioOnly) return;
+    this.queue.push({ seq: this.enqueuedSeq++, uri: chunkUri });
+    this.pump();
   };
 
-  private async processChunk(chunkUri: string) {
-    if (this.audioOnly) return;
-    try {
-      const text = await transcribeChunks([chunkUri], this.groqKey);
-      if (!text.trim()) return;
-      this.transcript = this.transcript ? this.transcript + ' ' + text : text;
-      this.store.appendTranscript(text);
-      this.chunkCount += 1;
-      this.store.incrementChunk();
-      this.failedChunks = 0;
-      this.store.setChunkWarning(null);
+  /** Start as many queued chunks as the concurrency limit allows. */
+  private pump() {
+    while (this.active < RecordingEngine.MAX_CONCURRENT && this.queue.length > 0) {
+      const item = this.queue.shift()!;
+      this.active += 1;
+      const p = this.transcribeItem(item).finally(() => {
+        this.active -= 1;
+        this.pending.delete(p);
+        this.pump();
+      });
+      this.pending.add(p);
+    }
+  }
 
-      const refs = findScriptureReferences(text).filter((r) => !this.seenRefs.has(r));
-      if (refs.length > 0) {
-        refs.forEach((r) => this.seenRefs.add(r));
-        try {
-          const translation = await getTranslation();
-          this.store.addLiveScriptures(await lookupVerses(refs, translation));
-        } catch {
-          this.store.addLiveScriptures(refs.map((reference) => ({ reference })));
-        }
-      }
+  /** Transcribe one chunk, then release its text into the in-order emitter. A
+   *  failed chunk still advances the sequence so it can't stall later chunks. */
+  private async transcribeItem({ seq, uri }: { seq: number; uri: string }) {
+    let text = '';
+    try {
+      text = await transcribeChunks([uri], this.groqKey);
     } catch (e) {
       this.handleChunkError(e);
+      text = '';
     }
+    this.ready.set(seq, text);
+    await this.drainReady();
+  }
+
+  /** Emit ready chunks in capture order (single-flight so ordering holds even
+   *  when several transcriptions finish at once). */
+  private async drainReady() {
+    if (this.draining) return;
+    this.draining = true;
+    try {
+      while (this.ready.has(this.nextEmit)) {
+        const text = this.ready.get(this.nextEmit)!;
+        this.ready.delete(this.nextEmit);
+        this.nextEmit += 1;
+        if (text.trim()) await this.emitChunkText(text);
+      }
+    } finally {
+      this.draining = false;
+    }
+  }
+
+  /** Append a chunk's text, then detect + resolve scriptures for it. */
+  private async emitChunkText(text: string) {
+    this.transcript = this.transcript ? this.transcript + ' ' + text : text;
+    this.store.appendTranscript(text);
+    this.chunkCount += 1;
+    this.store.incrementChunk();
+    this.failedChunks = 0;
+    this.store.setChunkWarning(null);
+
+    // Detect over the tail of the whole transcript, not just this chunk, so a
+    // reference split across the boundary ("…Matthew" | "chapter 12…") is caught.
+    const windowText = this.transcript.slice(-RecordingEngine.DETECT_WINDOW);
+    const refs = findScriptureReferences(windowText).filter((r) => !this.seenRefs.has(r));
+    if (refs.length === 0) return;
+
+    refs.forEach((r) => this.seenRefs.add(r));
+    // Stage 1 — show the references immediately (local, instant).
+    this.store.addDetectedRefs(refs);
+    // Stage 2 — fill in verse text as each lookup returns.
+    let translation: string | undefined;
+    try { translation = await getTranslation(); } catch { translation = undefined; }
+    await Promise.all(
+      refs.map(async (reference) => {
+        try {
+          const [resolved] = await lookupVerses([reference], translation);
+          this.store.resolveScripture(reference, resolved ?? { reference }, !!resolved?.text);
+        } catch {
+          this.store.resolveScripture(reference, { reference }, false);
+        }
+      }),
+    );
   }
 
   private handleChunkError(e: unknown) {

@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import * as FileSystem from 'expo-file-system/legacy';
 import type { Scripture } from '../types';
 import { getTranslation } from '../storage/keys';
 
@@ -13,6 +14,46 @@ const BUNDLED_BIBLE_KEY: string =
 const CACHE_MAX = 500;
 const memoryCache = new Map<string, Scripture>();
 let activeApiBibleBase: string | null = null;
+
+// ── Persistent verse cache ───────────────────────────────────────────────────
+// Resolved verses are cached to disk keyed by `${translation}::${reference}`, so
+// common verses resolve instantly across app launches (and offline). All disk
+// access is best-effort and guarded — a cache failure never affects a lookup.
+const VERSE_CACHE_FILE = (FileSystem.documentDirectory ?? '') + 'verse-cache.json';
+let verseCacheLoaded = false;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function ensureVerseCacheLoaded(): Promise<void> {
+  if (verseCacheLoaded) return;
+  verseCacheLoaded = true; // set first so a failure doesn't retry every lookup
+  if (!FileSystem.documentDirectory) return;
+  try {
+    const info = await FileSystem.getInfoAsync(VERSE_CACHE_FILE);
+    if (!info.exists) return;
+    const raw = await FileSystem.readAsStringAsync(VERSE_CACHE_FILE);
+    const obj = JSON.parse(raw) as Record<string, Scripture>;
+    for (const [k, v] of Object.entries(obj)) {
+      if (memoryCache.size >= CACHE_MAX) break;
+      if (v && typeof v.reference === 'string' && !memoryCache.has(k)) memoryCache.set(k, v);
+    }
+  } catch {
+    /* corrupt or unreadable cache — ignore, we'll rebuild it */
+  }
+}
+
+function scheduleVerseCachePersist(): void {
+  if (persistTimer || !FileSystem.documentDirectory) return;
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    try {
+      const obj: Record<string, Scripture> = {};
+      for (const [k, v] of memoryCache) obj[k] = v;
+      void FileSystem.writeAsStringAsync(VERSE_CACHE_FILE, JSON.stringify(obj)).catch(() => undefined);
+    } catch {
+      /* ignore persist failures */
+    }
+  }, 3000);
+}
 
 export type TranslationEntry = {
   id: string;
@@ -195,6 +236,7 @@ export async function lookupVerse(
 ): Promise<Scripture> {
   const tid = translationId ?? await getTranslation();
   const cacheKey = `${tid}::${reference}`;
+  await ensureVerseCacheLoaded();
   const cached = memoryCache.get(cacheKey);
   if (cached) return cached;
 
@@ -231,6 +273,7 @@ export async function lookupVerse(
         memoryCache.delete(oldest);
       }
       memoryCache.set(cacheKey, result);
+      scheduleVerseCachePersist();
     }
     return result;
   } catch {

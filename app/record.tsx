@@ -84,6 +84,13 @@ export default function RecordScreen() {
   const setError  = useSessionStore((s) => s.setError);
   const reset     = useSessionStore((s) => s.reset);
 
+  // Phase 1 keeps the screen unchanged: only fully resolved verses are shown
+  // (the `resolving` placeholders exist in the store for the Phase 2 UI).
+  const resolvedScriptures = useMemo(
+    () => liveScriptures.filter((s) => s.status !== 'resolving'),
+    [liveScriptures],
+  );
+
   const finalizingRef = useRef(false);
 
   // Opening the record screen with nothing actively recording should always
@@ -164,8 +171,12 @@ export default function RecordScreen() {
         }
       }
 
-      let scriptures: Awaited<ReturnType<typeof lookupVerses>> =
-        useSessionStore.getState().liveScriptures;
+      // Drop the live-only `status` field, and any reference still mid-lookup
+      // with no text (it gets re-resolved below if it appears in the transcript).
+      let scriptures: Awaited<ReturnType<typeof lookupVerses>> = useSessionStore
+        .getState()
+        .liveScriptures.filter((s) => s.status !== 'resolving' || s.text)
+        .map((s) => ({ reference: s.reference, text: s.text, translation: s.translation }));
       try {
         setStep('scriptures');
         const have = new Set(scriptures.map((s) => s.reference));
@@ -379,16 +390,16 @@ export default function RecordScreen() {
                 </View>
               )}
               <Text style={[styles.panelLabel, { color: t.textSecondary, paddingHorizontal: 4 }]}>
-                SCRIPTURES {liveScriptures.length > 0 ? `(${liveScriptures.length})` : ''}
+                SCRIPTURES {resolvedScriptures.length > 0 ? `(${resolvedScriptures.length})` : ''}
               </Text>
-              {liveScriptures.length === 0 ? (
+              {resolvedScriptures.length === 0 ? (
                 <View style={[styles.panel, { backgroundColor: t.bgSurface }]}>
                   <Text style={[styles.panelText, { color: t.textSecondary }]}>
                     Scriptures will appear here as they're mentioned.
                   </Text>
                 </View>
               ) : (
-                dedupeScriptures([...liveScriptures]).reverse().map((sc, i) => (
+                dedupeScriptures([...resolvedScriptures]).reverse().map((sc, i) => (
                   <ScriptureCard key={`${sc.reference}-${i}`} scripture={sc} />
                 ))
               )}

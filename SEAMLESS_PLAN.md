@@ -95,9 +95,11 @@ that path.
 
 - **Phase 0 — Prototype (no app risk).** Clickable HTML mock of the live screen
   in Scribe's style, to lock the feel before touching code. *~1 day.*
-- **Phase 1 — Engine, invisible.** Rolling-window detection + verse cache +
-  two-stage store model + concurrency queue. **Cadence stays 30s.** Ships better
-  accuracy and groundwork with zero visible change / zero UX risk. *~2–3 days.*
+- **Phase 1 — Engine, invisible. ✅ Done.** Rolling-window detection + persistent
+  verse cache + two-stage store model + order-preserving transcription queue.
+  **Cadence stays 30s** and the queue runs serial (`MAX_CONCURRENT = 1`), so
+  behaviour is identical today; Phase 2 raises the concurrency and surfaces the
+  two-stage state. Zero visible change. Covered by `__tests__/live-pipeline.test.ts`.
 - **Phase 2 — The visible win.** Adaptive ~8s cadence + live transcript +
   two-stage cards + real waveform. *~2–3 days + device testing.*
   **Chosen layout: "Spotlight"** (see `design/live-recording/`) — the transcript
