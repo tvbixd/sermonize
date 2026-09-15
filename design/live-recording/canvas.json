@@ -1,0 +1,13 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "title": "Recommended" },
+    { "file": "Spotlight.dc.html", "x": 486, "y": 0, "w": 390, "h": 844, "title": "Alternate · Spotlight" },
+    { "file": "Light.dc.html", "x": 972, "y": 0, "w": 390, "h": 844, "title": "Recommended · Light" }
+  ],
+  "annotations": [
+    { "id": "main-note", "x": 0, "y": -104, "w": 390, "text": "Recommended. Newest verse gets one rich card; earlier verses collapse to slim tap-to-open rows. No fake status bar, one primary action, generous spacing." },
+    { "id": "spotlight-note", "x": 486, "y": -104, "w": 390, "text": "Alternate — Spotlight. The transcript gets the room; only the current verse shows, the rest tuck behind a quiet ‘4 found’ pill. Most minimal, least crowded." },
+    { "id": "light-note", "x": 972, "y": -104, "w": 390, "text": "The recommended layout in Scribe's light theme (the app ships both)." }
+  ],
+  "launch": { "view": "canvas" }
+}
