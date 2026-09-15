@@ -224,14 +224,16 @@ const V = {
   'hab':{ref:'Habakkuk 2:4',chip:'KJV',text:'Behold, his soul which is lifted up is not upright in him: but the just shall live by his faith.'},
   'r122':{ref:'Romans 12:2',chip:'KJV',text:'And be not conformed to this world: but be ye transformed by the renewing of your mind…'},
 };
-// token: string, or [string, verseKey] to fire a detection when that word lands
+// token: a string word, or {ref,key} — a spoken reference that renders inline in
+// its canonical form ("Romans 8:28"), not the spelled-out words, and fires a
+// detection when it lands.
 const SCRIPT = [
   "Brothers","and","sisters,","the","promise","we","stand","on","this","morning","is","that","God","is","working —",
-  ["Romans",'r828'],"chapter","eight,","verse","twenty-eight.","All","things","work","together","for","good.",
+  {ref:'Romans 8:28',key:'r828'},"All","things","work","together","for","good.",
   "And","how","do","we","hold","that","promise?","By","faith.",
-  ["Hebrews",'h111'],"eleven,","verse","one —","faith","is","the","substance","of","things","hoped","for.",
-  "The","prophet","said","it","plainly,",["Habakkuk",'hab'],"two","four:","the","just","shall","live","by","faith.",
-  "So","do","not","be","pressed","into","the","world's","mold —",["Romans",'r122'],"twelve","two —",
+  {ref:'Hebrews 11:1',key:'h111'},"—","faith","is","the","substance","of","things","hoped","for.",
+  "The","prophet","said","it","plainly —",{ref:'Habakkuk 2:4',key:'hab'},"the","just","shall","live","by","faith.",
+  "So","do","not","be","pressed","into","the","world's","mold —",{ref:'Romans 12:2',key:'r122'},
   "be","transformed","by","the","renewing","of","your","mind.",
 ];
 
@@ -250,8 +252,8 @@ function fmt(ms){const s=Math.floor(ms/1000);return String(Math.floor(s/60)).pad
 
 function addWord(tok){
   const span=document.createElement('span');
-  const isVerse=Array.isArray(tok);
-  const word=isVerse?tok[0]:tok;
+  const isVerse=tok&&typeof tok==='object';
+  const word=isVerse?tok.ref:tok;
   span.className='w new'+(isVerse?' ref':'');
   span.textContent=word+' ';
   transcriptEl.appendChild(span);
@@ -306,7 +308,7 @@ function run(){
   SCRIPT.forEach((tok,i)=>{
     const t=setTimeout(()=>{
       addWord(tok);
-      if(Array.isArray(tok)){ const key=tok[1]; spokenAt[key]=performance.now();
+      if(tok&&typeof tok==='object'){ const key=tok.key; spokenAt[key]=performance.now();
         // detection appears ~1.1s after the reference is spoken (chunk lands)
         const d=setTimeout(()=>popVerse(key), 1100); timers.push(d);
       }
