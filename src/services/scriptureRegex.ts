@@ -125,3 +125,33 @@ export function canonicalizeReference(input: string): string | null {
   const matches = findScriptureReferences(input);
   return matches[0] ?? null;
 }
+
+export type ScriptureMatch = {
+  start: number; // index in the source text where the spoken reference begins
+  end: number; // index just past the spoken reference
+  raw: string; // the matched text as spoken ("Matthew chapter 12 verse 24")
+  canonical: string; // normalized reference ("Matthew 12:24")
+};
+
+/**
+ * Like `findScriptureReferences`, but returns each match's position and its raw
+ * (spoken) span alongside the canonical form — so a live transcript can replace
+ * the spoken words in place with the clean "Book 12:24" and highlight it.
+ */
+export function findScriptureMatches(text: string): ScriptureMatch[] {
+  if (!text) return [];
+  const out: ScriptureMatch[] = [];
+  for (const m of text.matchAll(REF_REGEX)) {
+    const [, bookRaw, chapter, verse, endVerse] = m;
+    const canonical = ALIAS_TO_CANONICAL.get(bookRaw.toLowerCase());
+    if (!canonical) continue;
+    let ref = `${canonical} ${chapter}`;
+    if (verse) {
+      ref += `:${verse}`;
+      if (endVerse) ref += `-${endVerse}`;
+    }
+    const start = m.index ?? 0;
+    out.push({ start, end: start + m[0].length, raw: m[0], canonical: ref });
+  }
+  return out;
+}

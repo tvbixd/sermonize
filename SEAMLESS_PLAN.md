@@ -100,12 +100,22 @@ that path.
   **Cadence stays 30s** and the queue runs serial (`MAX_CONCURRENT = 1`), so
   behaviour is identical today; Phase 2 raises the concurrency and surfaces the
   two-stage state. Zero visible change. Covered by `__tests__/live-pipeline.test.ts`.
-- **Phase 2 — The visible win.** Adaptive ~8s cadence + live transcript +
-  two-stage cards + real waveform. *~2–3 days + device testing.*
+- **Phase 2 — The visible win. ⚙️ Built — needs a device build to validate.**
   **Chosen layout: "Spotlight"** (see `design/live-recording/`) — the transcript
   gets the room, only the current verse is shown in a rich card, and the rest tuck
-  behind a quiet "N found" pill that opens the full list. No fake status bar, one
-  primary action, serif verse text.
+  behind a quiet "N found" pill that opens the full list. Shipped:
+  - Cadence dropped 30s → **8s** (`SermonRecorder.CHUNK_MS`); queue concurrency
+    1 → **2** (`RecordingEngine.MAX_CONCURRENT`); **adaptive backoff** retries a
+    rate-limited chunk instead of dropping its audio.
+  - **Real metered waveform** (`isMeteringEnabled` + `getMeterLevel`, dBFS→0..1),
+    with a gentle idle shimmer fallback (`LiveWaveform`).
+  - **Live transcript** with inline canonical references (`LiveTranscript` +
+    `findScriptureMatches`); **two-stage spotlight card** (Finding… → verse);
+    **"N found"** pill opens the full list.
+  - **Needs on-device validation**: metering values, 8s-chunk rotation reliability
+    (more frequent native `prepareToRecordAsync`), and 429 behaviour on the free
+    tier. These can't be verified off-device — budget one build cycle. If 8s
+    proves too aggressive for the rate limit, raise `CHUNK_MS` (single constant).
 - **Phase 3 — Polish.** Motion, haptics, empty states, calm light/dark pass,
   accessibility. *~2 days.*
 

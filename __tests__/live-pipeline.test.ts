@@ -10,7 +10,7 @@ jest.mock('expo-secure-store', () => ({
 }));
 
 import { useSessionStore } from '@/state/sessionStore';
-import { findScriptureReferences } from '@/services/scriptureRegex';
+import { findScriptureReferences, findScriptureMatches } from '@/services/scriptureRegex';
 
 describe('two-stage live scripture store', () => {
   beforeEach(() => useSessionStore.getState().reset());
@@ -67,5 +67,35 @@ describe('rolling-window detection across chunk boundaries', () => {
     const transcript = 'turn with me to the gospel of Matthew chapter 12 verse 24 where it says';
     const tail = transcript.slice(-260);
     expect(findScriptureReferences(tail)).toContain('Matthew 12:24');
+  });
+});
+
+describe('findScriptureMatches (inline transcript highlighting)', () => {
+  it('returns the spoken span and its canonical form with correct positions', () => {
+    const text = 'as Paul says in Romans chapter 8 verse 28 today';
+    const [m] = findScriptureMatches(text);
+    expect(m.canonical).toBe('Romans 8:28');
+    expect(text.slice(m.start, m.end)).toBe(m.raw);
+    expect(m.raw).toContain('Romans chapter 8 verse 28');
+  });
+
+  it('returns multiple references in document order', () => {
+    const text = 'quote John 3:16, then Romans 8:28';
+    const matches = findScriptureMatches(text);
+    expect(matches.map((m) => m.canonical)).toEqual(['John 3:16', 'Romans 8:28']);
+    expect(matches[0].start).toBeLessThan(matches[1].start);
+  });
+
+  it('lets a caller rebuild the text with canonical references in place', () => {
+    const text = 'open to Matthew chapter 12 verse 24';
+    const matches = findScriptureMatches(text);
+    let out = '';
+    let i = 0;
+    for (const m of matches) {
+      out += text.slice(i, m.start) + m.canonical;
+      i = m.end;
+    }
+    out += text.slice(i);
+    expect(out).toBe('open to Matthew 12:24');
   });
 });

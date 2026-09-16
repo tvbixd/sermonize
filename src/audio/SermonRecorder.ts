@@ -40,7 +40,10 @@ export class SermonRecorder {
 
   private chunkTimer: ReturnType<typeof setInterval> | null = null;
   private rotating = false;
-  static readonly CHUNK_MS = 30_000;
+  // Shorter chunks = scriptures surface within seconds instead of ~30s. Groq
+  // bills audio-seconds (unchanged by chunk size); the extra request volume is
+  // absorbed by the engine's concurrency-limited queue + adaptive backoff.
+  static readonly CHUNK_MS = 8_000;
 
   constructor(targetDir: string) {
     this.targetDir = targetDir;
@@ -50,7 +53,8 @@ export class SermonRecorder {
   // (32 kbps is the safe ceiling for 16 kHz mono AAC; higher fails to prepare.)
   private static recordingOptions(): RecordingOptions {
     return {
-      isMeteringEnabled: false,
+      // Metering drives the live waveform (getMeterLevel below).
+      isMeteringEnabled: true,
       extension: '.m4a',
       sampleRate: 16000,
       numberOfChannels: 1,
@@ -228,6 +232,23 @@ export class SermonRecorder {
   getElapsedMs(): number {
     const live = this.segmentStartedAt != null ? Date.now() - this.segmentStartedAt : 0;
     return this.accumulatedMs + live;
+  }
+
+  /**
+   * Current input level as 0..1 for the live waveform, derived from the
+   * recorder's metering (dBFS, roughly -60 quiet … 0 loud). Returns 0 when
+   * metering isn't available (e.g. between segments), so the UI can fall back
+   * to a gentle idle animation.
+   */
+  getMeterLevel(): number {
+    try {
+      const db = this.current?.getStatus?.().metering;
+      if (typeof db !== 'number' || Number.isNaN(db)) return 0;
+      const norm = (db + 60) / 60; // -60dB → 0, 0dB → 1
+      return Math.max(0, Math.min(1, norm));
+    } catch {
+      return 0;
+    }
   }
 
   /** Snapshot of all segments persisted so far (for mid-recording drafts). */

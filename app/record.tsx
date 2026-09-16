@@ -1,10 +1,11 @@
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
   Easing,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,6 +21,8 @@ import { extractOutline } from '@/services/outline';
 import { buildLocalOutline } from '@/services/localOutline';
 import { findScriptureReferences } from '@/services/scriptureRegex';
 import { ScriptureCard } from '@/components/ScriptureCard';
+import { LiveWaveform } from '@/components/LiveWaveform';
+import { LiveTranscript } from '@/components/LiveTranscript';
 import { useSessionStore } from '@/state/sessionStore';
 import { getGroqKey, getTranslation } from '@/storage/keys';
 import { saveSermon } from '@/storage/sermons';
@@ -76,6 +79,7 @@ export default function RecordScreen() {
   const elapsedMs      = useSessionStore((s) => s.elapsedMs);
   const errorMessage   = useSessionStore((s) => s.errorMessage);
   const liveScriptures = useSessionStore((s) => s.liveScriptures);
+  const liveTranscript = useSessionStore((s) => s.liveTranscript);
   const chunkWarning   = useSessionStore((s) => s.chunkWarning);
   const audioOnlyMode  = useSessionStore((s) => s.audioOnlyMode);
 
@@ -84,12 +88,17 @@ export default function RecordScreen() {
   const setError  = useSessionStore((s) => s.setError);
   const reset     = useSessionStore((s) => s.reset);
 
-  // Phase 1 keeps the screen unchanged: only fully resolved verses are shown
-  // (the `resolving` placeholders exist in the store for the Phase 2 UI).
+  // Verses with text (or a definitive "failed") — used for the count and the
+  // "all found" list. The most recent detected reference (any status) is spotlit.
   const resolvedScriptures = useMemo(
     () => liveScriptures.filter((s) => s.status !== 'resolving'),
     [liveScriptures],
   );
+  const latestScripture = liveScriptures.length ? liveScriptures[liveScriptures.length - 1] : undefined;
+
+  const [showAll, setShowAll] = useState(false);
+  const getMeterLevel = useCallback(() => recordingEngine.getMeterLevel(), []);
+  const transcriptScrollRef = useRef<ScrollView>(null);
 
   const finalizingRef = useRef(false);
 
@@ -260,11 +269,7 @@ export default function RecordScreen() {
   const stepIndex: Record<string, number> = { transcribing: 1, outlining: 2, scriptures: 3, saving: 4 };
   const stepNext: Record<string, string> = { transcribing: 'Building outline next', outlining: 'Looking up scriptures next', scriptures: 'Saving next', saving: '' };
 
-  const ringColor = isActive ? t.accentRed : t.textTertiary;
-
-  // Record button inner shape
-  const innerSize = status === 'recording' ? 64 : 112;
-  const innerRadius = status === 'recording' ? 12 : status === 'paused' ? 22 : 56;
+  const ringColor = t.textTertiary;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: t.bgPrimary }]} edges={['top', 'bottom']}>
@@ -280,9 +285,11 @@ export default function RecordScreen() {
         <TouchableOpacity
           onPress={isActive ? onDiscard : () => router.back()}
           hitSlop={8}
-          style={[styles.cancelBtn, isActive && { opacity: 0.4 }]}
+          style={styles.cancelBtn}
         >
-          <Text style={styles.navText}>Cancel</Text>
+          <Text style={[styles.navText, isActive && { color: t.accentRed }]}>
+            {isActive ? 'Discard' : 'Cancel'}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -329,7 +336,7 @@ export default function RecordScreen() {
             ))}
           </View>
         </View>
-      ) : (
+      ) : status === 'idle' ? (
         <>
           {/* Record button */}
           <View style={styles.btnArea}>
@@ -338,79 +345,116 @@ export default function RecordScreen() {
               style={[styles.ring, { borderColor: ringColor }]}
               activeOpacity={0.9}
               accessibilityRole="button"
-              accessibilityLabel={
-                status === 'idle' ? 'Start recording'
-                  : status === 'recording' ? 'Pause recording'
-                  : 'Resume recording'
-              }
+              accessibilityLabel="Start recording"
             >
               <View style={[styles.innerShape, {
-                width: innerSize,
-                height: innerSize,
-                borderRadius: innerRadius,
-                backgroundColor: t.accentRed,
+                width: 112, height: 112, borderRadius: 56, backgroundColor: t.accentRed,
               }]} />
             </TouchableOpacity>
-            <Text style={[styles.btnLabel, { color: t.textSecondary }]}>
-              {status === 'idle' ? 'Tap to Record'
-                : status === 'recording' ? 'Tap to Pause'
-                : 'Tap to Resume'}
-            </Text>
+            <Text style={[styles.btnLabel, { color: t.textSecondary }]}>Tap to Record</Text>
           </View>
 
-          {status === 'idle' && (
-            <View style={styles.idleHint}>
-              <View style={styles.idleBars}>
-                {IDLE_BARS.map((h, i) => (
-                  <View
-                    key={i}
-                    style={[styles.idleBar, {
-                      height: h,
-                      backgroundColor: t.textTertiary,
-                    }]}
-                  />
-                ))}
-              </View>
-              <Text style={[styles.hintText, { color: t.textSecondary }]}>
-                {'Scriptures appear live as they\'re mentioned.\nYou get a full outline when you finish.'}
-              </Text>
+          <View style={styles.idleHint}>
+            <View style={styles.idleBars}>
+              {IDLE_BARS.map((h, i) => (
+                <View key={i} style={[styles.idleBar, { height: h, backgroundColor: t.textTertiary }]} />
+              ))}
+            </View>
+            <Text style={[styles.hintText, { color: t.textSecondary }]}>
+              {'Scriptures appear live as they\'re mentioned.\nYou get a full outline when you finish.'}
+            </Text>
+          </View>
+        </>
+      ) : (
+        /* Recording / paused — the live "Spotlight" screen */
+        <View style={styles.liveWrap}>
+          {chunkWarning && (
+            <View style={styles.warningBanner}><Text style={styles.warningText}>{chunkWarning}</Text></View>
+          )}
+          {audioOnlyMode && (
+            <View style={[styles.warningBanner, { backgroundColor: t.accentBlue }]}>
+              <Text style={styles.warningText}>Audio only — scripture detection paused</Text>
             </View>
           )}
 
-          {isActive && (
-            <ScrollView style={styles.livePanels} contentContainerStyle={{ gap: 10, paddingBottom: 16 }}>
-              {chunkWarning && (
-                <View style={styles.warningBanner}>
-                  <Text style={styles.warningText}>{chunkWarning}</Text>
-                </View>
-              )}
-              {audioOnlyMode && (
-                <View style={[styles.warningBanner, { backgroundColor: t.accentBlue }]}>
-                  <Text style={styles.warningText}>Audio only mode — scripture detection paused</Text>
-                </View>
-              )}
-              <Text style={[styles.panelLabel, { color: t.textSecondary, paddingHorizontal: 4 }]}>
-                SCRIPTURES {resolvedScriptures.length > 0 ? `(${resolvedScriptures.length})` : ''}
-              </Text>
-              {resolvedScriptures.length === 0 ? (
-                <View style={[styles.panel, { backgroundColor: t.bgSurface }]}>
-                  <Text style={[styles.panelText, { color: t.textSecondary }]}>
-                    Scriptures will appear here as they're mentioned.
-                  </Text>
-                </View>
+          <LiveWaveform getLevel={getMeterLevel} active={status === 'recording'} color={t.accentRed} />
+
+          <View style={styles.txWrap}>
+            <Text style={[styles.eyebrow, { color: t.textTertiary }]}>Live transcript</Text>
+            <ScrollView
+              ref={transcriptScrollRef}
+              style={styles.txScroll}
+              onContentSizeChange={() => transcriptScrollRef.current?.scrollToEnd({ animated: true })}
+              showsVerticalScrollIndicator={false}
+            >
+              {liveTranscript.trim() ? (
+                <LiveTranscript text={liveTranscript} />
               ) : (
-                dedupeScriptures([...resolvedScriptures]).reverse().map((sc, i) => (
-                  <ScriptureCard key={`${sc.reference}-${i}`} scripture={sc} />
-                ))
+                <Text style={[styles.txPlaceholder, { color: t.textTertiary }]}>
+                  Listening… your words will appear here.
+                </Text>
               )}
             </ScrollView>
-          )}
-        </>
+          </View>
+
+          <View style={styles.spotHeader}>
+            <Text style={[styles.eyebrow, { color: t.textTertiary }]}>{audioOnlyMode ? 'Audio only' : 'Just now'}</Text>
+            {resolvedScriptures.length > 0 && (
+              <TouchableOpacity
+                style={[styles.pill, { backgroundColor: t.bgSurface, borderColor: t.separator }]}
+                onPress={() => setShowAll(true)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Show all ${resolvedScriptures.length} scriptures found`}
+              >
+                <Text style={[styles.pillText, { color: t.textSecondary }]}>{resolvedScriptures.length} found</Text>
+                <Text style={[styles.pillChevron, { color: t.textTertiary }]}>›</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={[styles.spotCard, { backgroundColor: t.bgSurface, borderColor: t.separator }]}>
+            {latestScripture ? (
+              <>
+                <View style={styles.spotRefRow}>
+                  <Text style={[styles.spotRef, { color: t.accentBlue }]}>{latestScripture.reference}</Text>
+                  {latestScripture.translation ? (
+                    <View style={[styles.spotChip, { borderColor: t.accentGold }]}>
+                      <Text style={[styles.spotChipText, { color: t.accentGold }]}>{latestScripture.translation}</Text>
+                    </View>
+                  ) : null}
+                </View>
+                {latestScripture.text ? (
+                  <Text style={[styles.spotText, { color: t.textPrimary }]}>{'“' + latestScripture.text + '”'}</Text>
+                ) : latestScripture.status === 'resolving' ? (
+                  <Text style={[styles.spotFinding, { color: t.textSecondary }]}>Finding verse…</Text>
+                ) : (
+                  <Text style={[styles.spotFinding, { color: t.textSecondary }]}>Verse text unavailable.</Text>
+                )}
+              </>
+            ) : (
+              <Text style={[styles.spotFinding, { color: t.textSecondary }]}>
+                Scriptures appear here the moment they're spoken.
+              </Text>
+            )}
+          </View>
+        </View>
       )}
 
       {/* Bottom bar */}
       {isActive && (
         <View style={styles.bottomBar}>
+          <TouchableOpacity
+            style={[styles.discardBtn, { backgroundColor: t.bgSurface, borderWidth: 0.5, borderColor: t.separator }]}
+            onPress={onRecordPress}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={status === 'recording' ? 'Pause recording' : 'Resume recording'}
+          >
+            <Text style={[styles.discardText, { color: t.textPrimary }]}>
+              {status === 'recording' ? 'Pause' : 'Resume'}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.stopBtn, { backgroundColor: t.accentBlue }]}
             onPress={onStop}
@@ -419,15 +463,6 @@ export default function RecordScreen() {
             accessibilityLabel="Stop and save sermon"
           >
             <Text style={styles.stopText}>Stop & Save</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.discardBtn, { backgroundColor: t.bgSurface, borderWidth: 0.5, borderColor: t.separator }]}
-            onPress={onDiscard}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Discard recording"
-          >
-            <Text style={[styles.discardText, { color: t.accentRed }]}>Discard</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -449,6 +484,28 @@ export default function RecordScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* All scriptures found so far (from the "N found" pill) */}
+      <Modal visible={showAll} animationType="slide" transparent onRequestClose={() => setShowAll(false)}>
+        <View style={[styles.modalBackdrop, { backgroundColor: t.dimOverlay }]}>
+          <View style={[styles.modalSheet, { backgroundColor: t.bgPrimary }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: t.textPrimary }]}>
+                Scriptures found {resolvedScriptures.length > 0 ? `(${resolvedScriptures.length})` : ''}
+              </Text>
+              <TouchableOpacity onPress={() => setShowAll(false)} hitSlop={8}>
+                <Text style={[styles.navText, { color: t.accentBlue }]}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: spacing.md, gap: 10 }}>
+              {dedupeScriptures([...resolvedScriptures]).reverse().map((sc, i) => (
+                <ScriptureCard key={`${sc.reference}-${i}`} scripture={sc} />
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -501,8 +558,57 @@ function makeStyles(t: Colors) {
       borderRadius: radius.small,
       paddingHorizontal: 14,
       paddingVertical: 10,
+      marginBottom: 8,
     },
     warningText: { ...typography.footnote, color: '#fff', fontWeight: '600', textAlign: 'center' },
+
+    // ── Live "Spotlight" screen ──────────────────────────────────────────────
+    liveWrap: { flex: 1, paddingHorizontal: spacing.md, paddingTop: 14 },
+    eyebrow: {
+      fontSize: 11, fontWeight: '700', letterSpacing: 0.9, textTransform: 'uppercase',
+      marginBottom: 8,
+    },
+    txWrap: { flex: 1, minHeight: 0, marginTop: 20 },
+    txScroll: { flex: 1 },
+    txPlaceholder: { ...typography.body },
+    spotHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      marginTop: 16, marginBottom: 8,
+    },
+    pill: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      borderWidth: 0.5, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 5,
+    },
+    pillText: { ...typography.footnote, fontWeight: '600' },
+    pillChevron: { fontSize: 16, fontWeight: '600', marginTop: -1 },
+    spotCard: {
+      borderRadius: radius.card, borderWidth: 0.5, padding: 16, marginBottom: 6,
+    },
+    spotRefRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    spotRef: { ...typography.title3, fontWeight: '700' },
+    spotChip: {
+      marginLeft: 'auto', borderWidth: 1, borderRadius: radius.pill,
+      paddingHorizontal: 8, paddingVertical: 1.5,
+    },
+    spotChipText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+    spotText: { ...typography.callout, lineHeight: 24, marginTop: 9, fontStyle: 'italic' },
+    spotFinding: { ...typography.subhead, marginTop: 4 },
+
+    // ── "All found" sheet ────────────────────────────────────────────────────
+    modalBackdrop: { flex: 1, justifyContent: 'flex-end' },
+    modalSheet: {
+      maxHeight: '78%', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+      paddingBottom: 8,
+    },
+    modalHandle: {
+      alignSelf: 'center', width: 36, height: 4, borderRadius: 2,
+      backgroundColor: t.textTertiary, marginTop: 8, marginBottom: 4,
+    },
+    modalHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingHorizontal: spacing.md, paddingVertical: 8,
+    },
+    modalTitle: { ...typography.headline },
     panel: { borderRadius: radius.card, padding: 12 },
     panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     panelLabel: {

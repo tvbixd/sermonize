@@ -46,19 +46,24 @@ class RecordingEngine {
 
   // ── Transcription queue ────────────────────────────────────────────────────
   // Chunks are transcribed through a small concurrency-limited queue and their
-  // text is emitted STRICTLY in capture order, so raising MAX_CONCURRENT later
-  // (Phase 2) can never scramble the transcript. MAX_CONCURRENT = 1 keeps today's
-  // serial behaviour exactly.
-  private static readonly MAX_CONCURRENT = 1;
+  // text is emitted STRICTLY in capture order, so raising MAX_CONCURRENT can
+  // never scramble the transcript. With ~8s chunks a couple in flight keeps up
+  // with the recorder without bursting Groq's rate limit.
+  private static readonly MAX_CONCURRENT = 2;
   // Detection runs over the tail of the accumulated transcript (not the isolated
   // chunk) so references split across a chunk boundary are still caught.
   private static readonly DETECT_WINDOW = 260;
-  private queue: { seq: number; uri: string }[] = [];
+  // A rate-limited chunk is retried this many times (with backoff) before it's
+  // skipped and the user is told — so a brief 429 doesn't drop audio text.
+  private static readonly MAX_RATE_RETRIES = 3;
+  private queue: { seq: number; uri: string; tries: number }[] = [];
   private enqueuedSeq = 0;
   private nextEmit = 0;
   private active = 0;
   private draining = false;
   private ready = new Map<number, string>();
+  private backoffUntil = 0;
+  private backoffTimer: ReturnType<typeof setTimeout> | null = null;
 
   private get store() {
     return useSessionStore.getState();
@@ -104,6 +109,8 @@ class RecordingEngine {
     this.active = 0;
     this.draining = false;
     this.ready = new Map();
+    this.backoffUntil = 0;
+    if (this.backoffTimer) { clearTimeout(this.backoffTimer); this.backoffTimer = null; }
     this.rateLimitAlertActive = false;
     this.authAlertShown = false;
 
@@ -222,6 +229,11 @@ class RecordingEngine {
     return this.recorder?.getElapsedMs() ?? 0;
   }
 
+  /** Live input level 0..1 for the waveform (0 when unavailable). */
+  getMeterLevel(): number {
+    return this.recorder?.getMeterLevel() ?? 0;
+  }
+
   // ── Internals ──────────────────────────────────────────────────────────────
 
   private startTicker() {
@@ -274,12 +286,20 @@ class RecordingEngine {
 
   private onChunkReady = (chunkUri: string) => {
     if (this.audioOnly) return;
-    this.queue.push({ seq: this.enqueuedSeq++, uri: chunkUri });
+    this.queue.push({ seq: this.enqueuedSeq++, uri: chunkUri, tries: 0 });
     this.pump();
   };
 
-  /** Start as many queued chunks as the concurrency limit allows. */
+  /** Start as many queued chunks as the concurrency limit allows, honouring an
+   *  active rate-limit backoff. */
   private pump() {
+    const now = Date.now();
+    if (now < this.backoffUntil) {
+      if (!this.backoffTimer) {
+        this.backoffTimer = setTimeout(() => { this.backoffTimer = null; this.pump(); }, this.backoffUntil - now);
+      }
+      return;
+    }
     while (this.active < RecordingEngine.MAX_CONCURRENT && this.queue.length > 0) {
       const item = this.queue.shift()!;
       this.active += 1;
@@ -293,16 +313,24 @@ class RecordingEngine {
   }
 
   /** Transcribe one chunk, then release its text into the in-order emitter. A
-   *  failed chunk still advances the sequence so it can't stall later chunks. */
-  private async transcribeItem({ seq, uri }: { seq: number; uri: string }) {
+   *  rate-limited chunk backs off and retries (audio isn't lost); other failures
+   *  still advance the sequence so they can't stall later chunks. */
+  private async transcribeItem(item: { seq: number; uri: string; tries: number }) {
     let text = '';
     try {
-      text = await transcribeChunks([uri], this.groqKey);
+      text = await transcribeChunks([item.uri], this.groqKey);
     } catch (e) {
+      if (e instanceof RateLimitError && item.tries < RecordingEngine.MAX_RATE_RETRIES) {
+        // Back off and retry this same chunk (keeps capture order via its seq).
+        this.backoffUntil = Math.max(this.backoffUntil, Date.now() + Math.min(e.retryAfterMs || 5000, 30000));
+        this.store.setChunkWarning('Catching up on transcription…');
+        this.queue.unshift({ ...item, tries: item.tries + 1 });
+        return; // don't set ready[seq]; the retry will
+      }
       this.handleChunkError(e);
       text = '';
     }
-    this.ready.set(seq, text);
+    this.ready.set(item.seq, text);
     await this.drainReady();
   }
 
