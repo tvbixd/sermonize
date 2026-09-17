@@ -1,4 +1,4 @@
-import { Audio } from 'expo-av';
+import { requestRecordingPermissionsAsync } from 'expo-audio';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -798,7 +798,7 @@ function MicSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: Retu
 
   const requestPermission = async () => {
     try {
-      const { granted: g } = await Audio.requestPermissionsAsync();
+      const { granted: g } = await requestRecordingPermissionsAsync();
       if (g) {
         setGranted(true);
         Animated.spring(grantedScale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();

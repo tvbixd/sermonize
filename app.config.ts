@@ -10,13 +10,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   scheme: 'scribe',
-  newArchEnabled: true,
   icon: './assets/icon.png',
-  splash: {
-    image: './assets/splash.png',
-    resizeMode: 'contain',
-    backgroundColor: '#F2F2F7',
-  },
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.breakandbuild.scribe',
@@ -52,7 +46,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#FFFFFF',
     },
-    // No FOREGROUND_SERVICE* here: expo-av runs no foreground service, and
+    // No FOREGROUND_SERVICE* here: expo-audio runs no foreground service, and
     // declaring the permission without one risks Play Store rejection. Android
     // recording is foreground-only for now (see BACKGROUND_RECORDING.md).
     permissions: [
@@ -70,10 +64,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-router',
     'expo-dev-client',
     [
-      'expo-av',
+      'expo-splash-screen',
       {
-        microphonePermission:
-          'Scribe needs microphone access to record sermons for transcription and outlining.',
+        image: './assets/splash.png',
+        resizeMode: 'contain',
+        backgroundColor: '#F2F2F7',
       },
     ],
     'expo-secure-store',

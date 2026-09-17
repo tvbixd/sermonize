@@ -1,4 +1,9 @@
-import { Audio, type AVPlaybackStatus } from 'expo-av';
+import {
+  createAudioPlayer,
+  setAudioModeAsync,
+  type AudioPlayer as ExpoAudioPlayer,
+  type AudioStatus,
+} from 'expo-audio';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Svg, Path, Rect } from 'react-native-svg';
@@ -25,7 +30,8 @@ type Props = {
 export function AudioPlayer({ uris, totalDurationMs }: Props) {
   const t = useTheme();
 
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const playerRef = useRef<ExpoAudioPlayer | null>(null);
+  const subRef = useRef<{ remove: () => void } | null>(null);
   const indexRef = useRef(0);
   const completedMsRef = useRef(0);
   const [playing, setPlaying] = useState(false);
@@ -35,58 +41,59 @@ export function AudioPlayer({ uris, totalDurationMs }: Props) {
 
   useEffect(() => {
     return () => {
-      void soundRef.current?.unloadAsync().catch(() => {});
+      try { subRef.current?.remove(); } catch { /* already gone */ }
+      try { playerRef.current?.remove(); } catch { /* already gone */ }
+      playerRef.current = null;
     };
   }, []);
 
-  const onStatus = (status: AVPlaybackStatus) => {
+  // expo-audio reports time in SECONDS; the UI works in milliseconds.
+  const onStatus = (status: AudioStatus) => {
     if (!status.isLoaded) return;
-    setPositionMs(completedMsRef.current + (status.positionMillis ?? 0));
+    setPositionMs(completedMsRef.current + Math.round(status.currentTime * 1000));
     if (status.didJustFinish) {
-      completedMsRef.current += status.durationMillis ?? status.positionMillis ?? 0;
-      void playIndex(indexRef.current + 1);
+      completedMsRef.current += Math.round((status.duration || status.currentTime) * 1000);
+      playIndex(indexRef.current + 1);
     }
   };
 
-  const playIndex = async (i: number) => {
-    await soundRef.current?.unloadAsync().catch(() => {});
-    soundRef.current = null;
+  const playIndex = (i: number) => {
+    const player = playerRef.current;
+    if (!player) return;
     if (i >= uris.length) {
-      // End of recording — reset to the start.
+      // End of recording — rewind to the first chunk, paused.
       indexRef.current = 0;
       completedMsRef.current = 0;
       setPositionMs(0);
       setPlaying(false);
+      try { player.replace({ uri: uris[0] }); player.pause(); } catch { /* ignore */ }
       return;
     }
     indexRef.current = i;
-    const { sound } = await Audio.Sound.createAsync(
-      { uri: uris[i] },
-      { shouldPlay: true, progressUpdateIntervalMillis: 250 },
-      onStatus,
-    );
-    soundRef.current = sound;
+    player.replace({ uri: uris[i] });
+    player.play();
     setPlaying(true);
   };
 
   const onToggle = async () => {
     try {
       setError(false);
-      if (!soundRef.current) {
+      if (!playerRef.current) {
         setLoading(true);
-        // allowsRecordingIOS routes audio to the earpiece — switch it off
-        // for playback so the speaker is used.
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-        await playIndex(0);
+        // Route audio to the speaker (not the earpiece) for playback.
+        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+        const player = createAudioPlayer(null, { updateInterval: 250 });
+        subRef.current = player.addListener('playbackStatusUpdate', onStatus);
+        playerRef.current = player;
+        playIndex(0);
         setLoading(false);
         return;
       }
-      const status = await soundRef.current.getStatusAsync();
-      if (status.isLoaded && status.isPlaying) {
-        await soundRef.current.pauseAsync();
+      if (playerRef.current.playing) {
+        playerRef.current.pause();
         setPlaying(false);
       } else {
-        await soundRef.current.playAsync();
+        playerRef.current.play();
         setPlaying(true);
       }
     } catch {
