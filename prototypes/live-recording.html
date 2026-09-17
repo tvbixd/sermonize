@@ -149,6 +149,9 @@
   .note{width:100%;max-width:430px;color:var(--ink-2);font-size:12.5px;line-height:1.55;text-align:center}
   .note b{color:var(--ink)}
   :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  /* bare capture mode: just the phone, for recording a clip */
+  body.bare{padding:22px 24px;justify-content:center}
+  body.bare .masthead,body.bare .controls,body.bare .note{display:none}
 </style>
 
 <div class="masthead">
@@ -215,6 +218,7 @@
 </div>
 
 <script>
+if (location.search.includes('bare')) document.body.classList.add('bare');
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* scripted sermon: words stream; some words carry a verse that pops */
