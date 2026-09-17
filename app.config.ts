@@ -54,12 +54,19 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'WAKE_LOCK',
     ],
   },
-  updates: {
-    url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
-  },
-  runtimeVersion: {
-    policy: 'appVersion',
-  },
+  // Skip the EAS Update association when testing in Expo Go (set EXPO_GO=1),
+  // otherwise Expo Go forces an account auth handshake to open the project.
+  // Production/EAS builds keep OTA updates as normal.
+  ...(process.env.EXPO_GO
+    ? {}
+    : {
+        updates: {
+          url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
+        },
+        runtimeVersion: {
+          policy: 'appVersion' as const,
+        },
+      }),
   plugins: [
     'expo-router',
     'expo-dev-client',
