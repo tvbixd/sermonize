@@ -95,28 +95,49 @@ photos, browsing history, device/advertising IDs — **not collected**.
   declare that you do **not** use it.
 
 ## Android permissions (and the foreground-service form)
-- The app requests only **RECORD_AUDIO** (microphone, for recording sermons) and
-  **WAKE_LOCK**. Both are standard and need no special declaration form.
-- **There is NO foreground-service permission.** Recording on Android is
-  **foreground-only** — it runs while the app is open on screen; if the user
-  backgrounds the app or locks the phone, capture stops (audio up to that moment
-  is saved). We intentionally do **not** declare `FOREGROUND_SERVICE` /
-  `FOREGROUND_SERVICE_MICROPHONE`, because the app runs no such service and a
-  declared-but-unused foreground-service permission triggers Play review
-  rejection.
-- **If Play's "Foreground service permissions" declaration form appears anyway:**
-  it should not, since the manifest declares none. If it does, it means a
-  dependency injected one — remove it before submitting rather than filling the
-  form. As of this build the manifest is clean.
-- **Microphone-in-background disclosure:** because the app does **not** record in
-  the background, you do **not** need the "records audio in the background"
-  disclosure. Keep the store listing/description free of any "records with the
-  screen off / in your pocket" claims on Android to stay consistent.
+The final Android manifest (after Expo's config plugins run) declares:
 
-> Roadmap note: true background recording on Android (via `expo-audio` + a mic
-> foreground service) is planned post-launch (see `FUTURE.md`). When that ships,
-> you WILL re-add `FOREGROUND_SERVICE_MICROPHONE` and must then complete Play's
-> foreground-service declaration form justifying it.
+| Permission | Source | Why |
+|---|---|---|
+| `RECORD_AUDIO` | ours | Record sermons (microphone). |
+| `WAKE_LOCK` | ours | Keep the CPU/screen awake while recording. |
+| `MODIFY_AUDIO_SETTINGS` | expo-audio | Configure the audio session. |
+| `FOREGROUND_SERVICE` | expo-audio | Umbrella permission for the media service. |
+| `FOREGROUND_SERVICE_MEDIA_PLAYBACK` | expo-audio | Background **playback** of a recorded sermon (lock-screen / screen-off). |
+
+- **There IS a foreground-service permission**, but it is for **media playback**,
+  not recording. `expo-audio` injects `FOREGROUND_SERVICE` +
+  `FOREGROUND_SERVICE_MEDIA_PLAYBACK` so a saved sermon can keep playing when the
+  app is backgrounded or the screen is off. It does **not** enable background
+  *recording* (that would need `FOREGROUND_SERVICE_MICROPHONE`, which we do not
+  declare — see the roadmap note).
+- **You MUST complete Play's "Foreground service permissions" declaration** for
+  `FOREGROUND_SERVICE_MEDIA_PLAYBACK`. Copy-paste answers:
+  - **Which foreground service type(s) do you use?** → **Media playback**
+  - **What is the core functionality that uses it?**
+    > "Scribe records sermons and lets the user play a saved recording back.
+    > The media-playback foreground service lets that audio continue when the
+    > screen is off or the app is in the background, with standard lock-screen
+    > playback controls."
+  - **Why can't this use a different API (e.g. WorkManager / JobScheduler)?**
+    > "The user actively starts playback and expects continuous, uninterrupted
+    > audio with lock-screen controls; deferrable background APIs cannot provide
+    > real-time, user-initiated media playback."
+  - **Video/demo link (if requested):** show recording a sermon, opening it,
+    tapping play, then locking the phone — audio keeps playing with lock-screen
+    controls. (The MP4 in `prototypes/` is the live-recording concept, not this
+    flow; capture a short screen recording of playback for the reviewer.)
+- **Recording itself is foreground-only** on Android for v1: if the user
+  backgrounds the app or locks the phone **while recording**, capture stops
+  (audio up to that moment is saved). So you do **not** need the "records audio
+  in the background" disclosure, and the store listing must not claim
+  record-with-screen-off on Android.
+
+> Roadmap note: true background *recording* on Android (a **microphone**
+> foreground service, `FOREGROUND_SERVICE_MICROPHONE`) is deferred post-launch
+> (see `BACKGROUND_RECORDING_SCOPE.md` / `FUTURE.md`). When it ships you'll add
+> that permission + service and extend this declaration to include the
+> **Microphone** foreground-service type.
 
 ---
 

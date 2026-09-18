@@ -35,7 +35,7 @@ All answers are pre-written in **`PLAY_CONSOLE_DECLARATIONS.md`**:
 - 🟡 Data safety → the table in the doc (email/name/profile, audio→Groq, encrypted in transit, deletion available)
 - 🟡 Government / Financial / Health / News / COVID → all No
 - 🟡 Advertising ID → No
-- ✅ Foreground-service permissions → **none declared** (recording is foreground-only; documented so Play won't flag it)
+- 🟡 Foreground-service permissions → **declaration REQUIRED** for `FOREGROUND_SERVICE_MEDIA_PLAYBACK` (auto-injected by expo-audio, for background playback of saved sermons). Type = **Media playback**; use the copy-paste answers in `PLAY_CONSOLE_DECLARATIONS.md`. (Recording itself is still foreground-only — no mic service.)
 
 ## 5. Internal testing release
 - 🟡 Play Console → **Testing → Internal testing → Create release** → upload the `.aab`
@@ -49,6 +49,7 @@ All answers are pre-written in **`PLAY_CONSOLE_DECLARATIONS.md`**:
 2. 🔴 **Feature graphic** (1024×500) — ask me to generate it.
 3. 🔴 **2+ screenshots** — capture from the running app.
 4. 🟡 **Groq test key** in the reviewer instructions.
+5. 🟡 **Foreground-service declaration** (Media playback) — form answers ready in `PLAY_CONSOLE_DECLARATIONS.md`; capture a short screen recording of sermon playback continuing with the screen off in case the reviewer asks for a demo.
 
 Everything else is either done or a 2-minute form entry.
 
