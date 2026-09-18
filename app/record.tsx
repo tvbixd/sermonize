@@ -2,6 +2,7 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   Alert,
   Animated,
   Easing,
@@ -28,7 +29,7 @@ import { getGroqKey, getTranslation } from '@/storage/keys';
 import { saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Sermon } from '@/types';
-import { heavyTap, mediumTap } from '@/util/haptics';
+import { heavyTap, lightTap, mediumTap } from '@/util/haptics';
 import { BackChevronIcon } from '@/components/icons';
 import { logEvent, logCrash } from '@/services/logger';
 import { checkConnectivity } from '@/services/network';
@@ -99,6 +100,48 @@ export default function RecordScreen() {
   const [showAll, setShowAll] = useState(false);
   const getMeterLevel = useCallback(() => recordingEngine.getMeterLevel(), []);
   const transcriptScrollRef = useRef<ScrollView>(null);
+
+  // ── Phase 3 polish: reduced-motion, haptics, entrance + pulse animations ──
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => { if (mounted) setReduceMotion(!!v); }).catch(() => {});
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => setReduceMotion(!!v));
+    return () => { mounted = false; sub?.remove?.(); };
+  }, []);
+
+  // Soft haptic when a new verse resolves onto the screen.
+  const prevFoundRef = useRef(0);
+  useEffect(() => {
+    if (resolvedScriptures.length > prevFoundRef.current) lightTap();
+    prevFoundRef.current = resolvedScriptures.length;
+  }, [resolvedScriptures.length]);
+
+  // Spotlight card slides/fades in whenever the current verse changes.
+  const spotAnim = useRef(new Animated.Value(1)).current;
+  const lastSpotRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const ref = latestScripture?.reference;
+    if (!ref || ref === lastSpotRef.current) return;
+    lastSpotRef.current = ref;
+    if (reduceMotion) { spotAnim.setValue(1); return; }
+    spotAnim.setValue(0);
+    Animated.timing(spotAnim, { toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  }, [latestScripture?.reference, reduceMotion, spotAnim]);
+
+  // Gently pulse the REC dot while recording.
+  const dotPulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (status === 'recording' && !reduceMotion) {
+      const loop = Animated.loop(Animated.sequence([
+        Animated.timing(dotPulse, { toValue: 0.3, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(dotPulse, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ]));
+      loop.start();
+      return () => loop.stop();
+    }
+    dotPulse.setValue(1);
+  }, [status, reduceMotion, dotPulse]);
 
   const finalizingRef = useRef(false);
 
@@ -297,7 +340,7 @@ export default function RecordScreen() {
       <View style={[styles.timerSection, { paddingTop: status === 'idle' ? 80 : 28 }]}>
         <Text style={[styles.timer, { color: t.textPrimary }]}>{formatTimer(elapsedMs)}</Text>
         <View style={styles.statusRow}>
-          {status === 'recording' && <View style={styles.recDot} />}
+          {status === 'recording' && <Animated.View style={[styles.recDot, { opacity: dotPulse }]} />}
           {status === 'paused' && (
             <View style={styles.pauseBars}>
               <View style={[styles.pauseBar, { backgroundColor: t.textSecondary }]} />
@@ -379,7 +422,7 @@ export default function RecordScreen() {
 
           <LiveWaveform getLevel={getMeterLevel} active={status === 'recording'} color={t.accentRed} />
 
-          <View style={styles.txWrap}>
+          <View style={styles.txWrap} accessibilityLiveRegion="polite">
             <Text style={[styles.eyebrow, { color: t.textTertiary }]}>Live transcript</Text>
             <ScrollView
               ref={transcriptScrollRef}
@@ -413,7 +456,30 @@ export default function RecordScreen() {
             )}
           </View>
 
-          <View style={[styles.spotCard, { backgroundColor: t.bgSurface, borderColor: t.separator }]}>
+          <Animated.View
+            style={[
+              styles.spotCard,
+              {
+                backgroundColor: t.bgSurface,
+                borderColor: t.separator,
+                opacity: spotAnim,
+                transform: [{ translateY: spotAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
+              },
+            ]}
+            accessible
+            accessibilityLiveRegion="polite"
+            accessibilityLabel={
+              latestScripture
+                ? `${latestScripture.reference}${
+                    latestScripture.text
+                      ? '. ' + latestScripture.text
+                      : latestScripture.status === 'resolving'
+                        ? ', finding verse'
+                        : ', verse text unavailable'
+                  }`
+                : 'Scriptures appear here as they are spoken'
+            }
+          >
             {latestScripture ? (
               <>
                 <View style={styles.spotRefRow}>
@@ -437,7 +503,7 @@ export default function RecordScreen() {
                 Scriptures appear here the moment they're spoken.
               </Text>
             )}
-          </View>
+          </Animated.View>
         </View>
       )}
 

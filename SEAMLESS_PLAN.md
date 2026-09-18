@@ -116,8 +116,11 @@ that path.
     (more frequent native `prepareToRecordAsync`), and 429 behaviour on the free
     tier. These can't be verified off-device — budget one build cycle. If 8s
     proves too aggressive for the rate limit, raise `CHUNK_MS` (single constant).
-- **Phase 3 — Polish.** Motion, haptics, empty states, calm light/dark pass,
-  accessibility. *~2 days.*
+- **Phase 3 — Polish. ✅ Done (pending device feel-check).** On the live screen:
+  spotlight card fades/slides in when the current verse changes; a soft haptic
+  fires when a new verse resolves; the REC dot gently pulses; all motion honors
+  the OS "reduce motion" setting; and the transcript + spotlight card are
+  screen-reader live regions with a spoken label. tsc clean, 34 tests, bundles.
 
 ## How we prove it worked
 
