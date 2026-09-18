@@ -22,15 +22,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // iOS 26 Liquid Glass icon from Apple's Icon Composer (SDK 54+). Overrides
     // the top-level PNG on iOS; Android still uses the adaptiveIcon PNG below.
     icon: './assets/Scribe.icon',
-    // On-device Whisper loads a large model — these let it use the memory it
-    // needs instead of being killed mid-inference.
-    entitlements: {
-      'com.apple.developer.kernel.increased-memory-limit': true,
-      'com.apple.developer.kernel.extended-virtual-addressing': true,
-    },
     infoPlist: {
       NSMicrophoneUsageDescription:
         'Scribe needs microphone access to record sermons for transcription and outlining.',
+      // Enables recording to continue while backgrounded / screen-locked on iOS
+      // (paired with setAudioModeAsync shouldPlayInBackground in SermonRecorder).
       UIBackgroundModes: ['audio'],
       // Standard HTTPS only — skips the export-compliance question on
       // every TestFlight upload.
@@ -46,9 +42,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#FFFFFF',
     },
-    // No FOREGROUND_SERVICE* here: expo-audio runs no foreground service, and
-    // declaring the permission without one risks Play Store rejection. Android
-    // recording is foreground-only for now (see BACKGROUND_RECORDING.md).
+    // Recording is foreground-only on Android for v1 (iOS records while
+    // backgrounded/locked via UIBackgroundModes above). We deliberately do NOT
+    // add a MICROPHONE foreground service, so true Android background *recording*
+    // is deferred (see BACKGROUND_RECORDING_SCOPE.md). Note: the expo-audio
+    // plugin still injects FOREGROUND_SERVICE + FOREGROUND_SERVICE_MEDIA_PLAYBACK
+    // (for background audio *playback*), which requires a Play Console
+    // foreground-service declaration at submission. WAKE_LOCK + expo-keep-awake
+    // hold the screen on while Scribe is open.
     permissions: [
       'RECORD_AUDIO',
       'WAKE_LOCK',
