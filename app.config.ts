@@ -12,7 +12,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: 'scribe',
   icon: './assets/icon.png',
   ios: {
-    supportsTablet: true,
+    // iPhone-only for v1 — avoids the App Store iPad screenshot requirement and
+    // matches the phone-first design. Revisit if iPad support is added later.
+    supportsTablet: false,
     bundleIdentifier: 'com.breakandbuild.scribe',
     // Informational only. eas.json uses appVersionSource:"remote" +
     // autoIncrement, so EAS assigns the real buildNumber/versionCode on its
