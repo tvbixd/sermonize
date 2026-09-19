@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 
 const GROQ_KEY = 'scribe.groqApiKey';
+const DEEPGRAM_KEY = 'scribe.deepgramApiKey';
 const TRANSLATION_KEY = 'scribe.bibleTranslation';
 const ONBOARDED_KEY = 'scribe.onboarded';
 const AVATAR_KEY = 'scribe.avatarUri';
@@ -31,6 +32,23 @@ export async function getGroqKey(): Promise<string | null> {
 
 export async function setGroqKey(value: string): Promise<void> {
   await SecureStore.setItemAsync(GROQ_KEY, value);
+}
+
+/** Optional Deepgram key. When set, transcription uses Deepgram (higher
+ *  real-room accuracy) instead of Groq Whisper. Groq is still used for outlines. */
+export async function getDeepgramKey(): Promise<string | null> {
+  const stored = await SecureStore.getItemAsync(DEEPGRAM_KEY);
+  if (stored) return stored;
+  // Convenience fallback for testing: an EXPO_PUBLIC_DEEPGRAM_KEY baked in via a
+  // (gitignored) .env or an EAS env var. Settings takes precedence.
+  const env = process.env.EXPO_PUBLIC_DEEPGRAM_KEY;
+  return env && env.trim() ? env.trim() : null;
+}
+
+export async function setDeepgramKey(value: string): Promise<void> {
+  const v = value.trim();
+  if (v) await SecureStore.setItemAsync(DEEPGRAM_KEY, v);
+  else await SecureStore.deleteItemAsync(DEEPGRAM_KEY);
 }
 
 export async function getTranslation(): Promise<string> {

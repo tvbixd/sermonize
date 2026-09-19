@@ -22,8 +22,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Circle, Path, Rect, Svg } from 'react-native-svg';
 import {
+  getDeepgramKey,
   getGroqKey,
   getTranslation,
+  setDeepgramKey,
   setGroqKey,
   setTranslation,
 } from '@/storage/keys';
@@ -185,6 +187,9 @@ export default function SettingsScreen() {
   // Groq key state
   const [groq, setGroq] = useState('');
   const [showGroqKey, setShowGroqKey] = useState(false);
+  // Deepgram key state (optional — better transcription when set)
+  const [deepgram, setDeepgram] = useState('');
+  const [showDeepgramKey, setShowDeepgramKey] = useState(false);
   const [keyStatus, setKeyStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
 
   // Translation state
@@ -210,8 +215,9 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     void (async () => {
-      const [gk, tr, av] = await Promise.all([getGroqKey(), getTranslation(), getAvatarUri()]);
+      const [gk, tr, av, dg] = await Promise.all([getGroqKey(), getTranslation(), getAvatarUri(), getDeepgramKey()]);
       setGroq(gk ?? '');
+      setDeepgram(dg ?? '');
       setTrans(tr);
       setAvatarUriState(av);
       setLoaded(true);
@@ -247,6 +253,7 @@ export default function SettingsScreen() {
     // round-trip. (We don't validate after closing: the screen is gone, so
     // there's nowhere to show the result.)
     await setGroqKey(groq.trim());
+    await setDeepgramKey(deepgram.trim());
     await setTranslation(translation);
     router.back();
   };
@@ -835,6 +842,33 @@ export default function SettingsScreen() {
               )}
             </View>
           )}
+        </View>
+
+        {/* Deepgram API Key (optional) */}
+        <Text style={s.sectionLabel}>DEEPGRAM API KEY (OPTIONAL)</Text>
+        <View style={[s.card, { marginHorizontal: 16 }]}>
+          <Text style={s.helpText}>
+            Optional. Add a Deepgram key for more accurate transcription in a live room.
+            When set, Scribe transcribes with Deepgram; outlines still use Groq.
+          </Text>
+          <Divider indent={16} />
+          <View style={s.keyRow}>
+            <TextInput
+              style={[s.keyInput, { color: t.textPrimary }]}
+              value={deepgram}
+              onChangeText={setDeepgram}
+              placeholder="Deepgram key (leave blank to use Groq)"
+              placeholderTextColor={t.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry={!showDeepgramKey}
+            />
+            <TouchableOpacity onPress={() => setShowDeepgramKey(v => !v)} style={{ padding: 4 }} hitSlop={8}>
+              {showDeepgramKey
+                ? <EyeOffIcon size={18} color={t.textSecondary} />
+                : <EyeIcon size={18} color={t.textSecondary} />}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Bible Translation */}

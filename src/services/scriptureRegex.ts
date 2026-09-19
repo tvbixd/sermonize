@@ -82,6 +82,10 @@ const BOOKS: BookEntry[] = [
   { canonical: 'Revelation', aliases: ['Revelation', 'Rev', 'Apocalypse'] },
 ];
 
+/** Canonical book names — handed to Deepgram as keyterms so hard names
+ *  ("Habakkuk", "Philippians", "Zephaniah") are recognized in room audio. */
+export const BOOK_NAMES: string[] = BOOKS.map((b) => b.canonical);
+
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
