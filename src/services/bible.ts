@@ -255,14 +255,22 @@ export async function lookupVerse(
   };
 
   try {
-    let result = await fetchOne(reference);
+    const isChapterOnly = !/:\d/.test(reference);
+    let result: Scripture;
 
-    // Chapter-only references ("1 Corinthians 14") sometimes return no text.
-    // Fall back to the chapter's first verse so we show something instead of
-    // "Verse text unavailable", while keeping the chapter as the label.
-    if (!result.text && !/:\d/.test(reference)) {
+    if (isChapterOnly) {
+      // A bare chapter ("Philippians 2") would otherwise return the WHOLE
+      // chapter — far too long for a card. Show just the first verse as a
+      // preview, labelled with the chapter, with an ellipsis to hint there's
+      // more.
       const firstVerse = await fetchOne(`${reference}:1`);
-      if (firstVerse.text) result = { ...firstVerse, reference };
+      if (firstVerse.text) {
+        result = { ...firstVerse, reference, text: `${firstVerse.text} …` };
+      } else {
+        result = await fetchOne(reference);
+      }
+    } else {
+      result = await fetchOne(reference);
     }
 
     // Only cache hits with text — caching an empty result would pin a

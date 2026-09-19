@@ -40,6 +40,33 @@ describe('findScriptureReferences', () => {
   it('detects "chapter" prefix alone', () => {
     expect(findScriptureReferences('Genesis chapter 1')).toContain('Genesis 1');
   });
+
+  // Spoken number words + bare space-separated numbers (real church-test cases)
+  it('parses spoken chapter+verse as a range: "Matthew three seven fifteen"', () => {
+    expect(findScriptureReferences('open Matthew three seven fifteen')).toContain('Matthew 3:7-15');
+  });
+
+  it('parses bare space-separated numbers: "Matthew 3 7 15"', () => {
+    expect(findScriptureReferences('Matthew 3 7 15')).toContain('Matthew 3:7-15');
+  });
+
+  it('resolves "first Peter two seven" to 1 Peter 2:7', () => {
+    expect(findScriptureReferences('turn to first Peter two seven')).toContain('1 Peter 2:7');
+  });
+
+  it('parses "John three sixteen" as John 3:16', () => {
+    expect(findScriptureReferences('John three sixteen')).toContain('John 3:16');
+  });
+
+  it('parses a spoken tens+ones number: "Genesis twenty one"', () => {
+    expect(findScriptureReferences('Genesis twenty one')).toContain('Genesis 21');
+  });
+
+  it('still treats a bare chapter as chapter-only (no invented verse)', () => {
+    const refs = findScriptureReferences('as Paul writes in Philippians 2 today');
+    expect(refs).toContain('Philippians 2');
+    expect(refs).not.toContain('Philippians 2:2');
+  });
 });
 
 describe('cleanVerseText', () => {

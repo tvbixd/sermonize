@@ -94,29 +94,68 @@ for (const b of BOOKS) {
 const ALL_ALIASES = BOOKS.flatMap((b) => b.aliases).sort((a, b) => b.length - a.length);
 const BOOK_PATTERN = ALL_ALIASES.map(escapeRegex).join('|');
 
-// Match a reference in either written or spoken form. Preachers SAY
-// "Matthew chapter 12 verse 24", which Whisper transcribes literally, so we
-// accept "chapter"/"verse" words alongside the usual "Matthew 12:24".
-//   <book> [chapter] <chapter> [ (":" | "." | "verse"/"vs"/"v") <verse> ["-"<end>] ]
+// Spoken number words \u2192 digits, so references dictated aloud resolve \u2014
+// "first Peter two seven" \u2192 1 Peter 2:7, "Matthew three seven fifteen" \u2192
+// Matthew 3:7-15. These only ever match right after a book name + chapter, so
+// ordinary words like "one"/"two" in normal speech never trigger a reference.
+const ONES: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16,
+  seventeen: 17, eighteen: 18, nineteen: 19,
+};
+const TENS: Record<string, number> = {
+  twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90,
+};
+const NUM_WORDS: Record<string, number> = { ...TENS, ...ONES };
+const byLenDesc = (a: string, b: string) => b.length - a.length;
+const ONES_P = Object.keys(ONES).sort(byLenDesc).join('|');
+const TENS_P = Object.keys(TENS).sort(byLenDesc).join('|');
+// A number: raw digits, OR tens (optionally + ones: "twenty one"), OR a single
+// ones/teens word.
+const NUM = `(?:\\d{1,3}|(?:${TENS_P})(?:[\\s-]+(?:${ONES_P}))?|(?:${ONES_P}))`;
+
+function parseNum(raw: string | undefined): number | null {
+  if (!raw) return null;
+  const s = raw.trim().toLowerCase();
+  if (/^\d+$/.test(s)) return parseInt(s, 10);
+  let total = 0;
+  for (const w of s.split(/[\s-]+/)) total += NUM_WORDS[w] ?? 0;
+  return total > 0 ? total : null;
+}
+
+// Match a reference in written or spoken form. Preachers SAY "Matthew chapter 12
+// verse 24" or "Matthew three seven fifteen", which Whisper transcribes
+// literally, so besides "Matthew 12:24" we accept the "chapter"/"verse" words,
+// spoken number words, and bare space-separated numbers (<book> <ch> <v> [<end>]).
 const REF_REGEX = new RegExp(
-  `\\b(${BOOK_PATTERN})\\.?\\s*(?:chapters?\\s+)?(\\d{1,3})` +
-    `(?:(?:\\s*[:.]\\s*|\\s+(?:verses?|vss?|vv?)\\.?\\s+)(\\d{1,3})(?:\\s*[-\u2013]\\s*(\\d{1,3}))?)?`,
+  `\\b(${BOOK_PATTERN})\\.?\\s*(?:chapters?\\s+)?(${NUM})` +
+    `(?:(?:\\s*[:.]\\s*|\\s+(?:verses?|vss?|vv?)\\.?\\s+|\\s+)(${NUM})` +
+    `(?:\\s*(?:[-\u2013]|to|through|and|,)?\\s*(${NUM}))?)?`,
   'gi',
 );
+
+/** Build the canonical reference ("1 Peter 2:7") from a REF_REGEX match. */
+function refFromMatch(m: RegExpMatchArray): string | null {
+  const canonical = ALIAS_TO_CANONICAL.get(m[1].toLowerCase());
+  if (!canonical) return null;
+  const chapter = parseNum(m[2]);
+  if (chapter == null) return null;
+  const verse = parseNum(m[3]);
+  const endVerse = parseNum(m[4]);
+  let ref = `${canonical} ${chapter}`;
+  if (verse != null) {
+    ref += `:${verse}`;
+    if (endVerse != null && endVerse > verse) ref += `-${endVerse}`;
+  }
+  return ref;
+}
 
 export function findScriptureReferences(text: string): string[] {
   if (!text) return [];
   const found = new Set<string>();
   for (const m of text.matchAll(REF_REGEX)) {
-    const [, bookRaw, chapter, verse, endVerse] = m;
-    const canonical = ALIAS_TO_CANONICAL.get(bookRaw.toLowerCase());
-    if (!canonical) continue;
-    let ref = `${canonical} ${chapter}`;
-    if (verse) {
-      ref += `:${verse}`;
-      if (endVerse) ref += `-${endVerse}`;
-    }
-    found.add(ref);
+    const ref = refFromMatch(m);
+    if (ref) found.add(ref);
   }
   return [...found];
 }
@@ -142,16 +181,10 @@ export function findScriptureMatches(text: string): ScriptureMatch[] {
   if (!text) return [];
   const out: ScriptureMatch[] = [];
   for (const m of text.matchAll(REF_REGEX)) {
-    const [, bookRaw, chapter, verse, endVerse] = m;
-    const canonical = ALIAS_TO_CANONICAL.get(bookRaw.toLowerCase());
+    const canonical = refFromMatch(m);
     if (!canonical) continue;
-    let ref = `${canonical} ${chapter}`;
-    if (verse) {
-      ref += `:${verse}`;
-      if (endVerse) ref += `-${endVerse}`;
-    }
     const start = m.index ?? 0;
-    out.push({ start, end: start + m[0].length, raw: m[0], canonical: ref });
+    out.push({ start, end: start + m[0].length, raw: m[0], canonical });
   }
   return out;
 }
