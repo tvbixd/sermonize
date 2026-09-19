@@ -57,6 +57,14 @@ Aim for at least two per platform (one older, one current).
 - [ ] **Regression:** "Matthew 12:24" does NOT come back as Matt 2:1 / 12:1.
 - [ ] Chapter-only ("Romans 8") resolves without inventing ":1" incorrectly.
 - [ ] **Boundary case:** a reference spoken right as a chunk rotates is still caught (rolling-window detection).
+- **Spoken numbers (church-test regressions — say each aloud while recording):**
+  - [ ] "Matthew three seven fifteen" → **Matthew 3:7-15** (not just "Matthew 3" / the whole chapter).
+  - [ ] "First Peter two seven" → **1 Peter 2:7** (not nothing).
+  - [ ] "John three sixteen" → **John 3:16**.
+  - [ ] "Genesis twenty one" → **Genesis 21**.
+  - [ ] Chapter-only spoken ("Philippians two") → shows a **short first-verse preview** with "…", NOT the entire chapter.
+  - [ ] Sanity: ordinary speech with numbers ("give me two minutes", "the first thing") does **not** create false references.
+  - [ ] Note: Whisper may transcribe numbers as digits *or* words on-device — test a few both ways.
 - [ ] Verse **text is clean** (no leading verse numbers, no glued words like "you,before").
 - [ ] Duplicates don't stack (same verse cited twice appears once).
 - [ ] **Translations:** change translation in Settings (try a few of the 200+, incl. a non-English one) → lookups return in that translation.
