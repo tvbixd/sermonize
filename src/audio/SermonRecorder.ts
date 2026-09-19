@@ -40,10 +40,12 @@ export class SermonRecorder {
 
   private chunkTimer: ReturnType<typeof setInterval> | null = null;
   private rotating = false;
-  // Shorter chunks = scriptures surface within seconds instead of ~30s. Groq
-  // bills audio-seconds (unchanged by chunk size); the extra request volume is
-  // absorbed by the engine's concurrency-limited queue + adaptive backoff.
-  static readonly CHUNK_MS = 8_000;
+  // Chunk length trades transcription ACCURACY against how fast verses surface.
+  // 8s was too aggressive — Whisper loses context and cuts words at boundaries,
+  // producing a messier transcript. 15s keeps a live-ish feel while giving each
+  // Whisper call enough context to transcribe cleanly. (Groq bills audio-seconds
+  // regardless of chunk size.)
+  static readonly CHUNK_MS = 15_000;
 
   constructor(targetDir: string) {
     this.targetDir = targetDir;

@@ -215,11 +215,19 @@ export default function RecordScreen() {
       setStep('outlining');
       const key = (await getGroqKey()) ?? '';
       let outline = transcript.trim() ? buildLocalOutline(transcript) : fallbackOutline();
+      let outlineFellBack = false;
       if (transcript.trim() && key) {
         try {
           outline = await extractOutline(transcript, key);
         } catch {
-          // keep the extractive outline
+          // The AI outline often fails right after a long recording that hit the
+          // transcription rate limit — pause briefly and retry once.
+          try {
+            await new Promise((r) => setTimeout(r, 2500));
+            outline = await extractOutline(transcript, key);
+          } catch {
+            outlineFellBack = true; // keep the basic on-device outline, tell the user
+          }
         }
       }
 
@@ -257,9 +265,15 @@ export default function RecordScreen() {
       };
       await saveSermon(sermon);
       setStatus('done');
-      void logEvent('recording_completed', { durationMs: captured.durationMs });
+      void logEvent('recording_completed', { durationMs: captured.durationMs, outlineFellBack });
       reset();
       router.replace(`/sermon/${sermon.id}`);
+      if (outlineFellBack) {
+        Alert.alert(
+          'Basic outline saved',
+          "The AI couldn't build the full outline just now (often a temporary rate limit after a long recording). Your transcript and audio are safe — open the sermon and tap Regenerate to build the AI outline.",
+        );
+      }
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
       void logCrash(err, { phase: 'processing', step });

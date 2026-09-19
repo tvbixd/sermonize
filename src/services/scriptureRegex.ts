@@ -129,7 +129,10 @@ function parseNum(raw: string | undefined): number | null {
 // spoken number words, and bare space-separated numbers (<book> <ch> <v> [<end>]).
 const REF_REGEX = new RegExp(
   `\\b(${BOOK_PATTERN})\\.?\\s*(?:chapters?\\s+)?(${NUM})` +
-    `(?:(?:\\s*[:.]\\s*|\\s+(?:verses?|vss?|vv?)\\.?\\s+|\\s+)(${NUM})` +
+    // chapter\u2192verse separator: ":"/"."/",", or "[from] verse(s)/vs/v", or a bare space
+    `(?:(?:\\s*[:.,]\\s*|\\s+(?:from\\s+)?(?:verses?|vss?|vv?)\\.?\\s+|\\s+)(${NUM})` +
+    // optional end of a verse range: connector ("-", "to", "through", "and", ",")
+    // is itself optional so a bare space also works ("seven fifteen" \u2192 7-15)
     `(?:\\s*(?:[-\u2013]|to|through|and|,)?\\s*(${NUM}))?)?`,
   'gi',
 );

@@ -67,6 +67,23 @@ describe('findScriptureReferences', () => {
     expect(refs).toContain('Philippians 2');
     expect(refs).not.toContain('Philippians 2:2');
   });
+
+  // Comma / filler forms Whisper produces (from the John 4 test)
+  it('parses a comma between chapter and verse: "John 4, 24"', () => {
+    expect(findScriptureReferences('open your Bibles to John 4, 24')).toContain('John 4:24');
+  });
+
+  it('parses "Isaiah 45, 5"', () => {
+    expect(findScriptureReferences('Isaiah 45, 5 says')).toContain('Isaiah 45:5');
+  });
+
+  it('parses a comma chapter + spoken range: "Matthew 3, 16 to 17"', () => {
+    expect(findScriptureReferences('to Matthew 3, 16 to 17')).toContain('Matthew 3:16-17');
+  });
+
+  it('parses filler "from verse X to Y": "Philippians 2 from verse 5 to 8"', () => {
+    expect(findScriptureReferences('Philippians 2 from verse 5 to 8')).toContain('Philippians 2:5-8');
+  });
 });
 
 describe('cleanVerseText', () => {
