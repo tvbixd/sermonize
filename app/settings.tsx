@@ -22,9 +22,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Circle, Path, Rect, Svg } from 'react-native-svg';
 import {
+  getAnthropicKey,
   getDeepgramKey,
   getGroqKey,
   getTranslation,
+  setAnthropicKey,
   setDeepgramKey,
   setGroqKey,
   setTranslation,
@@ -190,6 +192,9 @@ export default function SettingsScreen() {
   // Deepgram key state (optional — better transcription when set)
   const [deepgram, setDeepgram] = useState('');
   const [showDeepgramKey, setShowDeepgramKey] = useState(false);
+  // Anthropic key state (optional — better/more reliable outlines when set)
+  const [anthropic, setAnthropic] = useState('');
+  const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [keyStatus, setKeyStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
 
   // Translation state
@@ -215,9 +220,12 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     void (async () => {
-      const [gk, tr, av, dg] = await Promise.all([getGroqKey(), getTranslation(), getAvatarUri(), getDeepgramKey()]);
+      const [gk, tr, av, dg, an] = await Promise.all([
+        getGroqKey(), getTranslation(), getAvatarUri(), getDeepgramKey(), getAnthropicKey(),
+      ]);
       setGroq(gk ?? '');
       setDeepgram(dg ?? '');
+      setAnthropic(an ?? '');
       setTrans(tr);
       setAvatarUriState(av);
       setLoaded(true);
@@ -254,6 +262,7 @@ export default function SettingsScreen() {
     // there's nowhere to show the result.)
     await setGroqKey(groq.trim());
     await setDeepgramKey(deepgram.trim());
+    await setAnthropicKey(anthropic.trim());
     await setTranslation(translation);
     router.back();
   };
@@ -865,6 +874,33 @@ export default function SettingsScreen() {
             />
             <TouchableOpacity onPress={() => setShowDeepgramKey(v => !v)} style={{ padding: 4 }} hitSlop={8}>
               {showDeepgramKey
+                ? <EyeOffIcon size={18} color={t.textSecondary} />
+                : <EyeIcon size={18} color={t.textSecondary} />}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Anthropic (Claude) API Key (optional) */}
+        <Text style={s.sectionLabel}>ANTHROPIC API KEY (OPTIONAL)</Text>
+        <View style={[s.card, { marginHorizontal: 16 }]}>
+          <Text style={s.helpText}>
+            Optional. Add an Anthropic (Claude) key for higher-quality, more reliable
+            sermon outlines. When set, Scribe builds outlines with Claude instead of Groq.
+          </Text>
+          <Divider indent={16} />
+          <View style={s.keyRow}>
+            <TextInput
+              style={[s.keyInput, { color: t.textPrimary }]}
+              value={anthropic}
+              onChangeText={setAnthropic}
+              placeholder="sk-ant-... (leave blank to use Groq)"
+              placeholderTextColor={t.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry={!showAnthropicKey}
+            />
+            <TouchableOpacity onPress={() => setShowAnthropicKey(v => !v)} style={{ padding: 4 }} hitSlop={8}>
+              {showAnthropicKey
                 ? <EyeOffIcon size={18} color={t.textSecondary} />
                 : <EyeIcon size={18} color={t.textSecondary} />}
             </TouchableOpacity>

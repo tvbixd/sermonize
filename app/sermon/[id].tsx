@@ -21,11 +21,10 @@ import { ScriptureCard } from '@/components/ScriptureCard';
 import { Skeleton } from '@/components/Skeleton';
 import { BackChevronIcon, CloseIcon, ExportIcon, PlusIcon, RegenIcon } from '@/components/icons';
 import { dedupeScriptures, lookupVerse, lookupVerses } from '@/services/bible';
-import { extractOutline } from '@/services/outline';
-import { buildLocalOutline } from '@/services/localOutline';
+import { generateOutline } from '@/services/outlineProvider';
 import { findScriptureReferences } from '@/services/scriptureRegex';
 import { transcribeChunks } from '@/services/transcription';
-import { getGroqKey, getTranslation } from '@/storage/keys';
+import { getDeepgramKey, getGroqKey, getTranslation } from '@/storage/keys';
 import { audioDir, getSermon, saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Outline, Sermon } from '@/types';
@@ -177,12 +176,9 @@ export default function SermonDetail() {
     }
     setBusy(true);
     try {
-      const key = await getGroqKey();
       const translation = await getTranslation();
-      // Groq LLM outline when a key exists, otherwise the free on-device one.
-      const outline = key
-        ? await extractOutline(sermon.transcript, key)
-        : buildLocalOutline(sermon.transcript);
+      // Claude (if configured) → Groq → on-device extractive.
+      const { outline, aiUsed } = await generateOutline(sermon.transcript);
       const refs = new Set(findScriptureReferences(sermon.transcript));
       for (const p of outline.points) for (const r of p.scriptures) refs.add(r);
       const scriptures = await lookupVerses([...refs], translation);
@@ -190,6 +186,12 @@ export default function SermonDetail() {
       await saveSermon(updated);
       setSermon(updated);
       seedDraft(updated);
+      if (!aiUsed) {
+        Alert.alert(
+          'Basic outline',
+          "The AI outline couldn't be generated (likely a rate limit or no AI key). A basic outline was built from your transcript — try again in a moment, or add an Anthropic key in Settings for reliable AI outlines.",
+        );
+      }
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Could not regenerate.');
     } finally {
@@ -216,23 +218,19 @@ export default function SermonDetail() {
           onPress: async () => {
             setBusy(true);
             try {
-              const key = (await getGroqKey()) ?? '';
-              if (!key) {
-                throw new Error('Groq API key not set. Add it in Settings.');
+              const groqKey = (await getGroqKey()) ?? '';
+              const deepgramKey = await getDeepgramKey();
+              if (!groqKey && !deepgramKey) {
+                throw new Error('Add a Groq or Deepgram key in Settings to transcribe.');
               }
               const uris = audioFiles.map((f) => `${dir}${f}`);
-              const transcript = await transcribeChunks(uris, key);
+              // Uses Deepgram if its key is set, otherwise Groq Whisper.
+              const transcript = await transcribeChunks(uris, groqKey);
               const translation = await getTranslation();
-              // Groq LLM outline; fall back to the free extractive outline if
-              // Groq fails (e.g. rate limit) so the transcription isn't lost.
+              // Claude (if configured) → Groq → on-device extractive.
               let outline = sermon.outline;
               if (transcript.trim()) {
-                outline = buildLocalOutline(transcript);
-                try {
-                  outline = await extractOutline(transcript, key);
-                } catch {
-                  // keep the extractive outline
-                }
+                outline = (await generateOutline(transcript)).outline;
               }
               const refs = new Set(findScriptureReferences(transcript));
               for (const p of outline.points) for (const r of p.scriptures) refs.add(r);

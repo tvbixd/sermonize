@@ -18,8 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Svg, Circle, Path } from 'react-native-svg';
 import { recordingEngine } from '@/audio/recordingEngine';
 import { dedupeScriptures, lookupVerses } from '@/services/bible';
-import { extractOutline } from '@/services/outline';
-import { buildLocalOutline } from '@/services/localOutline';
+import { generateOutline } from '@/services/outlineProvider';
 import { findScriptureReferences } from '@/services/scriptureRegex';
 import { ScriptureCard } from '@/components/ScriptureCard';
 import { LiveWaveform } from '@/components/LiveWaveform';
@@ -213,23 +212,13 @@ export default function RecordScreen() {
       // Outline: Groq's LLM when a key is present, otherwise the free on-device
       // extractive outline. The extractive path is a normal outcome.
       setStep('outlining');
-      const key = (await getGroqKey()) ?? '';
-      let outline = transcript.trim() ? buildLocalOutline(transcript) : fallbackOutline();
-      let outlineFellBack = false;
-      if (transcript.trim() && key) {
-        try {
-          outline = await extractOutline(transcript, key);
-        } catch {
-          // The AI outline often fails right after a long recording that hit the
-          // transcription rate limit — pause briefly and retry once.
-          try {
-            await new Promise((r) => setTimeout(r, 2500));
-            outline = await extractOutline(transcript, key);
-          } catch {
-            outlineFellBack = true; // keep the basic on-device outline, tell the user
-          }
-        }
-      }
+      // Claude (if configured) → Groq → on-device. aiUsed=false means it fell
+      // back to the basic outline, and we tell the user so they can regenerate.
+      const { outline: builtOutline, aiUsed } = transcript.trim()
+        ? await generateOutline(transcript)
+        : { outline: fallbackOutline(), aiUsed: true };
+      const outline = builtOutline;
+      const outlineFellBack = transcript.trim() ? !aiUsed : false;
 
       // Drop the live-only `status` field, and any reference still mid-lookup
       // with no text (it gets re-resolved below if it appears in the transcript).

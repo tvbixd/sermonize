@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 
 const GROQ_KEY = 'scribe.groqApiKey';
 const DEEPGRAM_KEY = 'scribe.deepgramApiKey';
+const ANTHROPIC_KEY = 'scribe.anthropicApiKey';
 const TRANSLATION_KEY = 'scribe.bibleTranslation';
 const ONBOARDED_KEY = 'scribe.onboarded';
 const AVATAR_KEY = 'scribe.avatarUri';
@@ -49,6 +50,18 @@ export async function setDeepgramKey(value: string): Promise<void> {
   const v = value.trim();
   if (v) await SecureStore.setItemAsync(DEEPGRAM_KEY, v);
   else await SecureStore.deleteItemAsync(DEEPGRAM_KEY);
+}
+
+/** Optional Anthropic (Claude) key. When set, outlines use Claude (higher
+ *  quality, no free-tier daily cap) instead of Groq's Llama. */
+export async function getAnthropicKey(): Promise<string | null> {
+  return SecureStore.getItemAsync(ANTHROPIC_KEY);
+}
+
+export async function setAnthropicKey(value: string): Promise<void> {
+  const v = value.trim();
+  if (v) await SecureStore.setItemAsync(ANTHROPIC_KEY, v);
+  else await SecureStore.deleteItemAsync(ANTHROPIC_KEY);
 }
 
 export async function getTranslation(): Promise<string> {

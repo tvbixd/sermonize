@@ -5,7 +5,7 @@ const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 // Llama 3.3 70B is excellent for structured-JSON outlining and free on Groq.
 const MODEL = 'llama-3.3-70b-versatile';
 
-const SYSTEM_PROMPT = `You are an expert sermon-note assistant. You receive a raw transcript of a sermon (which may contain transcription errors and disfluencies) and produce a clean, structured outline.
+export const OUTLINE_SYSTEM_PROMPT = `You are an expert sermon-note assistant. You receive a raw transcript of a sermon (which may contain transcription errors and disfluencies) and produce a clean, structured outline.
 
 Your output MUST be a single JSON object matching this exact schema — no prose, no markdown fences, no commentary outside the JSON:
 
@@ -30,7 +30,7 @@ Rules:
 - If the transcript is too short or unclear to outline, still return valid JSON with the best title/theme/summary you can and an empty points array.
 - Output ONLY the JSON object. No code fences. No leading or trailing text.`;
 
-const EMPTY_OUTLINE: Outline = {
+export const EMPTY_OUTLINE: Outline = {
   title: 'Untitled Sermon',
   theme: '',
   summary: '',
@@ -43,7 +43,7 @@ const EMPTY_OUTLINE: Outline = {
 // closing (conclusion) — the parts that carry the outline's shape.
 const MAX_OUTLINE_CHARS = 24000;
 
-function trimForOutline(t: string): string {
+export function trimForOutline(t: string): string {
   if (t.length <= MAX_OUTLINE_CHARS) return t;
   const head = Math.floor(MAX_OUTLINE_CHARS * 0.65);
   const tail = MAX_OUTLINE_CHARS - head;
@@ -71,7 +71,7 @@ export async function extractOutline(
     max_tokens: 2048,
     response_format: { type: 'json_object' as const },
     messages: [
-      { role: 'system' as const, content: SYSTEM_PROMPT },
+      { role: 'system' as const, content: OUTLINE_SYSTEM_PROMPT },
       {
         role: 'user' as const,
         content: `Here is the sermon transcript. Produce the outline JSON:\n\n<transcript>\n${trimForOutline(transcript)}\n</transcript>`,
@@ -106,7 +106,7 @@ export async function extractOutline(
   return parseOutlineJson(content);
 }
 
-function parseOutlineJson(raw: string): Outline {
+export function parseOutlineJson(raw: string): Outline {
   const cleaned = stripCodeFence(raw);
   try {
     return validateOutline(JSON.parse(cleaned));
