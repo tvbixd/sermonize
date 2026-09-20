@@ -11,7 +11,7 @@ ACCOUNT (OPTIONAL)
 
 THIRD PARTIES
 - Audio is sent to our transcription provider (Deepgram) for processing. Scribe does not store your audio on any server — the recordings stay on your device.
-- Your sermon transcript text is sent to our AI provider (Anthropic) to generate the outline.
+- Your sermon transcript text is sent to our AI provider (Google Gemini, or Anthropic) to generate the outline.
 - Scripture text is fetched on demand from public Bible APIs (api.scripture.api.bible and bible-api.com).
 - We do not use third-party analytics or advertising.
 
@@ -35,7 +35,7 @@ YOUR CONTENT
 - You are responsible for any content you record, including obtaining consent from anyone whose voice may be captured.
 
 THIRD-PARTY SERVICES
-- Scribe depends on Deepgram (transcription), Anthropic (outlines), Bible APIs, and Supabase. Service availability is subject to those providers' terms.
+- Scribe depends on Deepgram (transcription), Google Gemini / Anthropic (outlines), Bible APIs, and Supabase. Service availability is subject to those providers' terms.
 
 ACCEPTABLE USE
 - Do not use Scribe to record people without their knowledge in jurisdictions where this is unlawful.

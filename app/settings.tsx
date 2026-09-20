@@ -24,9 +24,11 @@ import { Circle, Path, Rect, Svg } from 'react-native-svg';
 import {
   getAnthropicKey,
   getDeepgramKey,
+  getGeminiKey,
   getTranslation,
   setAnthropicKey,
   setDeepgramKey,
+  setGeminiKey,
   setTranslation,
 } from '@/storage/keys';
 import {
@@ -186,7 +188,10 @@ export default function SettingsScreen() {
   // Deepgram key state (optional — better transcription when set)
   const [deepgram, setDeepgram] = useState('');
   const [showDeepgramKey, setShowDeepgramKey] = useState(false);
-  // Anthropic key state (optional — better/more reliable outlines when set)
+  // Gemini key state (optional — free-tier outline engine)
+  const [gemini, setGemini] = useState('');
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  // Anthropic key state (optional — higher-quality outlines, paid)
   const [anthropic, setAnthropic] = useState('');
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
 
@@ -213,11 +218,12 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     void (async () => {
-      const [tr, av, dg, an] = await Promise.all([
-        getTranslation(), getAvatarUri(), getDeepgramKey(), getAnthropicKey(),
+      const [tr, av, dg, an, gm] = await Promise.all([
+        getTranslation(), getAvatarUri(), getDeepgramKey(), getAnthropicKey(), getGeminiKey(),
       ]);
       setDeepgram(dg ?? '');
       setAnthropic(an ?? '');
+      setGemini(gm ?? '');
       setTrans(tr);
       setAvatarUriState(av);
       setLoaded(true);
@@ -254,6 +260,7 @@ export default function SettingsScreen() {
     // there's nowhere to show the result.)
     await setDeepgramKey(deepgram.trim());
     await setAnthropicKey(anthropic.trim());
+    await setGeminiKey(gemini.trim());
     await setTranslation(translation);
     router.back();
   };
@@ -807,12 +814,39 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Anthropic (Claude) API Key (optional) */}
-        <Text style={s.sectionLabel}>ANTHROPIC API KEY (OPTIONAL)</Text>
+        {/* Gemini (Google) API Key (optional — free outline engine) */}
+        <Text style={s.sectionLabel}>GEMINI API KEY (OPTIONAL)</Text>
         <View style={[s.card, { marginHorizontal: 16 }]}>
           <Text style={s.helpText}>
             Outlines are included — you don't need a key. Advanced: add your own
-            Anthropic (Claude) key here to use your account instead.
+            free Google Gemini key (from aistudio.google.com) to use your account.
+          </Text>
+          <Divider indent={16} />
+          <View style={s.keyRow}>
+            <TextInput
+              style={[s.keyInput, { color: t.textPrimary }]}
+              value={gemini}
+              onChangeText={setGemini}
+              placeholder="Gemini key (optional)"
+              placeholderTextColor={t.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry={!showGeminiKey}
+            />
+            <TouchableOpacity onPress={() => setShowGeminiKey(v => !v)} style={{ padding: 4 }} hitSlop={8}>
+              {showGeminiKey
+                ? <EyeOffIcon size={18} color={t.textSecondary} />
+                : <EyeIcon size={18} color={t.textSecondary} />}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Anthropic (Claude) API Key (optional — higher quality, paid) */}
+        <Text style={s.sectionLabel}>ANTHROPIC API KEY (OPTIONAL)</Text>
+        <View style={[s.card, { marginHorizontal: 16 }]}>
+          <Text style={s.helpText}>
+            Advanced: add an Anthropic (Claude) key for higher-quality outlines
+            (paid). If set, it's used when Gemini isn't available.
           </Text>
           <Divider indent={16} />
           <View style={s.keyRow}>

@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 
 const DEEPGRAM_KEY = 'scribe.deepgramApiKey';
 const ANTHROPIC_KEY = 'scribe.anthropicApiKey';
+const GEMINI_KEY = 'scribe.geminiApiKey';
 const TRANSLATION_KEY = 'scribe.bibleTranslation';
 const ONBOARDED_KEY = 'scribe.onboarded';
 const AVATAR_KEY = 'scribe.avatarUri';
@@ -56,6 +57,21 @@ export async function setAnthropicKey(value: string): Promise<void> {
   const v = value.trim();
   if (v) await SecureStore.setItemAsync(ANTHROPIC_KEY, v);
   else await SecureStore.deleteItemAsync(ANTHROPIC_KEY);
+}
+
+/** Optional Google Gemini key (free tier). When set, outlines use Gemini —
+ *  the default free outline engine. Falls back to the bundled key. */
+export async function getGeminiKey(): Promise<string | null> {
+  const stored = await SecureStore.getItemAsync(GEMINI_KEY);
+  if (stored) return stored;
+  const env = process.env.EXPO_PUBLIC_GEMINI_KEY;
+  return env && env.trim() ? env.trim() : null;
+}
+
+export async function setGeminiKey(value: string): Promise<void> {
+  const v = value.trim();
+  if (v) await SecureStore.setItemAsync(GEMINI_KEY, v);
+  else await SecureStore.deleteItemAsync(GEMINI_KEY);
 }
 
 export async function getTranslation(): Promise<string> {

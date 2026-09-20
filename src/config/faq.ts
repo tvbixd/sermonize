@@ -11,7 +11,7 @@ export const FAQ: FaqEntry[] = [
   },
   {
     q: 'Is my audio sent to a server?',
-    a: 'Audio is sent to our transcription provider (Deepgram) to turn speech into text, and your transcript text is sent to our AI provider (Anthropic) to build the outline. Scribe does not store your audio on any server — the recordings stay on your device.',
+    a: 'Audio is sent to our transcription provider (Deepgram) to turn speech into text, and your transcript text is sent to our AI provider (Google Gemini, or Anthropic) to build the outline. Scribe does not store your audio on any server — the recordings stay on your device.',
   },
   {
     q: 'What happens if I lose internet during recording?',
