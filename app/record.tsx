@@ -24,7 +24,7 @@ import { ScriptureCard } from '@/components/ScriptureCard';
 import { LiveWaveform } from '@/components/LiveWaveform';
 import { LiveTranscript } from '@/components/LiveTranscript';
 import { useSessionStore } from '@/state/sessionStore';
-import { getGroqKey, getTranslation } from '@/storage/keys';
+import { getTranslation } from '@/storage/keys';
 import { saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Sermon } from '@/types';
@@ -156,22 +156,13 @@ export default function RecordScreen() {
     mediumTap();
     try {
       if (status === 'idle') {
-        const key = (await getGroqKey()) ?? '';
-        if (!key) {
-          Alert.alert('API Key Missing', 'Add your free Groq API key in Settings to enable transcription.', [
-            { text: 'Open Settings', onPress: () => router.push('/settings') },
-            { text: 'Cancel', style: 'cancel' },
-          ]);
-          return;
-        }
-
-        const online = await checkConnectivity(key);
+        const online = await checkConnectivity();
         if (!online) {
           Alert.alert(
             'No Internet Connection',
             'You can still record audio. Transcription will be available later via Re-transcribe.',
             [
-              { text: 'Record Audio Only', onPress: () => void recordingEngine.start({ groqKey: key, audioOnly: true }).catch((e) => {
+              { text: 'Record Audio Only', onPress: () => void recordingEngine.start({ audioOnly: true }).catch((e) => {
                 setError(e instanceof Error ? e.message : String(e));
                 setStatus('error');
               }) },
@@ -180,7 +171,7 @@ export default function RecordScreen() {
           );
           return;
         }
-        await recordingEngine.start({ groqKey: key, audioOnly: false });
+        await recordingEngine.start({ audioOnly: false });
       } else if (status === 'recording') {
         await recordingEngine.pause();
       } else if (status === 'paused') {

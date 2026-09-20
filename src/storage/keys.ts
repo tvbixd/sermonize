@@ -1,6 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
 
-const GROQ_KEY = 'scribe.groqApiKey';
 const DEEPGRAM_KEY = 'scribe.deepgramApiKey';
 const ANTHROPIC_KEY = 'scribe.anthropicApiKey';
 const TRANSLATION_KEY = 'scribe.bibleTranslation';
@@ -27,14 +26,6 @@ export async function setOnboarded(): Promise<void> {
   await SecureStore.setItemAsync(ONBOARDED_KEY, '1');
 }
 
-export async function getGroqKey(): Promise<string | null> {
-  return SecureStore.getItemAsync(GROQ_KEY);
-}
-
-export async function setGroqKey(value: string): Promise<void> {
-  await SecureStore.setItemAsync(GROQ_KEY, value);
-}
-
 /** Optional Deepgram key. When set, transcription uses Deepgram (higher
  *  real-room accuracy) instead of Groq Whisper. Groq is still used for outlines. */
 export async function getDeepgramKey(): Promise<string | null> {
@@ -55,7 +46,10 @@ export async function setDeepgramKey(value: string): Promise<void> {
 /** Optional Anthropic (Claude) key. When set, outlines use Claude (higher
  *  quality, no free-tier daily cap) instead of Groq's Llama. */
 export async function getAnthropicKey(): Promise<string | null> {
-  return SecureStore.getItemAsync(ANTHROPIC_KEY);
+  const stored = await SecureStore.getItemAsync(ANTHROPIC_KEY);
+  if (stored) return stored;
+  const env = process.env.EXPO_PUBLIC_ANTHROPIC_KEY;
+  return env && env.trim() ? env.trim() : null;
 }
 
 export async function setAnthropicKey(value: string): Promise<void> {

@@ -2,7 +2,7 @@ export const PRIVACY_POLICY_TEXT = `Scribe is designed to keep your sermon conte
 
 WHAT WE STORE
 - Sermons, drafts, folders, and audio recordings are saved to your device's local storage only.
-- Your Groq API key and Bible translation preference are saved in your device's secure keychain.
+- Your Bible translation preference (and any optional API keys you choose to add) are saved in your device's secure keychain.
 - We do not operate a server that stores your sermons or audio.
 
 ACCOUNT (OPTIONAL)
@@ -10,7 +10,8 @@ ACCOUNT (OPTIONAL)
 - Profile fields (display name, role, church) are stored with your account if you sign in.
 
 THIRD PARTIES
-- Audio chunks are sent to Groq's transcription API for processing, under your own API key. Audio handling and retention are governed by Groq's data policy — see groq.com for details.
+- Audio is sent to our transcription provider (Deepgram) for processing. Scribe does not store your audio on any server — the recordings stay on your device.
+- Your sermon transcript text is sent to our AI provider (Anthropic) to generate the outline.
 - Scripture text is fetched on demand from public Bible APIs (api.scripture.api.bible and bible-api.com).
 - We do not use third-party analytics or advertising.
 
@@ -34,10 +35,7 @@ YOUR CONTENT
 - You are responsible for any content you record, including obtaining consent from anyone whose voice may be captured.
 
 THIRD-PARTY SERVICES
-- Scribe depends on Groq, Bible APIs, and Supabase. Service availability is subject to those providers' terms.
-
-API KEYS
-- You provide your own Groq API key. You are responsible for usage costs (if any) on your Groq account.
+- Scribe depends on Deepgram (transcription), Anthropic (outlines), Bible APIs, and Supabase. Service availability is subject to those providers' terms.
 
 ACCEPTABLE USE
 - Do not use Scribe to record people without their knowledge in jurisdictions where this is unlawful.

@@ -1,9 +1,9 @@
 import type { Outline } from '../types';
-import { RateLimitError } from './whisper';
 
-const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
-// Llama 3.3 70B is excellent for structured-JSON outlining and free on Groq.
-const MODEL = 'llama-3.3-70b-versatile';
+/**
+ * Shared sermon-outline prompt + JSON parsing, used by the AI outline providers
+ * (Claude). Kept provider-agnostic so any model can reuse the same schema.
+ */
 
 export const OUTLINE_SYSTEM_PROMPT = `You are an expert sermon-note assistant. You receive a raw transcript of a sermon (which may contain transcription errors and disfluencies) and produce a clean, structured outline.
 
@@ -37,10 +37,9 @@ export const EMPTY_OUTLINE: Outline = {
   points: [],
 };
 
-// Groq's free tier caps tokens-per-minute, so a very long sermon transcript
-// sent whole can trip a 429. ~24k characters ≈ 6k tokens stays safely under it.
-// For longer sermons we keep the opening (intro/theme/early points) and the
-// closing (conclusion) — the parts that carry the outline's shape.
+// Long transcripts are trimmed to keep the request within model context limits.
+// We keep the opening (intro/theme/early points) and the closing (conclusion) —
+// the parts that carry the outline's shape.
 const MAX_OUTLINE_CHARS = 24000;
 
 export function trimForOutline(t: string): string {
@@ -52,58 +51,6 @@ export function trimForOutline(t: string): string {
     '\n\n[…middle portion omitted for length…]\n\n' +
     t.slice(t.length - tail)
   );
-}
-
-/**
- * Extract a structured sermon outline from a transcript using Groq's free-tier
- * Llama 3.3 70B endpoint (OpenAI-compatible chat-completions API).
- */
-export async function extractOutline(
-  transcript: string,
-  apiKey: string,
-): Promise<Outline> {
-  if (!apiKey) throw new Error('Groq API key is not set. Add it in Settings.');
-  if (!transcript.trim()) return EMPTY_OUTLINE;
-
-  const body = {
-    model: MODEL,
-    temperature: 0.2,
-    max_tokens: 2048,
-    response_format: { type: 'json_object' as const },
-    messages: [
-      { role: 'system' as const, content: OUTLINE_SYSTEM_PROMPT },
-      {
-        role: 'user' as const,
-        content: `Here is the sermon transcript. Produce the outline JSON:\n\n<transcript>\n${trimForOutline(transcript)}\n</transcript>`,
-      },
-    ],
-  };
-
-  const r = await fetch(GROQ_CHAT_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!r.ok) {
-    const errText = await r.text();
-    if (r.status === 429) {
-      const retryMatch = errText.match(/try again in (?:(\d+)m)?(\d+(?:\.\d+)?)s/i);
-      const mins = retryMatch?.[1] ? parseInt(retryMatch[1], 10) : 0;
-      const secs = retryMatch?.[2] ? parseFloat(retryMatch[2]) : 60;
-      throw new RateLimitError(Math.ceil((mins * 60 + secs) * 1000));
-    }
-    throw new Error(`Groq outline request failed (${r.status}): ${errText.slice(0, 300)}`);
-  }
-
-  const json = (await r.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const content = json.choices?.[0]?.message?.content ?? '';
-  return parseOutlineJson(content);
 }
 
 export function parseOutlineJson(raw: string): Outline {

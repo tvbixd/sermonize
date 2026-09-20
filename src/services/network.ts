@@ -1,37 +1,14 @@
-const GROQ_HEALTH_URL = 'https://api.groq.com/openai/v1/models';
+// Reachable host used only to detect connectivity. An unauthenticated request
+// returns 401/403 — which still proves we're online.
+const PING_URL = 'https://api.deepgram.com/v1/projects';
 
-/**
- * Check whether a Groq API key is accepted. 'offline' means we couldn't
- * reach Groq at all, so the key may still be fine.
- */
-export async function validateGroqKey(apiKey: string): Promise<'valid' | 'invalid' | 'offline'> {
+export async function checkConnectivity(): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    const r = await fetch(GROQ_HEALTH_URL, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: controller.signal,
-    });
+    const r = await fetch(PING_URL, { method: 'GET', signal: controller.signal });
     clearTimeout(timeout);
-    if (r.status === 401 || r.status === 403) return 'invalid';
-    return 'valid';
-  } catch {
-    return 'offline';
-  }
-}
-
-export async function checkConnectivity(apiKey: string): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    const r = await fetch(GROQ_HEALTH_URL, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    return r.ok || r.status === 401;
+    return r.ok || r.status === 401 || r.status === 403;
   } catch {
     return false;
   }

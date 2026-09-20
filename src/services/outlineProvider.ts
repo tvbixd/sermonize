@@ -1,16 +1,12 @@
 import type { Outline } from '../types';
-import { extractOutline } from './outline';
 import { extractOutlineClaude } from './claudeOutline';
 import { buildLocalOutline } from './localOutline';
-import { getAnthropicKey, getGroqKey } from '../storage/keys';
-
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+import { getAnthropicKey } from '../storage/keys';
 
 /**
- * Build a sermon outline using the best available engine:
- *   Claude (if an Anthropic key is set) → Groq Llama → on-device extractive.
- * `aiUsed` is false when it fell back to the on-device outline, so callers can
- * tell the user their AI outline didn't generate (and offer Regenerate).
+ * Build a sermon outline: Claude (Anthropic key from Settings or bundled
+ * EXPO_PUBLIC_ANTHROPIC_KEY) → on-device extractive fallback.
+ * `aiUsed` is false when it fell back, so callers can tell the user.
  */
 export async function generateOutline(
   transcript: string,
@@ -22,21 +18,12 @@ export async function generateOutline(
     try {
       return { outline: await extractOutlineClaude(transcript, anthropicKey), aiUsed: true };
     } catch {
-      // fall through to Groq / local
-    }
-  }
-
-  const groqKey = await getGroqKey();
-  if (groqKey) {
-    try {
-      return { outline: await extractOutline(transcript, groqKey), aiUsed: true };
-    } catch {
-      // The Groq free tier often needs a moment after a busy session — retry once.
+      // one retry — transient errors happen
       try {
-        await delay(2500);
-        return { outline: await extractOutline(transcript, groqKey), aiUsed: true };
+        await new Promise((r) => setTimeout(r, 2000));
+        return { outline: await extractOutlineClaude(transcript, anthropicKey), aiUsed: true };
       } catch {
-        // fall through to local
+        // fall through to on-device
       }
     }
   }

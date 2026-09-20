@@ -24,11 +24,9 @@ import { Circle, Path, Rect, Svg } from 'react-native-svg';
 import {
   getAnthropicKey,
   getDeepgramKey,
-  getGroqKey,
   getTranslation,
   setAnthropicKey,
   setDeepgramKey,
-  setGroqKey,
   setTranslation,
 } from '@/storage/keys';
 import {
@@ -39,9 +37,8 @@ import {
 import { useAuth } from '@/context/auth';
 import { FAQ } from '@/config/faq';
 import { PRIVACY_POLICY_TEXT, TERMS_TEXT } from '@/config/legal';
-import { GROQ_CONSOLE_URL, PRIVACY_POLICY_URL, SUPPORT_EMAIL, TERMS_URL } from '@/config/support';
+import { PRIVACY_POLICY_URL, SUPPORT_EMAIL, TERMS_URL } from '@/config/support';
 import { getCrashLog, clearLogs } from '@/services/logger';
-import { validateGroqKey } from '@/services/network';
 import { getAudioStorageBytes } from '@/storage/sermons';
 import { getAvatarUri, setAvatarUri } from '@/storage/keys';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
@@ -186,16 +183,12 @@ export default function SettingsScreen() {
   const [page, setPage] = useState<'root' | 'edit-profile' | 'change-email' | 'faq' | 'privacy' | 'terms'>('root');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
-  // Groq key state
-  const [groq, setGroq] = useState('');
-  const [showGroqKey, setShowGroqKey] = useState(false);
   // Deepgram key state (optional — better transcription when set)
   const [deepgram, setDeepgram] = useState('');
   const [showDeepgramKey, setShowDeepgramKey] = useState(false);
   // Anthropic key state (optional — better/more reliable outlines when set)
   const [anthropic, setAnthropic] = useState('');
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
-  const [keyStatus, setKeyStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
 
   // Translation state
   const [translation, setTrans] = useState('web');
@@ -220,10 +213,9 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     void (async () => {
-      const [gk, tr, av, dg, an] = await Promise.all([
-        getGroqKey(), getTranslation(), getAvatarUri(), getDeepgramKey(), getAnthropicKey(),
+      const [tr, av, dg, an] = await Promise.all([
+        getTranslation(), getAvatarUri(), getDeepgramKey(), getAnthropicKey(),
       ]);
-      setGroq(gk ?? '');
       setDeepgram(dg ?? '');
       setAnthropic(an ?? '');
       setTrans(tr);
@@ -260,7 +252,6 @@ export default function SettingsScreen() {
     // Save and close immediately — never block the Done button on a network
     // round-trip. (We don't validate after closing: the screen is gone, so
     // there's nowhere to show the result.)
-    await setGroqKey(groq.trim());
     await setDeepgramKey(deepgram.trim());
     await setAnthropicKey(anthropic.trim());
     await setTranslation(translation);
@@ -789,76 +780,12 @@ export default function SettingsScreen() {
           </>
         )}
 
-        {/* Groq API Key */}
-        <Text style={s.sectionLabel}>GROQ API KEY</Text>
-        <View style={[s.card, { marginHorizontal: 16 }]}>
-          <Text style={s.helpText}>
-            Scribe uses Groq's free AI to transcribe and outline your sermons. Tap below to get a free key — sign up with Google, tap "Create API Key", copy it, and paste it here.
-          </Text>
-          <TouchableOpacity
-            onPress={() => void WebBrowser.openBrowserAsync(GROQ_CONSOLE_URL)}
-            style={{ paddingHorizontal: 16, paddingBottom: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Get a free Groq key"
-          >
-            <Text style={[typography.footnote, { color: t.accentBlue, fontWeight: '600' }]}>
-              Get my free key →
-            </Text>
-          </TouchableOpacity>
-          <Divider indent={16} />
-          <View style={s.keyRow}>
-            <TextInput
-              style={[s.keyInput, { color: t.textPrimary }]}
-              value={groq}
-              onChangeText={(v) => { setGroq(v); setKeyStatus('idle'); }}
-              onEndEditing={() => {
-                const k = groq.trim();
-                if (!k) { setKeyStatus('idle'); return; }
-                setKeyStatus('checking');
-                void validateGroqKey(k).then((verdict) =>
-                  // 'offline' isn't a bad key — don't flag it as invalid.
-                  setKeyStatus(verdict === 'offline' ? 'idle' : verdict),
-                );
-              }}
-              placeholder="gsk_..."
-              placeholderTextColor={t.textTertiary}
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry={!showGroqKey}
-            />
-            <TouchableOpacity onPress={() => setShowGroqKey(v => !v)} style={{ padding: 4 }} hitSlop={8}>
-              {showGroqKey
-                ? <EyeOffIcon size={18} color={t.textSecondary} />
-                : <EyeIcon size={18} color={t.textSecondary} />}
-            </TouchableOpacity>
-          </View>
-          {keyStatus !== 'idle' && (
-            <View style={s.keyStatusRow}>
-              {keyStatus === 'checking' && (
-                <>
-                  <ActivityIndicator size="small" color={t.textSecondary} />
-                  <Text style={[typography.footnote, { color: t.textSecondary }]}>Validating key...</Text>
-                </>
-              )}
-              {keyStatus === 'valid' && (
-                <>
-                  <CheckIcon size={14} color={t.statusSuccess} />
-                  <Text style={[typography.footnote, { color: t.statusSuccess }]}>Key is valid</Text>
-                </>
-              )}
-              {keyStatus === 'invalid' && (
-                <Text style={[typography.footnote, { color: t.statusError }]}>Invalid key — check and try again</Text>
-              )}
-            </View>
-          )}
-        </View>
-
-        {/* Deepgram API Key (optional) */}
+        {/* Deepgram API Key (optional override) */}
         <Text style={s.sectionLabel}>DEEPGRAM API KEY (OPTIONAL)</Text>
         <View style={[s.card, { marginHorizontal: 16 }]}>
           <Text style={s.helpText}>
-            Optional. Add a Deepgram key for more accurate transcription in a live room.
-            When set, Scribe transcribes with Deepgram; outlines still use Groq.
+            Transcription is included — you don't need a key. Advanced: add your own
+            Deepgram key here to use your account instead.
           </Text>
           <Divider indent={16} />
           <View style={s.keyRow}>
@@ -866,7 +793,7 @@ export default function SettingsScreen() {
               style={[s.keyInput, { color: t.textPrimary }]}
               value={deepgram}
               onChangeText={setDeepgram}
-              placeholder="Deepgram key (leave blank to use Groq)"
+              placeholder="Deepgram key (optional)"
               placeholderTextColor={t.textTertiary}
               autoCapitalize="none"
               autoCorrect={false}
@@ -884,8 +811,8 @@ export default function SettingsScreen() {
         <Text style={s.sectionLabel}>ANTHROPIC API KEY (OPTIONAL)</Text>
         <View style={[s.card, { marginHorizontal: 16 }]}>
           <Text style={s.helpText}>
-            Optional. Add an Anthropic (Claude) key for higher-quality, more reliable
-            sermon outlines. When set, Scribe builds outlines with Claude instead of Groq.
+            Outlines are included — you don't need a key. Advanced: add your own
+            Anthropic (Claude) key here to use your account instead.
           </Text>
           <Divider indent={16} />
           <View style={s.keyRow}>
@@ -893,7 +820,7 @@ export default function SettingsScreen() {
               style={[s.keyInput, { color: t.textPrimary }]}
               value={anthropic}
               onChangeText={setAnthropic}
-              placeholder="sk-ant-... (leave blank to use Groq)"
+              placeholder="sk-ant-... (optional)"
               placeholderTextColor={t.textTertiary}
               autoCapitalize="none"
               autoCorrect={false}

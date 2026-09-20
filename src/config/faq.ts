@@ -7,15 +7,11 @@ export const FAQ: FaqEntry[] = [
   },
   {
     q: 'How do I get started?',
-    a: 'Add a Groq API key in Settings (free at console.groq.com), tap the record button on the Sermons screen, and start preaching. Scribe will transcribe in the background.',
-  },
-  {
-    q: 'Why do I need a Groq API key?',
-    a: 'Groq runs the Whisper transcription and Llama outlining models on their servers. Their free tier is generous — usually enough for ~2 hours of sermon recording per day. Your key stays on your device.',
+    a: 'Just tap the record button on the Sermons screen and start preaching. Transcription and outlining are built in — no setup or API keys needed. Scribe transcribes in the background.',
   },
   {
     q: 'Is my audio sent to a server?',
-    a: 'Audio chunks are sent directly to Groq for transcription, then immediately discarded by Groq. Scribe itself does not store or upload your audio anywhere — the original recordings stay on your device.',
+    a: 'Audio is sent to our transcription provider (Deepgram) to turn speech into text, and your transcript text is sent to our AI provider (Anthropic) to build the outline. Scribe does not store your audio on any server — the recordings stay on your device.',
   },
   {
     q: 'What happens if I lose internet during recording?',
@@ -31,7 +27,7 @@ export const FAQ: FaqEntry[] = [
   },
   {
     q: 'How long can I record?',
-    a: 'There is no hard limit on recording length — the audio is rotated into 30-second chunks so memory stays low. The Groq free tier limits how much you can transcribe per day (~2 hours).',
+    a: 'There is no hard limit on recording length — the audio is rotated into short chunks so memory stays low, and transcription keeps up in the background.',
   },
   {
     q: 'The transcription has errors. Can I fix it?',

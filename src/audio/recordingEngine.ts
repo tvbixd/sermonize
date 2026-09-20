@@ -5,7 +5,7 @@ import { SermonRecorder } from '@/audio/SermonRecorder';
 const KEEP_AWAKE_TAG = 'scribe-recording';
 import { lookupVerses } from '@/services/bible';
 import { findScriptureReferences } from '@/services/scriptureRegex';
-import { NetworkError, RateLimitError } from '@/services/whisper';
+import { NetworkError, RateLimitError } from '@/services/errors';
 import { transcribeChunks } from '@/services/transcription';
 import { useSessionStore } from '@/state/sessionStore';
 import { getTranslation } from '@/storage/keys';
@@ -33,7 +33,6 @@ class RecordingEngine {
   private chunkCount = 0;
   private failedChunks = 0;
   private audioOnly = false;
-  private groqKey = '';
 
   private ticker: ReturnType<typeof setInterval> | null = null;
   private autoSave: ReturnType<typeof setInterval> | null = null;
@@ -48,7 +47,7 @@ class RecordingEngine {
   // Chunks are transcribed through a small concurrency-limited queue and their
   // text is emitted STRICTLY in capture order, so raising MAX_CONCURRENT can
   // never scramble the transcript. With ~8s chunks a couple in flight keeps up
-  // with the recorder without bursting Groq's rate limit.
+  // with the recorder without bursting the transcription rate limit.
   private static readonly MAX_CONCURRENT = 2;
   // Detection runs over the tail of the accumulated transcript (not the isolated
   // chunk) so references split across a chunk boundary are still caught.
@@ -88,7 +87,7 @@ class RecordingEngine {
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
-  async start(opts: { groqKey: string; audioOnly: boolean }): Promise<void> {
+  async start(opts: { audioOnly: boolean }): Promise<void> {
     // Never clobber / leak a recorder: if a stale one is still around (e.g. a
     // prior crashed attempt), force-release its native recorder so it can't
     // block the new one with "recorder not prepared".
@@ -96,7 +95,6 @@ class RecordingEngine {
       await this.recorder.dispose().catch(() => undefined);
       this.recorder = null;
     }
-    this.groqKey = opts.groqKey;
     this.audioOnly = opts.audioOnly;
     this.transcript = '';
     this.chunkCount = 0;
@@ -318,7 +316,7 @@ class RecordingEngine {
   private async transcribeItem(item: { seq: number; uri: string; tries: number }) {
     let text = '';
     try {
-      text = await transcribeChunks([item.uri], this.groqKey);
+      text = await transcribeChunks([item.uri]);
     } catch (e) {
       if (e instanceof RateLimitError && item.tries < RecordingEngine.MAX_RATE_RETRIES) {
         // Back off and retry this same chunk (keeps capture order via its seq).
@@ -407,14 +405,14 @@ class RecordingEngine {
       void logEvent('rate_limit_alert', { consecutiveFailures: count });
       this.pauseAndAlert(
         'Transcription Limit Reached',
-        'Your Groq API rate limit has been hit. Your audio is safe — you can save now and re-transcribe later, or keep recording audio without transcription.',
+        'The transcription rate limit was hit. Your audio is safe — save now and re-transcribe later, or keep recording audio without transcription.',
       );
     } else if (isAuth && !this.authAlertShown) {
       this.authAlertShown = true;
       void logEvent('auth_error_alert', {});
       this.pauseAndAlert(
         'API Key Problem',
-        'Groq rejected your API key, so nothing is being transcribed. Your audio is safe — you can save now and fix the key in Settings, or keep recording audio only.',
+        'The transcription key was rejected, so nothing is being transcribed. Your audio is safe — save now and fix the key in Settings, or keep recording audio only.',
       );
     } else if (isNetwork && count >= 3) {
       heavyTap();

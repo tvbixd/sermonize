@@ -1,14 +1,12 @@
-import { transcribeAudio } from './whisper';
 import { transcribeAudioDeepgram } from './deepgram';
 import { getDeepgramKey } from '../storage/keys';
 
 /**
- * Transcribe audio chunks. Uses Deepgram (Nova-3, better real-room accuracy +
- * Bible-name keyterm boosting) when a Deepgram key is available, otherwise falls
- * back to Groq's hosted Whisper. Outlines still use Groq's LLM either way.
+ * Transcribe audio chunks with Deepgram (Nova-3 + Bible-name keyterm boosting).
+ * The key comes from Settings or the bundled EXPO_PUBLIC_DEEPGRAM_KEY.
  */
-export async function transcribeChunks(uris: string[], groqKey: string): Promise<string> {
-  const deepgramKey = await getDeepgramKey();
-  if (deepgramKey) return transcribeAudioDeepgram(uris, deepgramKey);
-  return transcribeAudio(uris, groqKey);
+export async function transcribeChunks(uris: string[]): Promise<string> {
+  const key = await getDeepgramKey();
+  if (!key) throw new Error('No transcription key configured. Add a Deepgram key in Settings.');
+  return transcribeAudioDeepgram(uris, key);
 }

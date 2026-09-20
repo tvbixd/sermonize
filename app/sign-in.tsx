@@ -22,9 +22,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Circle, Path, Rect, Svg } from 'react-native-svg';
 import * as WebBrowser from 'expo-web-browser';
 import { CheckIcon, MicIcon } from '@/components/icons';
-import { GROQ_CONSOLE_URL } from '@/config/support';
 import { OAUTH_CANCELLED, useAuth } from '@/context/auth';
-import { setGroqKey, setOnboarded, setTranslation } from '@/storage/keys';
+import { setOnboarded, setTranslation } from '@/storage/keys';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 
 const APP_ICON = require('../assets/icon.png');
@@ -34,7 +33,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
-type AuthStep = 'landing' | 'email' | 'otp' | 'name' | 'mic' | 'groq' | 'translation' | 'success';
+type AuthStep = 'landing' | 'email' | 'otp' | 'name' | 'mic' | 'translation' | 'success';
 
 // ─── SVG Glyphs ──────────────────────────────────────────────────────────────
 
@@ -334,13 +333,6 @@ export function AuthFlow({ initialMode = 'signin' }: { initialMode?: 'signin' | 
           )}
           {step === 'mic' && (
             <MicSetupView
-              onNext={() => goToStep('groq')}
-              t={t}
-              s={s}
-            />
-          )}
-          {step === 'groq' && (
-            <GroqSetupView
               onNext={() => goToStep('translation')}
               t={t}
               s={s}
@@ -832,7 +824,7 @@ function MicSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: Retu
         <Text style={s.setupSub}>
           {granted
             ? 'Microphone access granted.'
-            : 'Scribe needs microphone access to record your sermons. Recordings are saved on your device and sent to Groq only for transcription.'}
+            : 'Scribe needs microphone access to record your sermons. Recordings are saved on your device and sent only for transcription.'}
         </Text>
       </View>
       <View style={s.bottomAction}>
@@ -855,140 +847,6 @@ function MicSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: Retu
   );
 }
 
-// ─── Groq Setup ─────────────────────────────────────────────────────────────
-
-function GroqSetupView({ onNext, t, s }: { onNext: () => void; t: Colors; s: ReturnType<typeof makeStyles> }) {
-  const [key, setKey] = useState('');
-  const [status, setStatus] = useState<'empty' | 'verifying' | 'valid' | 'invalid'>('empty');
-
-  const validate = async (k: string) => {
-    if (!k.trim()) { setStatus('empty'); return; }
-    setStatus('verifying');
-    try {
-      const resp = await fetch('https://api.groq.com/openai/v1/models', {
-        headers: { Authorization: `Bearer ${k.trim()}` },
-      });
-      setStatus(resp.ok ? 'valid' : 'invalid');
-    } catch {
-      setStatus('invalid');
-    }
-  };
-
-  const onChangeKey = (v: string) => { setKey(v); setStatus('empty'); };
-  const onSubmitKey = () => void validate(key);
-
-  const onContinue = async () => {
-    if (status === 'valid') await setGroqKey(key.trim());
-    onNext();
-  };
-
-  return (
-    <View style={{ flex: 1 }}>
-      <NavBar t={t} />
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: 20, paddingBottom: spacing.md }} keyboardShouldPersistTaps="handled">
-        <View style={s.setupIconWrap}>
-          <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
-            <Rect x="3" y="11" width="18" height="11" rx="2" stroke={t.accentBlue} strokeWidth="1.8" />
-            <Path d="M7 11V7a5 5 0 0 1 10 0v4" stroke={t.accentBlue} strokeWidth="1.8" strokeLinecap="round" />
-            <Circle cx="12" cy="16.5" r="1.5" fill={t.accentBlue} />
-          </Svg>
-        </View>
-        <Text style={s.stepTitle}>Connect to Groq (free).</Text>
-        <Text style={[s.stepSubtitle, { marginBottom: 20 }]}>
-          Scribe uses Groq's free AI to transcribe and outline your sermons. You just need a free key — it takes about two minutes and stays on your device.
-        </Text>
-
-        {/* Numbered guide */}
-        <View style={[s.groqCard, { backgroundColor: t.bgSurface, flexDirection: 'column', alignItems: 'stretch', padding: 16, marginBottom: 16 }]}>
-          {[
-            'Tap "Get my free key" below — it opens right here in the app.',
-            'Sign up with Google (fastest) or email.',
-            'On the page that opens, tap "Create API Key", name it "Scribe", then copy it.',
-            'Come back here and paste it in the box below.',
-          ].map((stepText, i) => (
-            <View key={i} style={{ flexDirection: 'row', gap: 10, marginBottom: i < 3 ? 12 : 0 }}>
-              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: t.accentBlue, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{i + 1}</Text>
-              </View>
-              <Text style={{ ...typography.footnote, color: t.textPrimary, flex: 1, lineHeight: 19 }}>{stepText}</Text>
-            </View>
-          ))}
-        </View>
-
-        <TouchableOpacity
-          style={[s.providerBtn, { backgroundColor: t.accentBlue, marginBottom: 20 }]}
-          activeOpacity={0.85}
-          onPress={() => void WebBrowser.openBrowserAsync(GROQ_CONSOLE_URL)}
-          accessibilityRole="button"
-          accessibilityLabel="Get my free Groq key"
-        >
-          <Text style={[s.providerBtnText, { color: '#fff' }]}>Get my free key →</Text>
-        </TouchableOpacity>
-
-        <Text style={{ ...typography.footnote, fontWeight: '600', color: t.textSecondary, marginBottom: 8 }}>
-          PASTE YOUR KEY HERE
-        </Text>
-        <View style={[s.groqCard, { backgroundColor: t.bgSurface }]}>
-          <TextInput
-            style={s.groqInput}
-            value={key}
-            onChangeText={onChangeKey}
-            onEndEditing={onSubmitKey}
-            placeholder="gsk_..."
-            placeholderTextColor={t.textTertiary}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="done"
-            onSubmitEditing={onSubmitKey}
-          />
-          {key.length > 0 && (
-            <TouchableOpacity onPress={() => { setKey(''); setStatus('empty'); }} style={{ padding: 4 }}>
-              <View style={[s.clearCircle, { backgroundColor: t.textTertiary }]}>
-                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{'✕'}</Text>
-              </View>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <View style={s.groqStatus}>
-          {status === 'verifying' && (
-            <>
-              <ActivityIndicator size="small" color={t.accentBlue} />
-              <Text style={[s.groqStatusText, { color: t.textSecondary }]}>Checking your key…</Text>
-            </>
-          )}
-          {status === 'valid' && (
-            <>
-              <CheckIcon size={14} color={t.statusSuccess} />
-              <Text style={[s.groqStatusText, { color: t.statusSuccess }]}>Key looks good — you're all set</Text>
-            </>
-          )}
-          {status === 'invalid' && (
-            <Text style={[s.groqStatusText, { color: t.statusError }]}>That key didn't work. Make sure you copied the whole thing (starts with gsk_).</Text>
-          )}
-        </View>
-
-        <Text style={{ ...typography.caption, color: t.textTertiary, textAlign: 'center', marginTop: 8 }}>
-          You can also skip this and add it later in Settings.
-        </Text>
-      </ScrollView>
-
-      <View style={s.bottomAction}>
-        <TouchableOpacity
-          style={[s.primaryBtn, { backgroundColor: status === 'valid' ? t.accentBlue : '#C7C7CC' }]}
-          activeOpacity={0.85}
-          onPress={onContinue}
-          disabled={status !== 'valid'}
-        >
-          <Text style={s.primaryBtnText}>Continue</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onNext} activeOpacity={0.7} style={{ alignItems: 'center', paddingVertical: 10 }}>
-          <Text style={{ ...typography.subhead, color: t.textSecondary, fontWeight: '500' }}>I'll add it later</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
 
 // ─── Translation Setup ──────────────────────────────────────────────────────
 

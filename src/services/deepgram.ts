@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { BOOK_NAMES } from './scriptureRegex';
-import { NetworkError, RateLimitError } from './whisper';
+import { NetworkError, RateLimitError } from './errors';
 
 /**
  * Transcribe audio via Deepgram's pre-recorded API (Nova-3). Higher real-room

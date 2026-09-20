@@ -24,7 +24,7 @@ import { dedupeScriptures, lookupVerse, lookupVerses } from '@/services/bible';
 import { generateOutline } from '@/services/outlineProvider';
 import { findScriptureReferences } from '@/services/scriptureRegex';
 import { transcribeChunks } from '@/services/transcription';
-import { getDeepgramKey, getGroqKey, getTranslation } from '@/storage/keys';
+import { getDeepgramKey, getTranslation } from '@/storage/keys';
 import { audioDir, getSermon, saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
 import type { Outline, Sermon } from '@/types';
@@ -218,14 +218,12 @@ export default function SermonDetail() {
           onPress: async () => {
             setBusy(true);
             try {
-              const groqKey = (await getGroqKey()) ?? '';
               const deepgramKey = await getDeepgramKey();
-              if (!groqKey && !deepgramKey) {
-                throw new Error('Add a Groq or Deepgram key in Settings to transcribe.');
+              if (!deepgramKey) {
+                throw new Error('Add a Deepgram key in Settings to transcribe.');
               }
               const uris = audioFiles.map((f) => `${dir}${f}`);
-              // Uses Deepgram if its key is set, otherwise Groq Whisper.
-              const transcript = await transcribeChunks(uris, groqKey);
+              const transcript = await transcribeChunks(uris);
               const translation = await getTranslation();
               // Claude (if configured) → Groq → on-device extractive.
               let outline = sermon.outline;

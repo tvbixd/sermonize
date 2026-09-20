@@ -1,5 +1,5 @@
 import type { Outline } from '../types';
-import { RateLimitError } from './whisper';
+import { RateLimitError } from './errors';
 import { EMPTY_OUTLINE, OUTLINE_SYSTEM_PROMPT, parseOutlineJson, trimForOutline } from './outline';
 
 /**
