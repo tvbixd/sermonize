@@ -37,16 +37,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    let mounted = true;
+    const finish = (s: Session | null) => {
+      if (!mounted) return;
       setSession(s);
       setLoading(false);
-    });
+    };
+
+    // getSession() can reject or stall (offline, or a stored token refreshing
+    // against a slow/unreachable auth server). Always resolve loading, and never
+    // let the app hang on a blank screen after the splash.
+    supabase.auth.getSession()
+      .then(({ data: { session: s } }) => finish(s))
+      .catch(() => finish(null));
+    const safety = setTimeout(() => { if (mounted) setLoading(false); }, 3000);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
+      if (mounted) setSession(s);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(safety);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const setTestUser = (email: string, displayName: string) => {
