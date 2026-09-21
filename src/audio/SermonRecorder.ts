@@ -81,9 +81,15 @@ export class SermonRecorder {
     await setAudioModeAsync({
       allowsRecording: true,
       playsInSilentMode: true,
-      // The key to recording while backgrounded / screen-locked: keep the
-      // audio session active in the background.
+      // The key to CAPTURING while backgrounded / screen-locked: iOS suspends a
+      // recording the moment the app backgrounds unless the audio session is
+      // told to keep recording alive. `shouldPlayInBackground` only covers
+      // playback; `allowsBackgroundRecording` is what keeps the mic running (and
+      // is what stops the app freezing on return, when it would otherwise come
+      // back to an invalidated recorder). Both are set, paired with the 'audio'
+      // UIBackgroundMode in app.config.ts.
       shouldPlayInBackground: true,
+      allowsBackgroundRecording: true,
       interruptionMode: 'doNotMix',
     });
     await setIsAudioActiveAsync(true).catch(() => undefined);
@@ -184,6 +190,31 @@ export class SermonRecorder {
       // best-effort: prior segment is already persisted by sealCurrentSegment
     } finally {
       this.rotating = false;
+    }
+  }
+
+  /** True when a native segment is actively capturing audio. */
+  isCapturing(): boolean {
+    return this.current != null && this.segmentStartedAt != null;
+  }
+
+  /**
+   * Make sure a segment is actively capturing, restarting one if the recorder
+   * was invalidated (e.g. iOS tore down the audio session during a background
+   * suspension). Called on foreground return so a dropped session recovers
+   * instead of leaving the UI stuck on a "recording" state that captures
+   * nothing. Returns true if capturing after the call.
+   */
+  async ensureCapturing(): Promise<boolean> {
+    if (this.rotating) await this.waitForRotation();
+    if (this.isCapturing()) return true;
+    try {
+      await SermonRecorder.configureSession();
+      await this.beginNewSegment();
+      if (this.chunkTimer == null) this.startChunkTimer();
+      return this.isCapturing();
+    } catch {
+      return false;
     }
   }
 

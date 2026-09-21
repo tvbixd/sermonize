@@ -220,6 +220,16 @@ class RecordingEngine {
   private async onForeground(): Promise<void> {
     if (!this.isActive()) return;
     await this.recorder?.flushCurrentChunk().catch(() => undefined);
+    // If iOS tore down the audio session while we were backgrounded, the flush
+    // above can't seal a live segment and capture is silently dead. When we're
+    // meant to be recording, restart a fresh segment so recording actually
+    // continues rather than the UI sitting on a frozen "recording" state.
+    if (this.store.status === 'recording') {
+      const ok = await this.recorder?.ensureCapturing().catch(() => false);
+      if (ok === false) {
+        this.store.setChunkWarning('Recording was interrupted — tap pause then record to resume');
+      }
+    }
     await this.autoSaveDraft();
   }
 
