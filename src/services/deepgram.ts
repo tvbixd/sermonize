@@ -4,11 +4,11 @@ import { NetworkError, RateLimitError } from './errors';
 
 /**
  * Transcribe audio via Deepgram's pre-recorded API (Nova-3). Higher real-room
- * accuracy than Groq Whisper-turbo, and we pass every Bible book name as a
+ * accuracy in a live room, and we pass every Bible book name as a
  * `keyterm` so hard names ("Habakkuk", "Philippians") are recognized — which
  * directly improves downstream scripture detection.
  *
- * Same shape as the Groq path (`transcribeAudio`) so it's a drop-in provider.
+ * Returns plain transcript text so it's a drop-in transcription provider.
  */
 const DEEPGRAM_URL = 'https://api.deepgram.com/v1/listen';
 const MODEL = 'nova-3';

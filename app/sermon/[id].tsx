@@ -177,7 +177,7 @@ export default function SermonDetail() {
     setBusy(true);
     try {
       const translation = await getTranslation();
-      // Claude (if configured) → Groq → on-device extractive.
+      // Gemini (free) → Claude (if configured) → on-device extractive.
       const { outline, aiUsed } = await generateOutline(sermon.transcript);
       const refs = new Set(findScriptureReferences(sermon.transcript));
       for (const p of outline.points) for (const r of p.scriptures) refs.add(r);
@@ -225,7 +225,7 @@ export default function SermonDetail() {
               const uris = audioFiles.map((f) => `${dir}${f}`);
               const transcript = await transcribeChunks(uris);
               const translation = await getTranslation();
-              // Claude (if configured) → Groq → on-device extractive.
+              // Gemini (free) → Claude (if configured) → on-device extractive.
               let outline = sermon.outline;
               if (transcript.trim()) {
                 outline = (await generateOutline(transcript)).outline;

@@ -1202,7 +1202,7 @@ function makeStyles(t: Colors) {
       paddingBottom: 14,
     },
 
-    // Setup steps (mic, groq, translation)
+    // Setup steps (mic, translation)
     setupCenter: {
       flex: 1,
       alignItems: 'center',
@@ -1256,32 +1256,6 @@ function makeStyles(t: Colors) {
         android: { elevation: 8 },
       }),
     },
-    groqCard: {
-      borderRadius: radius.card,
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 14,
-      minHeight: 50,
-    },
-    groqInput: {
-      flex: 1,
-      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-      fontSize: 15,
-      letterSpacing: 0.5,
-      color: t.textPrimary,
-      paddingVertical: 12,
-    },
-    groqStatus: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 22, paddingTop: 10 },
-    groqStatusText: { ...typography.footnote },
-    groqHelp: {
-      marginTop: 20,
-      borderRadius: 14,
-      padding: 14,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 14,
-    },
-    groqHelpIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
     translationCard: { borderRadius: radius.card, marginTop: spacing.lg, overflow: 'hidden' },
     translationRow: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 14 },
     translationBadge: { width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },

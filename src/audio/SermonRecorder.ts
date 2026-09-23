@@ -43,7 +43,7 @@ export class SermonRecorder {
   // Chunk length trades transcription ACCURACY against how fast verses surface.
   // 8s was too aggressive — Whisper loses context and cuts words at boundaries,
   // producing a messier transcript. 15s keeps a live-ish feel while giving each
-  // Whisper call enough context to transcribe cleanly. (Groq bills audio-seconds
+  // transcription call enough context to transcribe cleanly. (Providers bill
   // regardless of chunk size.)
   static readonly CHUNK_MS = 15_000;
 
@@ -229,19 +229,20 @@ export class SermonRecorder {
   async pause(): Promise<void> {
     this.stopChunkTimer();
     await this.waitForRotation();
-    if (!this.current) return;
-    try { this.current.pause(); } catch { /* ignore */ }
-    if (this.segmentStartedAt != null) {
-      this.accumulatedMs += Date.now() - this.segmentStartedAt;
-      this.segmentStartedAt = null;
-    }
+    // Seal the in-progress segment rather than holding a native recorder open
+    // across the pause. A long pause (minutes, especially if the app is
+    // backgrounded) lets iOS tear down the paused recorder, and resuming it
+    // then silently captures nothing. Sealing persists + transcribes the
+    // pre-pause audio immediately and lets resume start from a clean recorder.
+    // (accumulatedMs is updated inside sealCurrentSegment.)
+    await this.sealCurrentSegment().catch(() => undefined);
   }
 
   async resume(): Promise<void> {
-    if (!this.current) return;
-    try { this.current.record(); } catch { /* ignore */ }
-    this.segmentStartedAt = Date.now();
-    this.startChunkTimer();
+    // The previous segment was sealed on pause, so always start a fresh one.
+    // ensureCapturing reconfigures the audio session first, recovering if iOS
+    // deactivated it during the pause.
+    await this.ensureCapturing();
   }
 
   async stop(): Promise<{ uris: string[]; durationMs: number }> {

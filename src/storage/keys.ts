@@ -28,7 +28,7 @@ export async function setOnboarded(): Promise<void> {
 }
 
 /** Optional Deepgram key. When set, transcription uses Deepgram (higher
- *  real-room accuracy) instead of Groq Whisper. Groq is still used for outlines. */
+ *  real-room accuracy). */
 export async function getDeepgramKey(): Promise<string | null> {
   const stored = await SecureStore.getItemAsync(DEEPGRAM_KEY);
   if (stored) return stored;
@@ -45,7 +45,7 @@ export async function setDeepgramKey(value: string): Promise<void> {
 }
 
 /** Optional Anthropic (Claude) key. When set, outlines use Claude (higher
- *  quality, no free-tier daily cap) instead of Groq's Llama. */
+ *  quality, no free-tier daily cap). */
 export async function getAnthropicKey(): Promise<string | null> {
   const stored = await SecureStore.getItemAsync(ANTHROPIC_KEY);
   if (stored) return stored;

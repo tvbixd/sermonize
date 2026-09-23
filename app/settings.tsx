@@ -1141,7 +1141,7 @@ function makeStyles(t: Colors) {
     },
     rowText: { ...typography.body, flex: 1 },
 
-    // Groq key
+    // Outline / transcription keys
     helpText: { ...typography.footnote, color: t.textSecondary, padding: 16, lineHeight: 18 },
     keyRow: {
       flexDirection: 'row', alignItems: 'center',

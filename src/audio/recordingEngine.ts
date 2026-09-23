@@ -162,6 +162,16 @@ class RecordingEngine {
 
   async resume(): Promise<void> {
     await this.recorder?.resume().catch(() => undefined);
+    // resume() starts a fresh segment; if the recorder couldn't restart (audio
+    // session lost during a long pause), tell the user instead of showing a
+    // "recording" state that captures nothing.
+    if (this.recorder && !this.recorder.isCapturing()) {
+      const ok = await this.recorder.ensureCapturing().catch(() => false);
+      if (!ok) {
+        this.store.setChunkWarning('Could not resume recording — stop and save, then start again');
+        return;
+      }
+    }
     this.store.setStatus('recording');
     this.startTicker();
     void logEvent('recording_resumed');

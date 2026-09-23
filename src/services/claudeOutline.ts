@@ -4,8 +4,8 @@ import { EMPTY_OUTLINE, OUTLINE_SYSTEM_PROMPT, parseOutlineJson, trimForOutline 
 
 /**
  * Extract a sermon outline with Anthropic's Claude (Messages API). Higher-quality
- * structured outlines than the free Groq Llama tier, and no restrictive free-tier
- * daily token cap. Same prompt/parser as the Groq path so output is consistent.
+ * structured outlines with no restrictive free-tier
+ * daily token cap. Shares the outline prompt/parser so output is consistent.
  */
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-haiku-4-5-20251001'; // cheap + strong for structured JSON

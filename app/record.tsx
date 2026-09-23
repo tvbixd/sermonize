@@ -200,11 +200,11 @@ export default function RecordScreen() {
       captured = await recordingEngine.stopForFinalize();
       const transcript = captured.transcript;
 
-      // Outline: Groq's LLM when a key is present, otherwise the free on-device
+      // Outline: AI when a provider is reachable, otherwise the free on-device
       // extractive outline. The extractive path is a normal outcome.
       setStep('outlining');
-      // Claude (if configured) → Groq → on-device. aiUsed=false means it fell
-      // back to the basic outline, and we tell the user so they can regenerate.
+      // Gemini (free) → Claude (if configured) → on-device. aiUsed=false means it
+      // fell back to the basic outline, and we tell the user so they can regenerate.
       const { outline: builtOutline, aiUsed } = transcript.trim()
         ? await generateOutline(transcript)
         : { outline: fallbackOutline(), aiUsed: true };
