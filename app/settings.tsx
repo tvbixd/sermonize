@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import * as Application from 'expo-application';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as WebBrowser from 'expo-web-browser';
@@ -1033,7 +1034,13 @@ export default function SettingsScreen() {
           <Divider indent={16} />
           <View style={s.settingsRow}>
             <Text style={[typography.body, { color: t.textPrimary, flex: 1 }]}>Version</Text>
-            <Text style={[typography.body, { color: t.textSecondary }]}>{Constants.expoConfig?.version ?? '1.0.0'}</Text>
+            <Text style={[typography.body, { color: t.textSecondary }]}>
+              {/* Marketing version + native build number, so an installed build
+                  can be matched against the build number shown in TestFlight /
+                  App Store Connect. nativeBuildVersion is null in Expo Go / dev. */}
+              {Constants.expoConfig?.version ?? '1.0.0'}
+              {Application.nativeBuildVersion ? ` (${Application.nativeBuildVersion})` : ''}
+            </Text>
           </View>
         </View>
 
