@@ -16,3 +16,7 @@ npm-debug.*
 ios/
 android/
 expo-env.d.ts
+
+# Agent skills (local dev tooling installed via `npx skills add`)
+.agents/
+.claude/skills/
