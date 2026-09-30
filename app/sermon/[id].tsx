@@ -346,7 +346,7 @@ export default function SermonDetail() {
             value={draftTitle}
             onChangeText={setDraftTitle}
             placeholder="Sermon title"
-            placeholderTextColor={t.textTertiary}
+            placeholderTextColor={t.textSecondary}
           />
         ) : (
           <Text style={styles.sermonTitle} numberOfLines={3}>{sermon.title}</Text>
@@ -389,7 +389,7 @@ export default function SermonDetail() {
                     value={draftTheme}
                     onChangeText={setDraftTheme}
                     placeholder="Central theme…"
-                    placeholderTextColor={t.textTertiary}
+                    placeholderTextColor={t.textSecondary}
                     multiline
                   />
                   <Text style={styles.fieldLabel}>Summary</Text>
@@ -398,7 +398,7 @@ export default function SermonDetail() {
                     value={draftSummary}
                     onChangeText={setDraftSummary}
                     placeholder="Brief summary…"
-                    placeholderTextColor={t.textTertiary}
+                    placeholderTextColor={t.textSecondary}
                     multiline
                   />
                   <Text style={styles.fieldLabel}>Points</Text>
@@ -412,9 +412,15 @@ export default function SermonDetail() {
                           value={point.heading}
                           onChangeText={(text) => updatePointHeading(pi, text)}
                           placeholder={`Point ${pi + 1} heading…`}
-                          placeholderTextColor={t.textTertiary}
+                          placeholderTextColor={t.textSecondary}
                         />
-                        <TouchableOpacity onPress={() => removePoint(pi)} style={styles.removeCircle}>
+                        <TouchableOpacity
+                          onPress={() => removePoint(pi)}
+                          style={styles.removeCircle}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove point ${pi + 1}`}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
                           <CloseIcon size={12} color="#fff" />
                         </TouchableOpacity>
                       </View>
@@ -425,9 +431,15 @@ export default function SermonDetail() {
                             value={sp}
                             onChangeText={(text) => updateSubPoint(pi, si, text)}
                             placeholder="Sub-point…"
-                            placeholderTextColor={t.textTertiary}
+                            placeholderTextColor={t.textSecondary}
                           />
-                          <TouchableOpacity onPress={() => removeSubPoint(pi, si)} style={styles.removeRing}>
+                          <TouchableOpacity
+                            onPress={() => removeSubPoint(pi, si)}
+                            style={styles.removeRing}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Remove sub-point ${si + 1} from point ${pi + 1}`}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          >
                             <CloseIcon size={10} color={t.textSecondary} />
                           </TouchableOpacity>
                         </View>
@@ -490,7 +502,7 @@ export default function SermonDetail() {
                   value={newScriptureRef}
                   onChangeText={setNewScriptureRef}
                   placeholder="e.g. John 3:16"
-                  placeholderTextColor={t.textTertiary}
+                  placeholderTextColor={t.textSecondary}
                   autoCapitalize="words"
                   returnKeyType="done"
                   onSubmitEditing={onAddScripture}

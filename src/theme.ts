@@ -7,7 +7,7 @@ export const lightColors = {
   bgSurfaceRaised: '#E9ECEF',
   bgWarm: '#E9ECEF',
   textPrimary: '#2B3031',
-  textSecondary: '#7A7E80',
+  textSecondary: '#6A6E70',
   textTertiary: '#B8BABB',
   separator: 'rgba(43,48,49,0.10)',
   accentBlue: '#0A84FF',

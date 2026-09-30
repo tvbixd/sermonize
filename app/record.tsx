@@ -417,7 +417,7 @@ export default function RecordScreen() {
           <LiveWaveform getLevel={getMeterLevel} active={status === 'recording'} color={t.accentRed} />
 
           <View style={styles.txWrap} accessibilityLiveRegion="polite">
-            <Text style={[styles.eyebrow, { color: t.textTertiary }]}>Live transcript</Text>
+            <Text style={[styles.eyebrow, { color: t.textSecondary }]}>Live transcript</Text>
             <ScrollView
               ref={transcriptScrollRef}
               style={styles.txScroll}
@@ -427,7 +427,7 @@ export default function RecordScreen() {
               {liveTranscript.trim() ? (
                 <LiveTranscript text={liveTranscript} />
               ) : (
-                <Text style={[styles.txPlaceholder, { color: t.textTertiary }]}>
+                <Text style={[styles.txPlaceholder, { color: t.textSecondary }]}>
                   Listening… your words will appear here.
                 </Text>
               )}
@@ -435,7 +435,7 @@ export default function RecordScreen() {
           </View>
 
           <View style={styles.spotHeader}>
-            <Text style={[styles.eyebrow, { color: t.textTertiary }]}>{audioOnlyMode ? 'Audio only' : 'Just now'}</Text>
+            <Text style={[styles.eyebrow, { color: t.textSecondary }]}>{audioOnlyMode ? 'Audio only' : 'Just now'}</Text>
             {resolvedScriptures.length > 0 && (
               <TouchableOpacity
                 style={[styles.pill, { backgroundColor: t.bgSurface, borderColor: t.separator }]}
