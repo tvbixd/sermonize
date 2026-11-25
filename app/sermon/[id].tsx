@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -27,7 +28,7 @@ import { transcribeChunks } from '@/services/transcription';
 import { getDeepgramKey, getTranslation } from '@/storage/keys';
 import { audioDir, getSermon, saveSermon } from '@/storage/sermons';
 import { type Colors, radius, spacing, typography, useTheme } from '@/theme';
-import type { Outline, Sermon } from '@/types';
+import type { Outline, Scripture, Sermon } from '@/types';
 import { formatDate, formatElapsed, sermonToMarkdown } from '@/util/format';
 
 type Tab = 'outline' | 'scriptures';
@@ -50,6 +51,26 @@ export default function SermonDetail() {
   const [newScriptureRef, setNewScriptureRef] = useState('');
   const [addingScripture, setAddingScripture] = useState(false);
   const [audioFileUris, setAudioFileUris] = useState<string[]>([]);
+
+  // Tappable verse references in the outline open a quick passage popover.
+  const [activeVerse, setActiveVerse] = useState<Scripture | null>(null);
+  const [verseLoading, setVerseLoading] = useState(false);
+
+  const onTapRef = async (reference: string) => {
+    // Prefer a verse we already resolved and saved; otherwise look it up.
+    const existing = sermon?.scriptures.find((s) => s.reference === reference && s.text);
+    if (existing) { setActiveVerse(existing); return; }
+    setActiveVerse({ reference });
+    setVerseLoading(true);
+    try {
+      const translation = await getTranslation();
+      setActiveVerse(await lookupVerse(reference, translation));
+    } catch {
+      setActiveVerse({ reference }); // show the reference even if the text can't be fetched
+    } finally {
+      setVerseLoading(false);
+    }
+  };
 
   useEffect(() => {
     void (async () => {
@@ -485,7 +506,15 @@ export default function SermonDetail() {
                       {point.scriptures.length > 0 && (
                         <View style={styles.refsRow}>
                           {point.scriptures.map((r, ri) => (
-                            <Text key={ri} style={styles.refTag}>{r}</Text>
+                            <TouchableOpacity
+                              key={ri}
+                              onPress={() => onTapRef(r)}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Open ${r}`}
+                              hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                            >
+                              <Text style={styles.refTag}>{r}</Text>
+                            </TouchableOpacity>
                           ))}
                         </View>
                       )}
@@ -579,6 +608,46 @@ export default function SermonDetail() {
           <Text style={styles.exportText}>Export</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Verse popover — opened by tapping a reference in the outline */}
+      <Modal
+        visible={!!activeVerse}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setActiveVerse(null)}
+      >
+        <TouchableOpacity
+          style={styles.verseBackdrop}
+          activeOpacity={1}
+          onPress={() => setActiveVerse(null)}
+          accessibilityRole="button"
+          accessibilityLabel="Close verse"
+        >
+          <View style={styles.verseSheet} onStartShouldSetResponder={() => true}>
+            <View style={styles.verseRefRow}>
+              <Text style={styles.verseRef}>{activeVerse?.reference}</Text>
+              {activeVerse?.translation ? (
+                <View style={styles.verseChip}>
+                  <Text style={styles.verseChipText}>{activeVerse.translation}</Text>
+                </View>
+              ) : null}
+            </View>
+            {verseLoading ? (
+              <View style={styles.verseLoading}>
+                <ActivityIndicator color={t.textSecondary} />
+                <Text style={styles.verseFinding}>Finding verse…</Text>
+              </View>
+            ) : activeVerse?.text ? (
+              <Text style={styles.verseText}>{'“' + activeVerse.text + '”'}</Text>
+            ) : (
+              <Text style={styles.verseFinding}>Verse text unavailable.</Text>
+            )}
+            <TouchableOpacity style={styles.verseDone} onPress={() => setActiveVerse(null)}>
+              <Text style={styles.verseDoneText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -802,5 +871,36 @@ function makeStyles(t: Colors) {
       gap: 8,
     },
     exportText: { ...typography.headline, color: '#fff' },
+
+    verseBackdrop: {
+      flex: 1,
+      backgroundColor: t.dimOverlay,
+      justifyContent: 'center',
+      paddingHorizontal: spacing.lg,
+    },
+    verseSheet: {
+      backgroundColor: t.bgSurface,
+      borderRadius: radius.card,
+      borderWidth: 0.5,
+      borderColor: t.separator,
+      padding: spacing.md,
+      gap: 10,
+    },
+    verseRefRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    verseRef: { ...typography.title3, fontWeight: '700', color: t.accentBlue },
+    verseChip: {
+      marginLeft: 'auto',
+      borderWidth: 1,
+      borderColor: t.accentGold,
+      borderRadius: radius.pill,
+      paddingHorizontal: 8,
+      paddingVertical: 1.5,
+    },
+    verseChipText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5, color: t.accentGold },
+    verseText: { ...typography.callout, lineHeight: 24, fontStyle: 'italic', color: t.textPrimary },
+    verseFinding: { ...typography.subhead, color: t.textSecondary },
+    verseLoading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    verseDone: { alignSelf: 'flex-end', paddingHorizontal: spacing.sm, paddingVertical: 4, marginTop: 2 },
+    verseDoneText: { ...typography.body, color: t.accentBlue, fontWeight: '600' },
   });
 }
