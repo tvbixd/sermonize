@@ -529,12 +529,12 @@
       <div class="step">
         <div class="step-num" style="background: var(--blue);">2</div>
         <h3>AI Transcribes</h3>
-        <p>Your recording is sent to Groq's Whisper v3 Turbo for fast, accurate transcription. You see the transcript build in real time as you record.</p>
+        <p>Your recording is sent to Deepgram for fast, accurate transcription. You see the transcript build in real time as you record.</p>
       </div>
       <div class="step">
         <div class="step-num" style="background: var(--purple);">3</div>
         <h3>Outline Generated</h3>
-        <p>Llama 3.3 70B reads the full transcript and returns a structured outline: title, theme, summary, main points with sub-points, and scripture references.</p>
+        <p>Google Gemini reads the full transcript and returns a structured outline: title, theme, summary, main points with sub-points, and scripture references.</p>
       </div>
       <div class="step">
         <div class="step-num" style="background: var(--green);">4</div>
@@ -616,7 +616,7 @@
       <ul class="price-list">
         <li>
           <span class="price-check"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7"/></svg></span>
-          Groq API — generous free tier, no credit card
+          Transcription &amp; outlines built in — no API key to bring
         </li>
         <li>
           <span class="price-check"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7"/></svg></span>
@@ -661,8 +661,8 @@
       <div class="setup-step">
         <span class="setup-step-num">3</span>
         <div>
-          <h4>Add your Groq API key</h4>
-          <p>Open Settings in the app, paste your free key from <a href="https://console.groq.com/keys" style="color:var(--blue)">console.groq.com</a>. That's it — start recording.</p>
+          <h4>Add your API keys</h4>
+          <p>Copy <code>.env.example</code> to <code>.env</code> and add a Deepgram key (transcription) and a free Google Gemini key from <a href="https://aistudio.google.com" style="color:var(--blue)">aistudio.google.com</a> (outlines) — or paste them in Settings. That's it — start recording.</p>
         </div>
       </div>
     </div>

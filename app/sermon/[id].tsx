@@ -368,6 +368,8 @@ export default function SermonDetail() {
             key={tb}
             onPress={() => setTab(tb)}
             style={[styles.tab, tab === tb && styles.tabActive]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === tb }}
           >
             <Text style={[styles.tabText, tab === tb && styles.tabTextActive]}>
               {tb === 'outline' ? 'Outline' : 'Scriptures'}
@@ -509,8 +511,11 @@ export default function SermonDetail() {
                 />
                 <TouchableOpacity
                   onPress={onAddScripture}
-                  style={styles.addScriptureBtn}
+                  style={[styles.addScriptureBtn, (addingScripture || !newScriptureRef.trim()) && styles.addScriptureBtnDisabled]}
                   disabled={addingScripture || !newScriptureRef.trim()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add scripture"
+                  accessibilityState={{ disabled: addingScripture || !newScriptureRef.trim() }}
                 >
                   {addingScripture
                     ? <ActivityIndicator color="#fff" />
@@ -668,10 +673,7 @@ function makeStyles(t: Colors) {
     body: { padding: spacing.md, paddingBottom: spacing.xl, backgroundColor: t.bgSurface },
 
     fieldLabel: {
-      fontSize: 11,
-      fontWeight: '500',
-      letterSpacing: 0.5,
-      textTransform: 'uppercase',
+      ...typography.sectionHeader,
       color: t.textSecondary,
       marginBottom: 6,
       marginTop: spacing.xs,
@@ -701,14 +703,25 @@ function makeStyles(t: Colors) {
       borderWidth: 0.5,
       borderColor: t.separator,
     },
-    pointCardLabel: { fontSize: 11, fontWeight: '500', letterSpacing: 0.5, textTransform: 'uppercase', color: t.textSecondary, marginBottom: 4 },
+    pointCardLabel: { ...typography.sectionHeader, color: t.textSecondary, marginBottom: 4 },
     pointRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     pointHeading: { ...typography.headline, color: t.textPrimary, marginBottom: spacing.sm },
     subRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
     bullet: { color: t.textTertiary, fontWeight: '500', fontSize: 15, lineHeight: 21 },
     subPoint: { ...typography.subhead, color: t.textPrimary, flex: 1, lineHeight: 21 },
-    refsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 10 },
-    refTag: { ...typography.footnote, color: t.accentBlue, fontWeight: '500' },
+    refsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 10 },
+    refTag: {
+      ...typography.caption,
+      color: t.accentBlue,
+      fontWeight: '600',
+      backgroundColor: t.bgSurface,
+      borderWidth: 0.5,
+      borderColor: t.separator,
+      borderRadius: radius.small,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      overflow: 'hidden',
+    },
 
     removeCircle: {
       width: 24, height: 24, borderRadius: 12,
@@ -746,6 +759,7 @@ function makeStyles(t: Colors) {
       justifyContent: 'center',
       minWidth: 64,
     },
+    addScriptureBtnDisabled: { opacity: 0.4 },
     addScriptureBtnText: { color: '#fff', fontWeight: '700' },
     emptyText: { ...typography.subhead, color: t.textSecondary, fontStyle: 'italic', textAlign: 'center', marginTop: spacing.xl },
     scriptureWrap: { marginBottom: spacing.xs },

@@ -45,15 +45,17 @@ function formatTimer(ms: number): string {
   return `${String(m).padStart(2, '0')}:${ss}`;
 }
 
-function SpinnerSvg({ trackColor, arcColor }: { trackColor: string; arcColor: string }) {
+function SpinnerSvg({ trackColor, arcColor, reduceMotion }: { trackColor: string; arcColor: string; reduceMotion?: boolean }) {
   const rotation = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.loop(
+    if (reduceMotion) return; // honor Reduce Motion: show a static indicator
+    const loop = Animated.loop(
       Animated.timing(rotation, { toValue: 1, duration: 1000, easing: Easing.linear, useNativeDriver: true }),
-    ).start();
-    return () => rotation.stopAnimation();
-  }, [rotation]);
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [rotation, reduceMotion]);
 
   const spin = rotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
@@ -251,7 +253,7 @@ export default function RecordScreen() {
       if (outlineFellBack) {
         Alert.alert(
           'Basic outline saved',
-          "The AI couldn't build the full outline just now (often a temporary rate limit after a long recording). Your transcript and audio are safe — open the sermon and tap Regenerate to build the AI outline.",
+          "The AI couldn't build the full outline just now (often a temporary rate limit after a long recording). Your transcript and audio are safe — open the sermon and tap Re-transcribe to rebuild the AI outline.",
         );
       }
     } catch (e) {
@@ -352,7 +354,7 @@ export default function RecordScreen() {
 
       {isProcessing ? (
         <View style={styles.processingArea}>
-          <SpinnerSvg trackColor={t.spinnerTrack} arcColor={t.spinnerArc} />
+          <SpinnerSvg trackColor={t.spinnerTrack} arcColor={t.spinnerArc} reduceMotion={reduceMotion} />
           <View style={styles.processingText}>
             <Text style={[styles.processingTitle, { color: t.textPrimary }]}>
               {stepLabel[step] ?? 'Processing…'}
@@ -624,10 +626,7 @@ function makeStyles(t: Colors) {
 
     // ── Live "Spotlight" screen ──────────────────────────────────────────────
     liveWrap: { flex: 1, paddingHorizontal: spacing.md, paddingTop: 14 },
-    eyebrow: {
-      fontSize: 11, fontWeight: '700', letterSpacing: 0.9, textTransform: 'uppercase',
-      marginBottom: 8,
-    },
+    eyebrow: { ...typography.sectionHeader, marginBottom: 8 },
     txWrap: { flex: 1, minHeight: 0, marginTop: 20 },
     txScroll: { flex: 1 },
     txPlaceholder: { ...typography.body },
@@ -671,13 +670,7 @@ function makeStyles(t: Colors) {
     modalTitle: { ...typography.headline },
     panel: { borderRadius: radius.card, padding: 12 },
     panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    panelLabel: {
-      fontSize: 11,
-      fontWeight: '600',
-      letterSpacing: 0.8,
-      textTransform: 'uppercase',
-      marginBottom: 6,
-    },
+    panelLabel: { ...typography.sectionHeader, marginBottom: 6 },
     panelText: { ...typography.subhead, lineHeight: 21 },
 
     processingArea: {
