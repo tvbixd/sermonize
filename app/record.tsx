@@ -253,7 +253,7 @@ export default function RecordScreen() {
       if (outlineFellBack) {
         Alert.alert(
           'Basic outline saved',
-          "The AI couldn't build the full outline just now (often a temporary rate limit after a long recording). Your transcript and audio are safe — open the sermon and tap Re-transcribe to rebuild the AI outline.",
+          "The AI couldn't build the full outline just now (often a temporary rate limit after a long recording). Your transcript and audio are safe — open the sermon and tap Regenerate to rebuild the AI outline.",
         );
       }
     } catch (e) {

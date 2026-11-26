@@ -278,6 +278,28 @@ export default function SermonDetail() {
     );
   };
 
+  // Footer primary action. After a recording, audio always exists — but if the
+  // transcript is fine and only the outline is weak, the user wants to rebuild
+  // the outline (cheap, no re-transcription), not re-transcribe. So: when a
+  // transcript exists, offer Regenerate directly, with Re-transcribe alongside
+  // when audio is present; with no transcript (audio-only draft) go straight to
+  // Re-transcribe.
+  const onRebuild = () => {
+    const hasTranscript = !!sermon?.transcript.trim();
+    const hasAudio = audioFileUris.length > 0;
+    if (!hasTranscript) { void onRetranscribe(); return; }
+    if (!hasAudio) { void onRegenerate(); return; }
+    Alert.alert(
+      'Rebuild notes',
+      'Rebuild the outline from your transcript (fast), or re-transcribe from the audio (slower, replaces the transcript).',
+      [
+        { text: 'Rebuild outline', onPress: () => void onRegenerate() },
+        { text: 'Re-transcribe audio', onPress: () => void onRetranscribe() },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    );
+  };
+
   const onExport = () => {
     if (!sermon) return;
     const run = (fn: () => Promise<void>) => async () => {
@@ -580,29 +602,28 @@ export default function SermonDetail() {
 
       {/* Footer */}
       <View style={styles.footer}>
-        {sermon.isDraft || audioFileUris.length > 0 ? (
-          <TouchableOpacity style={styles.regenBtn} onPress={onRetranscribe} disabled={busy}>
-            {busy
-              ? <ActivityIndicator color={t.textSecondary} />
-              : (
-                <>
-                  <RegenIcon color={t.textPrimary} size={18} />
-                  <Text style={styles.regenText}>Re-transcribe</Text>
-                </>
-              )}
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.regenBtn} onPress={onRegenerate} disabled={busy}>
-            {busy
-              ? <ActivityIndicator color={t.textSecondary} />
-              : (
-                <>
-                  <RegenIcon color={t.textPrimary} size={18} />
-                  <Text style={styles.regenText}>Regenerate</Text>
-                </>
-              )}
-          </TouchableOpacity>
-        )}
+        {(() => {
+          const rebuildLabel = sermon.transcript.trim() ? 'Regenerate' : 'Re-transcribe';
+          return (
+            <TouchableOpacity
+              style={styles.regenBtn}
+              onPress={onRebuild}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel={rebuildLabel}
+              accessibilityState={{ disabled: busy }}
+            >
+              {busy
+                ? <ActivityIndicator color={t.textSecondary} />
+                : (
+                  <>
+                    <RegenIcon color={t.textPrimary} size={18} />
+                    <Text style={styles.regenText}>{rebuildLabel}</Text>
+                  </>
+                )}
+            </TouchableOpacity>
+          );
+        })()}
         <TouchableOpacity style={styles.exportBtn} onPress={onExport}>
           <ExportIcon color="#fff" size={18} />
           <Text style={styles.exportText}>Export</Text>

@@ -35,7 +35,7 @@ version), so a fresh build + submit is required.
 
 - [ ] Decide whether a Claude key backup is worth it (Gemini free quota is shared across all users)
 - [ ] Tune the outline prompt if quality is close-but-not-great
-- [ ] Consider surfacing "Regenerate" (rebuild outline from transcript) even when audio exists, so fixing a weak outline doesn't force a full re-transcription
+- [x] Surface "Regenerate" (rebuild outline from transcript) even when audio exists — footer now offers Regenerate directly, with Re-transcribe alongside when audio is present, so a weak outline no longer forces a full re-transcription
 
 ## 🆕 Phase 2.5 — On-device transcription (🤖) — DONE (needs native rebuild)
 
