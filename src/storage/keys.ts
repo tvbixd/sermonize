@@ -4,6 +4,7 @@ const DEEPGRAM_KEY = 'scribe.deepgramApiKey';
 const ANTHROPIC_KEY = 'scribe.anthropicApiKey';
 const GEMINI_KEY = 'scribe.geminiApiKey';
 const TRANSLATION_KEY = 'scribe.bibleTranslation';
+const TRANSCRIPTION_MODE_KEY = 'scribe.transcriptionMode';
 const ONBOARDED_KEY = 'scribe.onboarded';
 const AVATAR_KEY = 'scribe.avatarUri';
 
@@ -72,6 +73,19 @@ export async function setGeminiKey(value: string): Promise<void> {
   const v = value.trim();
   if (v) await SecureStore.setItemAsync(GEMINI_KEY, v);
   else await SecureStore.deleteItemAsync(GEMINI_KEY);
+}
+
+/** Transcription engine preference. `null` = use the platform default
+ *  (on-device on iOS, Deepgram elsewhere). An explicit value overrides it. */
+export type TranscriptionMode = 'on-device' | 'deepgram';
+
+export async function getTranscriptionMode(): Promise<TranscriptionMode | null> {
+  const v = await SecureStore.getItemAsync(TRANSCRIPTION_MODE_KEY);
+  return v === 'on-device' || v === 'deepgram' ? v : null;
+}
+
+export async function setTranscriptionMode(mode: TranscriptionMode): Promise<void> {
+  await SecureStore.setItemAsync(TRANSCRIPTION_MODE_KEY, mode);
 }
 
 export async function getTranslation(): Promise<string> {

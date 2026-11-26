@@ -15,6 +15,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -26,12 +27,15 @@ import {
   getAnthropicKey,
   getDeepgramKey,
   getGeminiKey,
+  getTranscriptionMode,
   getTranslation,
   setAnthropicKey,
   setDeepgramKey,
   setGeminiKey,
+  setTranscriptionMode,
   setTranslation,
 } from '@/storage/keys';
+import { isOnDeviceSpeechSupported } from '@/services/appleSpeech';
 import {
   type TranslationEntry,
   LEGACY_TRANSLATIONS,
@@ -189,6 +193,9 @@ export default function SettingsScreen() {
   // Deepgram key state (optional — better transcription when set)
   const [deepgram, setDeepgram] = useState('');
   const [showDeepgramKey, setShowDeepgramKey] = useState(false);
+  // Transcription engine toggle — on-device (default on iOS) vs Deepgram.
+  const onDeviceSupported = isOnDeviceSpeechSupported();
+  const [onDeviceTranscription, setOnDeviceTranscription] = useState(true);
   // Gemini key state (optional — free-tier outline engine)
   const [gemini, setGemini] = useState('');
   const [showGeminiKey, setShowGeminiKey] = useState(false);
@@ -219,12 +226,14 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     void (async () => {
-      const [tr, av, dg, an, gm] = await Promise.all([
-        getTranslation(), getAvatarUri(), getDeepgramKey(), getAnthropicKey(), getGeminiKey(),
+      const [tr, av, dg, an, gm, mode] = await Promise.all([
+        getTranslation(), getAvatarUri(), getDeepgramKey(), getAnthropicKey(), getGeminiKey(), getTranscriptionMode(),
       ]);
       setDeepgram(dg ?? '');
       setAnthropic(an ?? '');
       setGemini(gm ?? '');
+      // null mode = platform default (on-device on iOS).
+      setOnDeviceTranscription(mode === null ? onDeviceSupported : mode === 'on-device');
       setTrans(tr);
       setAvatarUriState(av);
       setLoaded(true);
@@ -788,6 +797,34 @@ export default function SettingsScreen() {
           </>
         )}
 
+        {/* Transcription engine (iOS: on-device vs Deepgram) */}
+        {onDeviceSupported && (
+          <>
+            <Text style={s.sectionLabel}>TRANSCRIPTION</Text>
+            <View style={[s.card, { marginHorizontal: 16 }]}>
+              <View style={s.toggleRow}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={[typography.body, { color: t.textPrimary }]}>On-device transcription</Text>
+                  <Text style={[s.helpText, { padding: 0, paddingTop: 4 }]}>
+                    {onDeviceTranscription
+                      ? 'Free and private — your sermon is transcribed on your iPhone, works offline. Turn off for cloud transcription (Deepgram), which is more accurate in a noisy room.'
+                      : 'Using Deepgram (cloud) — more accurate in a noisy room. Turn on for free, private, offline transcription on your iPhone.'}
+                  </Text>
+                </View>
+                <Switch
+                  value={onDeviceTranscription}
+                  onValueChange={async (v) => {
+                    setOnDeviceTranscription(v);
+                    await setTranscriptionMode(v ? 'on-device' : 'deepgram');
+                  }}
+                  trackColor={{ true: t.accentBlue }}
+                  accessibilityLabel="On-device transcription"
+                />
+              </View>
+            </View>
+          </>
+        )}
+
         {/* Deepgram API Key (optional override) */}
         <Text style={s.sectionLabel}>DEEPGRAM API KEY (OPTIONAL)</Text>
         <View style={[s.card, { marginHorizontal: 16 }]}>
@@ -1155,6 +1192,7 @@ function makeStyles(t: Colors) {
       paddingHorizontal: 16, minHeight: 48,
     },
     keyInput: { ...typography.body, flex: 1, paddingVertical: 8 },
+    toggleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
     keyStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8 },
     modeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
 

@@ -37,8 +37,18 @@ version), so a fresh build + submit is required.
 - [ ] Tune the outline prompt if quality is close-but-not-great
 - [ ] Consider surfacing "Regenerate" (rebuild outline from transcript) even when audio exists, so fixing a weak outline doesn't force a full re-transcription
 
+## 🆕 Phase 2.5 — On-device transcription (🤖) — DONE (needs native rebuild)
+
+- [x] Apple on-device speech (`expo-speech-recognition`) as default on iOS; Deepgram elsewhere
+- [x] Auto-fallback to Deepgram if on-device errors or returns nothing
+- [x] Settings toggle: "On-device transcription" (free/offline vs Deepgram accuracy)
+- [x] Speech Recognition permission via config plugin
+- [ ] ⚠️ Requires a native rebuild (new native module) — not OTA-deliverable
+- [ ] 📱 Test accuracy in a real service; flip the toggle to Deepgram if the room is noisy
+
 ## 🎨 Phase 3 — Interface polish (🤖) — DONE
 
+- [x] Tappable scripture references in the outline (verse popover)
 - [x] Tab `selected` state + role for screen readers (sermon detail)
 - [x] Disabled-state styling on the "Add scripture" button
 - [x] Blue non-interactive reference tags → chip style (stop looking like links)

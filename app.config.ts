@@ -95,6 +95,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           'Scribe needs microphone access to record sermons for transcription and outlining.',
       },
     ],
+    [
+      'expo-speech-recognition',
+      {
+        microphonePermission:
+          'Scribe needs microphone access to transcribe your sermon on-device.',
+        speechRecognitionPermission:
+          'Scribe uses speech recognition to transcribe your sermon into notes, on your device.',
+      },
+    ],
   ],
   experiments: {
     tsconfigPaths: true,
